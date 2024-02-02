@@ -1,1 +1,1 @@
-# spatpred
+# Spatial predictions of the visual cortex
