@@ -219,16 +219,54 @@ def make_visrois_dict(vox_count = 'n', bin_check = 'n', n_subjects = None):
 
     return binary_masks
 
+# Function to create a dictionary containing all the R2 explained variance data of the NSD experiment, could also be turned into a general dict-making func
+def nsd_R2_dict(binary_masks = None):
+    n_subjects = len(os.listdir('/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata'))
+    subject_list = [f'subj{i:02d}' for i in range(1, n_subjects + 1)] 
 
-# Create a dictionary for the top n R2 prf values, the amount of explained variance
-# it does so for every visual roi and subject separately
-def rsquare_selection(prf_dict = None, top_n = 1000, n_subjects = None):
+    nsd_R2_dict = {}
+
+    # Make a loop to go over all the subjects
+    for subject in subject_list:
+        nsd_R2_dict[subject] = {}
+        nsd_R2_dict[subject]['full_R2'] = {}
+        nsd_R2_dict[subject]['R2_roi'] = {}
+        
+        # Create list for all visual rois
+        roi_list = list(binary_masks[subject].keys())
+
+        nsd_R2_path = f'/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata/{subject}/func1mm/R2.nii.gz'
+        nsd_R2_dat, nsd_R2_ar, nsd_R2_dim, nsd_R2_range = get_dat(nsd_R2_path)
+        nsd_R2_dict[subject]['full_R2'] = {
+                'R2_dat': nsd_R2_dat,
+                'R2_ar': nsd_R2_ar,
+                'R2_dim': nsd_R2_dim,
+                'R2_range': nsd_R2_range
+            }
+        
+        for roi in roi_list:
+            nsd_R2_dict[subject]['R2_roi'][roi] = roi_filter(binary_masks[subject][roi], nsd_R2_dict[subject]['full_R2']['R2_ar'])
+
+    return nsd_R2_dict
+
+# Create a dictionary for the top n R2 prf/nsd values, the amount of explained variance
+# it does so for every visual roi and subject separately. dataset can be 'nsd' or 'prf'
+# and input_dict should be given accordingly.
+def rsquare_selection(input_dict = None, top_n = 1000, n_subjects = None, dataset = 'nsd'):
     rsq_dict = {}
     
+    if dataset == 'prf':
+        rois = input_dict['subj01']['proc'].keys()
+    elif dataset == 'nsd':
+        rois = input_dict['subj01']['R2_roi'].keys()
+
     for subj_no in range (1, n_subjects + 1):
         subj_rsq = {}
-        for roi in prf_dict[f'subj0{subj_no}']['proc'].keys():
-            rsq_ar = prf_dict[f'subj0{subj_no}']['proc'][roi]['R2']
+        for roi in rois:
+            if dataset == 'prf':
+                rsq_ar = input_dict[f'subj0{subj_no}']['proc'][roi]['R2']
+            elif dataset == 'nsd':
+                rsq_ar = input_dict[f'subj0{subj_no}']['R2_roi'][roi]
             rsq_sort = np.argsort(rsq_ar[:, -1])
             rsq_top = rsq_ar[rsq_sort[-top_n:]]
             subj_rsq[roi] = rsq_top
@@ -305,7 +343,7 @@ def write_prf_dict(binary_masks):
 
     prf_dict = {}
 
-    # Make a loop to go over all the subjects, rois, later
+    # Make a loop to go over all the subjects
     for subject in subject_list:
         prf_dict[subject] = {}
         prf_dict[subject]['nsd_dat'] = {}
@@ -345,7 +383,9 @@ def write_prf_dict(binary_masks):
 
     return prf_dict
 
-def plot_prf_data(prf_dictionary, size_key='size', sigma_key='lin_sigma', x_lim=(0, 20), y_lim=(0, 8), ci = 95):
+
+# Create a plot in which the different calculations (CSS,nonlinear vs. linear) for pRF radius are compared
+def compare_radius(prf_dictionary, size_key='size', sigma_key='lin_sigma', x_lim=(0, 20), y_lim=(0, 8), ci = 95):
     """
     Plot pRF data for each ROI side by side.
 
@@ -433,15 +473,15 @@ def plot_prf_data(prf_dictionary, size_key='size', sigma_key='lin_sigma', x_lim=
     plt.show()
     return all_subs
 
-# This class is to make sure that the heatmap can still be plotted if all pRF
-# options have been considered.
+# # This class is to make sure that the heatmap can still be plotted if all pRF
+# # options have been considered.
 class AllPRFConsidered(Exception):
     pass
 
 def get_mask(dim = 200, subject = 'subj01', binary_masks = None, 
              prf_proc_dict = None, type = 'full_gaussian', roi = 'V2', 
              plot = 'y', heatmap = 'n', prf_vec = None, iter = None, excl_reason = 'n', 
-             sigma_min = 0, sigma_max = 4.2, ecc_max = 4.2, rand_seed = None, filter_dict = None):
+             sigma_min = 0, sigma_max = 4.2, ecc_max = 4.2, rand_seed = None, filter_dict = None, ecc_strict = None):
 
     if rand_seed == None:
         random.seed(random.randint(1, 1000000))
@@ -483,6 +523,11 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
 
         sigma = prf_size * np.sqrt(prf_expt)
         sigma_pure = sigma * (dim / 8.4)
+        outer_bound = prf_ecc
+        
+        # Condition to regulate the strictness of maximum eccentricity values
+        if ecc_strict == 'y':
+            outer_bound = prf_ecc + prf_size
         
         # Sinus is used to calculate height, cosinus width
         # so c_index is the y coordinate and r_index is the x coordinate. 
@@ -505,8 +550,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
             0 < y < dim,
             sigma_min < sigma,
             sigma < sigma_max,
-            prf_ecc < ecc_max
-            
+            outer_bound < ecc_max,
             # prf_expt > 0
         )
 
@@ -556,7 +600,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
                     f'pRF x,y,σ: {round(x_deg, 1), round(y_deg, 1), round(prf_size, 1)}\n'
                     f'Angle: {round(prf_angle, 2)}°\nEccentricity: {round(prf_ecc, 2)}°\n'
                     f'Exponent: {round(prf_expt, 2)}\nSize: {round(prf_size, 2)}°\n'
-                    f'Explained variance (R2): {round(prf_rsq, 2)}%')
+                    f'Explained pRF variance (R2): {round(prf_rsq, 2)}%')
         ax.set_xlabel('Horizontal Degrees of Visual Angle')
         ax.set_ylabel('Vertical Degrees of Visual Angle')
 
@@ -585,7 +629,6 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
 
         # Return the dictionary
     return prf_output_dict
-
 
 def compare_masks(mask_dict = None, prf_dict = None, subject='subj01', roi='V1', sigma_min=0.1, 
                   sigma_max=4.2, cmap = 'afmhot'):
@@ -628,15 +671,48 @@ def compare_masks(mask_dict = None, prf_dict = None, subject='subj01', roi='V1',
 
     plt.show()
 
-class AllPRFConsidered(Exception):
-    pass
+# Function to compare the heatmaps on different bases, need to add different comparison types, than just roi. For now suffices
+def compare_heatmaps(n_prfs, binary_masks = None, prf_proc_dict = None, filter_dict = None, basis = 'roi', 
+                     mask_type = 'cut_gaussian', cmap = 'CMRmap', roi = 'V1', excl_reason = 'n', sigma_min = 0, 
+                     sigma_max = 4.2, ecc_max = 2, print_prog = 'n', outline_degs = None, fill_outline = 'n', ecc_strict = None):
+    
+    if basis == 'roi':
+        rois = sorted(prf_proc_dict['subj01']['proc'].keys())
+    
+    def plot_mask(ax, mask, title):
+        ax.imshow(mask, cmap = cmap)
+        ax.set_title(title)
+        ax.axis('off')
+        
+    fig, axs = plt.subplots(1, 4, figsize = (20,5))
+    
+    for n, roi in enumerate(rois):    
+        heatmap, iter, end_premat, roi, prf_sizes, rel_surf = prf_heatmap(n_prfs, binary_masks=binary_masks, prf_proc_dict=prf_proc_dict,
+                                                                        mask_type=mask_type, cmap=cmap, roi=roi[:2], excl_reason = excl_reason,
+                                                                        sigma_min=sigma_min, sigma_max = sigma_max, ecc_max = ecc_max, 
+                                                                        print_prog = print_prog, subjects='all', outline_degs = outline_degs, 
+                                                                        filter_dict = filter_dict, fill_outline = fill_outline, plot_heat = 'n', 
+                                                                        ecc_strict = ecc_strict)
+
+        plot_mask(axs[n], heatmap, f'{roi}\n Average pRF radius: {round(np.mean(prf_sizes), 2)}°, {rel_surf}% of outline surface')
+
+    
+    plt.tight_layout()
+    plt.show()
+        
+
+
+
+# class AllPRFConsidered(Exception):
+#     pass
 
 def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussian', cmap='gist_heat', 
-                roi='V2', sigma_min=1, sigma_max=25, ecc_max = 4.2, print_prog='n', subjects='all',
-                outline = None, filter_dict = None):
+                roi='V2', sigma_min=1, sigma_max=25, ecc_max = 4.2, print_prog='n', excl_reason = 'n', subjects='all',
+                outline_degs = None, filter_dict = None, fill_outline = 'n', plot_heat = 'y', ecc_strict = None):
     
+    outline_surface = np.pi * outline_degs**2
     prf_sumstack = []
-    
+    prf_sizes = []
     if subjects == 'all':
         subjects = list(binary_masks)
     else:
@@ -650,17 +726,18 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
             smaller_xyz = filter_dict[subject][f'{roi}_mask'][:, :3]
             # filter = np.any(np.all(binary_masks[subject][f'{roi}_mask'][:, None, :3] == smaller_xyz, axis=-1), axis=1)
             filter = np.any(np.all(prf_proc_dict[subject]['proc'][f'{roi}_mask']['angle'][:, None, :3] == smaller_xyz, axis=-1), axis=1)
-            roi_flt = filter_dict[subject][f'{roi}_mask'].shape[0]
-            prf_vec = random.sample(range(roi_flt), roi_flt)
+            roi_flt = filter_dict[subject][f'{roi}_mask'].shape[0] # Amount of voxels in top rsq dict for subj, roi
+            prf_vec = random.sample(range(roi_flt), roi_flt) # Create random vector to shuffle order voxels to consider
             
         else:
             filter = range(0, prf_proc_dict[subject]['proc'][f'{roi}_mask']['angle'].shape[0])
-            roi_flt = binary_masks[subject][f'{roi}_mask']
-            prf_vec = random.sample(range(np.sum(roi_flt)), np.sum(roi_flt))
+            roi_flt = binary_masks[subject][f'{roi}_mask'] # This is the total number of voxels for subj, roi
+            prf_vec = random.sample(range(np.sum(roi_flt)), np.sum(roi_flt)) # Idem dito as in the 'if' part
             
         # FIX THIS STILL!!!
         if n_prfs == 'all':
-            n_prfs_subject = np.sum(binary_masks[subject][f'{roi}_mask'][filter]) # This does not work
+            # n_prfs_subject = np.sum(binary_masks[subject][f'{roi}_mask']) # This does not work
+            n_prfs_subject = random.randint(10,30)
         else:
             n_prfs_subject = n_prfs
 
@@ -685,32 +762,41 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
                                     sigma_min=sigma_min,
                                     sigma_max=sigma_max,
                                     ecc_max = ecc_max,
-                                    excl_reason='y',
-                                    filter_dict = filter_dict)
+                                    excl_reason=excl_reason,
+                                    filter_dict = filter_dict,
+                                    ecc_strict = ecc_strict)
                 prf_single[:, :, prf] = prf_dict['mask']
                 iter = prf_dict['iterations']
+                prf_size = prf_dict['size']
+                prf_sizes.append(prf_size)
                 if print_prog == 'y':
                     print(f"Subject: {subject}, Voxel {prf+1} out of {n_prfs_subject} found")
                 if (prf+1) == n_prfs_subject:
                     print('\n')
             except AllPRFConsidered:
-                print("All potential pRFs have been considered at least once.")
-                end_premat = True
+                if prf >= n_prfs_subject:
+                    print(f'All potential pRFs have been considered at least once.\n'
+                        f'Total amount of pRFs found: {len(prf_sizes)}')
+                    end_premat = True
+                    
                 break  # Exit the loop immediately
         
         prf_sumstack.append(np.mean(prf_single, axis=2))
          
+    avg_prf_surface = np.pi * np.mean(prf_sizes)**2
+    relative_surface = round(((avg_prf_surface / outline_surface) * 100), 2)
     # Combine heatmaps of all subjects
     prf_sum_all_subjects = np.mean(np.array(prf_sumstack), axis=0)
-    
+    outline = make_circle_mask(425, 213, 213, outline_degs * 425/8.4, fill=fill_outline)
     # Create a circle outline if an array is provide in the outline argument (should be same dimensions, binary)
-    prf_sum_all_subjects += (np.max(prf_sum_all_subjects) * outline) if outline is not None else 1
+    prf_sum_all_subjects += (np.max(prf_sum_all_subjects) * outline) if outline_degs is not None else 1
 
     # Display the plot
     fig, ax = plt.subplots(figsize=(8, 8))
     im = ax.imshow(prf_sum_all_subjects, cmap=cmap, origin='lower', extent=[-4.2, 4.2, -4.2, 4.2])
     ax.set_title(f'Region Of Interest: {roi}\n'
-                 f'Spatial restriction of central {2 * ecc_max}° degrees visual angle')
+                 f'Spatial restriction of central {2 * ecc_max}° visual angle\n'
+                 f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°, {relative_surface}% of outline surface')
     ax.set_xlabel('Horizontal Degrees of Visual Angle')
     ax.set_ylabel('Vertical Degrees of Visual Angle')
     cbar = plt.colorbar(im, ax=ax, shrink = .6)
@@ -719,9 +805,13 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
     # Set ticks at every 0.1 step
     ax.xaxis.set_major_locator(MultipleLocator(0.5))
     ax.yaxis.set_major_locator(MultipleLocator(0.5))
-    plt.show()
 
-    return prf_sum_all_subjects, iter, end_premat, roi
+    if plot_heat == 'n':
+        plt.close()
+    else: 
+        plt.show()
+
+    return prf_sum_all_subjects, iter, end_premat, roi, prf_sizes, relative_surface
 
 # This function applies a gaussian filter to the loaded image
 def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heatmask = None, 
