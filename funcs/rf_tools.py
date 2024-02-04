@@ -1,4 +1,4 @@
-
+print('diarreeklont')
 import os
 import sys
 from tkinter import Y
@@ -74,14 +74,14 @@ def calculate_pRF_location(prf_size, prf_ecc, prf_angle, image_size=(200, 200), 
 
 def prf_plots_new(subj_no, bottom_percent=95):
     prf_info = ['angle', 'eccentricity', 'size']
-    prf_dict = {}
+    prf_plot_dict = {}
     
     # Load data for angle, eccentricity, and size
     for idx in prf_info:
-        _, prf_dict[idx], _, prf_range = get_dat(f'/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata/subj0{subj_no}/func1mm/prf_{idx}.nii.gz')
+        _, prf_plot_dict[idx], _, prf_range = get_dat(f'/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata/subj0{subj_no}/func1mm/prf_{idx}.nii.gz')
     
     # Calculate the common boolean mask based on exclusion criteria
-    common_mask = (~np.isnan(prf_dict['eccentricity'])) & (prf_dict['eccentricity'] < 1000) & (prf_dict['size']<1000)  # Adjust conditions as needed
+    common_mask = (~np.isnan(prf_plot_dict['eccentricity'])) & (prf_plot_dict['eccentricity'] < 1000) & (prf_dict['size']<1000)  # Adjust conditions as needed
 
     # Apply the common boolean mask to all relevant arrays
     for key in prf_info:
@@ -135,7 +135,7 @@ def prf_plots_new(subj_no, bottom_percent=95):
     # plt.ylabel('Row Index (pixel units)')
     # plt.show()
     
-    return prf_dict
+    return prf_plot_dict
 
 # This one works
 def prf_plots(subj_no, bottom_percent=95):
@@ -481,7 +481,8 @@ class AllPRFConsidered(Exception):
 def get_mask(dim = 200, subject = 'subj01', binary_masks = None, 
              prf_proc_dict = None, type = 'full_gaussian', roi = 'V2', 
              plot = 'y', heatmap = 'n', prf_vec = None, iter = None, excl_reason = 'n', 
-             sigma_min = 0, sigma_max = 4.2, ecc_max = 4.2, rand_seed = None, filter_dict = None, ecc_strict = None):
+             sigma_min = 0, sigma_max = 4.2, ecc_max = 4.2, rand_seed = None, filter_dict = None, 
+             ecc_strict = None, grid = 'n'):
 
     if rand_seed == None:
         random.seed(random.randint(1, 1000000))
@@ -548,8 +549,8 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         valid_conditions = (
             0 < x < dim,
             0 < y < dim,
-            sigma_min < sigma,
-            sigma < sigma_max,
+            sigma_min < deg_radius,
+            deg_radius < sigma_max,
             outer_bound < ecc_max,
             # prf_expt > 0
         )
@@ -597,7 +598,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         ax.imshow(prf_mask, cmap='bone', origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
         ax.set_title(f'Region Of Interest: {roi}\n'
                     f'Voxel: [{x_vox}, {y_vox}, {z_vox}]\n'
-                    f'pRF x,y,σ: {round(x_deg, 1), round(y_deg, 1), round(prf_size, 1)}\n'
+                    f'pRF x,y,σ: {round(x_deg, 1), round(y_deg, 1), round(deg_radius, 1)}\n'
                     f'Angle: {round(prf_angle, 2)}°\nEccentricity: {round(prf_ecc, 2)}°\n'
                     f'Exponent: {round(prf_expt, 2)}\nSize: {round(prf_size, 2)}°\n'
                     f'Explained pRF variance (R2): {round(prf_rsq, 2)}%')
@@ -614,6 +615,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         'x': x,
         'y': y,
         'pix_radius': pix_radius,
+        'deg_radius': deg_radius, 
         'iterations': iter,
         'x_vox': x_vox,
         'y_vox': y_vox,
@@ -630,6 +632,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         # Return the dictionary
     return prf_output_dict
 
+# Function to compare the different ways of reaching a pRF filter. Nonlinear (CSS) and linear
 def compare_masks(mask_dict = None, prf_dict = None, subject='subj01', roi='V1', sigma_min=0.1, 
                   sigma_max=4.2, cmap = 'afmhot'):
   
@@ -645,74 +648,71 @@ def compare_masks(mask_dict = None, prf_dict = None, subject='subj01', roi='V1',
                                        prf_proc_dict=prf_dict, type='circle', roi=roi,
                                        plot='n', excl_reason='n', sigma_min=sigma_min, sigma_max=sigma_max, rand_seed=dobbel)
 
-    gaus_dict = get_mask(dim=425, subject=subject, binary_masks = mask_dict, 
-                                         prf_proc_dict=prf_dict, type='gaussian', roi=roi,
-                                         plot='n', excl_reason='n', sigma_min=sigma_min, sigma_max=sigma_max, rand_seed=dobbel)
-
-    full_gaus_dict = get_mask(dim=425, subject=subject, binary_masks = mask_dict, 
-                                              prf_proc_dict=prf_dict, type='full_gaussian', roi=roi,
-                                              plot='n', excl_reason='n', sigma_min=sigma_min, sigma_max=sigma_max, rand_seed=dobbel)
-
-    cut_gaus_dict = get_mask(dim=425, subject=subject, binary_masks = mask_dict, 
-                                             prf_proc_dict=prf_dict, type='cut_gaussian', roi=roi,
-                                             plot='n', excl_reason='n', sigma_min=sigma_min, sigma_max=sigma_max, rand_seed=dobbel)
-
+    gaus = make_gaussian_2d(425, circle_dict['x'], circle_dict['y'], circle_dict['pix_radius'])
+    full_gaus = make_gaussian_2d(425, circle_dict['x'], circle_dict['y'], (circle_dict['size'] * (425 / 8.4)))
+    cut_gaus = css_gaussian_cut(425, circle_dict['x'], circle_dict['y'], (circle_dict['size'] * (425 / 8.4)))
+    
     # Create a figure with 1 row and 3 columns
     fig, axs = plt.subplots(1, 4, figsize=(20, 5))
 
     # Plot each mask on a separate axis
     plot_mask(axs[0], circle_dict['mask'], 'Boolean mask')
-    plot_mask(axs[1], gaus_dict['mask'], 'Simple Gaussian')
-    plot_mask(axs[2], full_gaus_dict['mask'], 'Full CSS input responsive Gaussian \n with prf_size as sigma')
-    plot_mask(axs[3], cut_gaus_dict['mask'], '1 SD cut CSS Gaussian')
+    plot_mask(axs[1], gaus, 'Simple Gaussian')
+    plot_mask(axs[2], full_gaus, 'Full CSS input responsive Gaussian \n with prf_size as sigma')
+    plot_mask(axs[3], cut_gaus, '1 SD cut CSS Gaussian')
 
     # Add a main title for the entire figure
     fig.suptitle(f'{roi} of {subject}', fontsize=14)
 
     plt.show()
 
+
 # Function to compare the heatmaps on different bases, need to add different comparison types, than just roi. For now suffices
-def compare_heatmaps(n_prfs, binary_masks = None, prf_proc_dict = None, filter_dict = None, basis = 'roi', 
-                     mask_type = 'cut_gaussian', cmap = 'CMRmap', roi = 'V1', excl_reason = 'n', sigma_min = 0, 
-                     sigma_max = 4.2, ecc_max = 2, print_prog = 'n', outline_degs = None, fill_outline = 'n', ecc_strict = None):
-    
+def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=None, basis='roi',
+                     mask_type='cut_gaussian', cmap='CMRmap', roi='V1', excl_reason='n', sigma_min=0,
+                     sigma_max=4.2, ecc_max=2, print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid = 'n'):
     if basis == 'roi':
         rois = sorted(prf_proc_dict['subj01']['proc'].keys())
-    
-    def plot_mask(ax, mask, title):
-        ax.imshow(mask, cmap = cmap)
+
+    def plot_mask(ax, mask, title, last=None):
+        img = ax.imshow(mask, cmap=cmap)
         ax.set_title(title)
         ax.axis('off')
-        
-    fig, axs = plt.subplots(1, 4, figsize = (20,5))
-    
-    for n, roi in enumerate(rois):    
-        heatmap, iter, end_premat, roi, prf_sizes, rel_surf = prf_heatmap(n_prfs, binary_masks=binary_masks, prf_proc_dict=prf_proc_dict,
-                                                                        mask_type=mask_type, cmap=cmap, roi=roi[:2], excl_reason = excl_reason,
-                                                                        sigma_min=sigma_min, sigma_max = sigma_max, ecc_max = ecc_max, 
-                                                                        print_prog = print_prog, subjects='all', outline_degs = outline_degs, 
-                                                                        filter_dict = filter_dict, fill_outline = fill_outline, plot_heat = 'n', 
-                                                                        ecc_strict = ecc_strict)
+        ax.set_xlabel('Horizontal Degrees of Visual Angle')
+        ax.set_ylabel('Vertical Degrees of Visual Angle')
+        # if last == 'y':
+        #     cbar = plt.colorbar(img, ax=ax, pad=0.01)  # Ensure colorbar placement
+        #     cbar.set_label('pRF density')
 
-        plot_mask(axs[n], heatmap, f'{roi}\n Average pRF radius: {round(np.mean(prf_sizes), 2)}°, {rel_surf}% of outline surface')
+    fig, axs = plt.subplots(1, 4, figsize=(20, 5))
 
-    
+    for n, roi in enumerate(rois):
+        heatmap, iter, end_premat, roi, prf_sizes, rel_surf, total_prfs_found = prf_heatmap(
+                                    n_prfs, binary_masks=binary_masks, prf_proc_dict=prf_proc_dict,
+                                    mask_type=mask_type, cmap=cmap, roi=roi[:2], excl_reason=excl_reason,
+                                    sigma_min=sigma_min, sigma_max=sigma_max, ecc_max=ecc_max,
+                                    print_prog=print_prog, subjects='all', outline_degs=outline_degs,
+                                    filter_dict=filter_dict, fill_outline=fill_outline, plot_heat='n',
+                                    ecc_strict=ecc_strict, grid = grid)
+
+        last_plot = 'y' if n == (len(rois) - 1) else 'n'
+        plot_mask(axs[n], heatmap, f'{roi}\n Average pRF radius: {round(np.mean(prf_sizes), 2)}°, {rel_surf}% of outline surface\n'
+                  f'Total amount of pRFs found: {total_prfs_found}', last=last_plot)
+
     plt.tight_layout()
     plt.show()
-        
-
-
 
 # class AllPRFConsidered(Exception):
 #     pass
 
 def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussian', cmap='gist_heat', 
                 roi='V2', sigma_min=1, sigma_max=25, ecc_max = 4.2, print_prog='n', excl_reason = 'n', subjects='all',
-                outline_degs = None, filter_dict = None, fill_outline = 'n', plot_heat = 'y', ecc_strict = None):
+                outline_degs = None, filter_dict = None, fill_outline = 'n', plot_heat = 'y', ecc_strict = None, grid = 'n'):
     
     outline_surface = np.pi * outline_degs**2
     prf_sumstack = []
     prf_sizes = []
+    total_prfs_found = 0
     if subjects == 'all':
         subjects = list(binary_masks)
     else:
@@ -736,8 +736,8 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
             
         # FIX THIS STILL!!!
         if n_prfs == 'all':
-            # n_prfs_subject = np.sum(binary_masks[subject][f'{roi}_mask']) # This does not work
-            n_prfs_subject = random.randint(10,30)
+            n_prfs_subject = np.sum(binary_masks[subject][f'{roi}_mask']) # This does not work
+            # n_prfs_subject = random.randint(10,20)
         else:
             n_prfs_subject = n_prfs
 
@@ -764,15 +764,16 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
                                     ecc_max = ecc_max,
                                     excl_reason=excl_reason,
                                     filter_dict = filter_dict,
-                                    ecc_strict = ecc_strict)
+                                    ecc_strict = ecc_strict,
+                                    grid = grid)
                 prf_single[:, :, prf] = prf_dict['mask']
                 iter = prf_dict['iterations']
                 prf_size = prf_dict['size']
                 prf_sizes.append(prf_size)
                 if print_prog == 'y':
                     print(f"Subject: {subject}, Voxel {prf+1} out of {n_prfs_subject} found")
-                if (prf+1) == n_prfs_subject:
-                    print('\n')
+                    if (prf+1) == n_prfs_subject:
+                        print('\n')
             except AllPRFConsidered:
                 if prf >= n_prfs_subject:
                     print(f'All potential pRFs have been considered at least once.\n'
@@ -782,6 +783,7 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
                 break  # Exit the loop immediately
         
         prf_sumstack.append(np.mean(prf_single, axis=2))
+        total_prfs_found += len(prf_sizes)
          
     avg_prf_surface = np.pi * np.mean(prf_sizes)**2
     relative_surface = round(((avg_prf_surface / outline_surface) * 100), 2)
@@ -796,7 +798,8 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
     im = ax.imshow(prf_sum_all_subjects, cmap=cmap, origin='lower', extent=[-4.2, 4.2, -4.2, 4.2])
     ax.set_title(f'Region Of Interest: {roi}\n'
                  f'Spatial restriction of central {2 * ecc_max}° visual angle\n'
-                 f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°, {relative_surface}% of outline surface')
+                 f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°, {relative_surface}% of outline surface\n'
+                 f'Total amount of pRFs found: {total_prfs_found}')
     ax.set_xlabel('Horizontal Degrees of Visual Angle')
     ax.set_ylabel('Vertical Degrees of Visual Angle')
     cbar = plt.colorbar(im, ax=ax, shrink = .6)
@@ -811,12 +814,13 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
     else: 
         plt.show()
 
-    return prf_sum_all_subjects, iter, end_premat, roi, prf_sizes, relative_surface
+    return prf_sum_all_subjects, iter, end_premat, roi, prf_sizes, relative_surface, total_prfs_found
+
 
 # This function applies a gaussian filter to the loaded image
 def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heatmask = None, 
                 binary_masks = None, prf_proc_dict = None, roi = 'V1', sigma_min=1, sigma_max=25, 
-                rand_seed = None, invert = 'n', central = 'n', filter_dict = None):
+                rand_seed = None, invert = 'n', central = 'n', filter_dict = None, grid = 'n'):
     # arguments can be specified manually, or generated randomly if none are given
     # when entered manually there is no specification of parameters (yet)
     # I have to think about whether this is actually relevant, don't think so.
@@ -831,7 +835,7 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
             prf_info = get_mask(dim = image.shape[0], subject = 'subj01', plot = 'n', 
                                 binary_masks = binary_masks, prf_proc_dict = prf_proc_dict, 
                                 type = type, sigma_min=sigma_min, sigma_max=sigma_max, 
-                                rand_seed = rand_seed, filter_dict = filter_dict)
+                                rand_seed = rand_seed, filter_dict = filter_dict, grid = grid)
 
         
         x, y, sigma = prf_info['x'], prf_info['y'], prf_info['pix_radius']
@@ -876,7 +880,12 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
     ax.set_xlabel('Horizontal Degrees of Visual Angle')
     ax.set_ylabel('Vertical Degrees of Visual Angle')
 
+
+
+
     # Set ticks at every 0.1 step
     ax.xaxis.set_major_locator(MultipleLocator(0.5))
     ax.yaxis.set_major_locator(MultipleLocator(0.5))
+    
+    return prf_info
 

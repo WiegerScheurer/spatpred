@@ -4,7 +4,7 @@ import random
 import h5py
 
 # Function to show a randomly selected image of the nsd dataset
-def show_stim(hide = 'n'):
+def show_stim(hide = 'n', img_no = 'random'):
     # Example code to show how to access the image files, these are all 73000 of them, as np.arrays
     # I keep it like this as it might be useful to also store the reconstructed images with the autoencoder
     # using a .hdf5 folder structure, but I can change this later on.
@@ -15,8 +15,12 @@ def show_stim(hide = 'n'):
     with h5py.File(f'{stim_dir}{stim_files[0]}', 'r') as file:
         img_brick_dataset = file['imgBrick']
         
-        image_no = random.randint(0,img_brick_dataset.shape[0])
+        if img_no == 'random':
+            image_no = random.randint(0,img_brick_dataset.shape[0])
+        else: image_no = img_no
+        
         test_image = img_brick_dataset[image_no]
+            
         
     if hide == 'n':
         plt.figure(figsize=(10, 10))
