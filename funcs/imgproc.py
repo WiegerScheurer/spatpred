@@ -66,3 +66,80 @@ def get_imgs_designmx():
     
     return stims_design_mx
     
+    
+    
+def calculate_rms_contrast_circle(image_array, center, radius):
+    """
+    Calculate the Root Mean Square (RMS) contrast, Contrast Energy (CE), and Spatial Coherence (SC)
+    of a circular patch in a color image.
+
+    Parameters:
+    - image_array (numpy.ndarray): Input color image array of shape (height, width, channels).
+    - center (tuple): Center coordinates of the circular patch (x, y).
+    - radius (int): Radius of the circular patch.
+
+    Returns:
+    - tuple: (RMS contrast, CE, SC, image with circle drawn)
+    """
+    # Convert the image to grayscale
+    gray_image = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
+
+    # Extract circular patch
+    mask = np.zeros_like(gray_image)
+    cv2.circle(mask, center, radius, 1, thickness=-1)  # Filled circle as a mask
+    patch_pixels = gray_image[mask == 1]
+
+    # Draw circle on the original image
+    image_with_circle = image_array.copy()
+    cv2.circle(image_with_circle, center, radius, (0, 255, 0), thickness=2)  # Green circle
+
+    # Calculate mean intensity
+    mean_intensity = np.mean(patch_pixels)
+
+    # Calculate RMS contrast within the circular patch
+    rms_contrast = np.sqrt(np.mean((patch_pixels - mean_intensity)**2))
+
+    # Calculate Contrast Energy (CE)
+    ce = np.sum((patch_pixels - mean_intensity)**2) / len(patch_pixels)
+
+    # Calculate Spatial Coherence (SC)
+    # sc = ce / (np.std(patch_pixels)**2)
+
+# Calculate Spatial Coherence (SC)
+    sc = (np.std(patch_pixels)**2) / ce
+
+    
+    
+    print("CE:", ce)
+    print("SC:", sc)
+    print("Patch Pixels:", patch_pixels)
+    print("Std Dev:", np.std(patch_pixels))
+    
+    
+    # Display the image with the circle
+    plt.imshow(image_with_circle)
+    plt.title('Image with Circle')
+    plt.show()
+    
+    return rms_contrast, ce, sc, image_with_circle, mask, patch_pixels, mean_intensity
+
+def calculate_rms_contrast_color(image_array):
+    """
+    Calculate the Root Mean Square (RMS) contrast of a color image.
+
+    Parameters:
+    - image_array (numpy.ndarray): Input image array of shape (height, width, channels).
+
+    Returns:
+    - float: RMS contrast value.
+    """
+    # Convert the image to grayscale
+    gray_image = np.mean(image_array, axis=-1)
+
+    # Calculate mean intensity
+    mean_intensity = np.mean(gray_image)
+
+    # Calculate RMS contrast
+    rms_contrast = np.sqrt(np.mean((gray_image - mean_intensity)**2))
+
+    return rms_contrast

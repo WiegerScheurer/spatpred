@@ -5,6 +5,7 @@ from tkinter import Y
 import nipype
 import numpy as np
 import nibabel as nib
+import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.lines import Line2D
@@ -18,12 +19,13 @@ from scipy.ndimage import binary_dilation
 import io
 import json
 # from scipy.ndimage import gaussian_filter
-# import cv2
+import cv2
 import random
 import time
 import os
 import seaborn as sns
 import pprint as pprint
+from sklearn.linear_model import LinearRegression
 
 
 # Function to load in nifti (.nii.gz) data and create some useful variables 
@@ -306,7 +308,6 @@ def make_circle_mask(size, center_row, center_col, radius, fill='y', margin_widt
     elif fill == 'n':
         return -outline_circle_mask
 
-
 def css_gaussian_cut(size, center_row, center_col, sigma):
     rows = np.arange(size)
     cols = np.arange(size)
@@ -473,6 +474,216 @@ def compare_radius(prf_dictionary, size_key='size', sigma_key='lin_sigma', x_lim
     plt.show()
     return all_subs
 
+
+# Function to compare the relative nsd R2 values (over all sessions) per pRF size
+def rsq_to_size(prf_dict=None, vismask_dict=None):
+    sns.set_style("white")
+    bright_palette = sns.color_palette('bright', n_colors=len(prf_dict['subj01']['proc']))
+    
+    nsd_rsq_full = nsd_R2_dict(vismask_dict)
+    
+    # Create subplots for each ROI
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharex=True, sharey=True)
+    axes = axes.flatten()
+    
+    for i, roi in enumerate(list(prf_dict['subj01']['proc'].keys())):
+        data = {'RSQ': [], 'Size': []}
+
+        for subject in list(prf_dict.keys()):
+            rsq = nsd_rsq_full[subject]['R2_roi'][roi][:, 3]
+            size = prf_dict[subject]['proc'][roi]['size'][:, 3]
+
+            valid_indices = (0 <= size) & (size <= 8.5)
+
+            rsq = rsq[valid_indices]
+            size = size[valid_indices]
+
+            data['RSQ'] += list(rsq)
+            data['Size'] += list(size)
+
+        # Create a DataFrame for easy plotting
+        df = pd.DataFrame(data)
+
+        # Plotting
+        sns.scatterplot(x='Size', y='RSQ', data=df, color=bright_palette[i], ax=axes[i], s= 1)
+        axes[i].set_title(f'Region of interest: {roi[:2]}')
+        
+        # Regression line for the entire set of dots
+        x = df['Size'].values.reshape(-1, 1)
+        y = df['RSQ'].values
+        reg = LinearRegression().fit(x, y)
+        axes[i].plot(x, reg.predict(x), color='black', linewidth=1.5)
+        
+        axes[i].set_xticks(np.arange(0, 8.5, 0.5))
+
+        axes[i].set_xlabel('pRF size in degrees of visual angle')
+        axes[i].set_ylabel('R-squared % explained variance of BOLD signal')
+
+    plt.suptitle('Comparison of explained variance (R2) per pRF size for visual regions of interest')
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust subplot layout
+    plt.show()
+
+    return df
+
+# # # This class is to make sure that the heatmap can still be plotted if all pRF
+# # # options have been considered.
+# class AllPRFConsidered(Exception):
+#     pass
+
+# def get_mask(dim = 200, subject = 'subj01', binary_masks = None, 
+#              prf_proc_dict = None, type = 'full_gaussian', roi = 'V2', 
+#              plot = 'y', heatmap = 'n', prf_vec = None, iter = None, excl_reason = 'n', 
+#              sigma_min = 0, sigma_max = 4.2, ecc_max = 4.2, rand_seed = None, filter_dict = None, 
+#              ecc_strict = None, grid = 'n'):
+
+#     if rand_seed == None:
+#         random.seed(random.randint(1, 1000000))
+#     else:
+#         random.seed(rand_seed)
+    
+#     # Construct the variable name for binary mask using roi argument CHECK IF I USE THIS
+#     roi_flt = binary_masks[subject][f'{roi}_mask']
+    
+#     # Create objects for all the required pRF data
+#     roi_mask_data = prf_proc_dict[subject]['proc'][f'{roi}_mask']
+#     angle_roi, ecc_roi, expt_roi, size_roi, rsq_roi= roi_mask_data['angle'], roi_mask_data['eccentricity'], roi_mask_data['exponent'], roi_mask_data['size'], roi_mask_data['R2']
+
+#     # Define a mask to filter away data rows based on the filter_dict, which is supposed to be
+#     # a dictionary that includes a subset of filtered values for every subject, roi, based on
+#     # another parameter, such as explained mean variance, R2.
+#     if filter_dict != None:
+#         smaller_xyz = filter_dict[subject][f'{roi}_mask'][:, :3]
+#         mask = np.any(np.all(angle_roi[:, None, :3] == smaller_xyz, axis=-1), axis=1)
+#     else:
+#         mask = range(0, angle_roi.shape[0])
+    
+#     # Condition for when the function is used to plot a heatmap, set to 'y', or any other value to do so
+#     if heatmap == 'n':
+#         prf_vec = random.sample(range(angle_roi[mask].shape[0]), angle_roi[mask].shape[0])
+#         iter = 0
+
+#     max_prf_vec = max(prf_vec)  # Maximum value of prf_vec
+
+#     while True:
+#         if iter >= max_prf_vec:
+#             raise AllPRFConsidered("All potential pRFs have been considered")
+
+#         n = prf_vec[iter]
+#         iter += 1
+
+#         prf_angle, prf_ecc, prf_expt, prf_size, prf_rsq = angle_roi[mask][n][3], ecc_roi[mask][n][3], expt_roi[mask][n][3], size_roi[mask][n][3], rsq_roi[mask][n][3]
+#         x_vox, y_vox, z_vox = int(angle_roi[mask][n][0]), int(angle_roi[mask][n][1]), int(angle_roi[mask][n][2])
+
+#         sigma = prf_size * np.sqrt(prf_expt)
+#         sigma_pure = sigma * (dim / 8.4)
+#         outer_bound = prf_ecc
+        
+#         # Condition to regulate the strictness of maximum eccentricity values
+#         if ecc_strict == 'y':
+#             outer_bound = prf_ecc + prf_size
+        
+#         # Sinus is used to calculate height, cosinus width
+#         # so c_index is the y coordinate and r_index is the x coordinate. 
+#         # the * (dim / 8.4) is the factor to translate it into raw pixel values
+        
+#         y = ((1 + dim) / 2) - (prf_ecc * np.sin(np.radians(-prf_angle)) * (dim / 8.4)) #y in pix (c_index)
+#         x = ((1 + dim) / 2) + (prf_ecc * np.cos(np.radians(prf_angle)) * (dim / 8.4)) #x in pix (r_index)
+
+#         degrees_per_pixel = 8.4 / dim
+
+#         if type == 'circle' or type == 'gaussian':
+#             deg_radius = sigma
+#             pix_radius = sigma_pure
+#         elif type == 'cut_gaussian' or type == 'full_gaussian' or type == 'outline':
+#             deg_radius = prf_size
+#             pix_radius = prf_size * (dim / 8.4)
+            
+#         valid_conditions = (
+#             0 < x < dim,
+#             0 < y < dim,
+#             sigma_min < deg_radius,
+#             deg_radius < sigma_max,
+#             outer_bound < ecc_max,
+#             # prf_expt > 0
+#         )
+
+#         if all(valid_conditions):
+#             break
+
+#         # Check for argument option to print reason for excluding voxels
+#         elif excl_reason == 'y':
+#             print(f"Discarding pRF mask for voxel [{x_vox}, {y_vox}, {z_vox}] due to:")
+#             if not valid_conditions[0]:
+#                 print("   - x out of bounds")
+#             if not valid_conditions[1]:
+#                 print("   - y out of bounds")
+#             if not valid_conditions[2]:
+#                 print("   - sigma_pure too small")
+#             if not valid_conditions[3]:
+#                 print("   - sigma_pure too large")
+#             if not valid_conditions[4]:
+#                 print(f"   -  pRF outside of center {2 * ecc_max}° visual degrees")
+#             # if not valid_conditions[4]:
+#             #     print("   - expt_ar value too small")
+
+#     # Note: all the masks are made using pixel values for x, y, and sigma
+#     # Check whether the same is done later on, in the heatmaps and get_img_prf.
+#     if type == 'gaussian':
+#         prf_mask = make_gaussian_2d(dim, x, y, sigma_pure)
+#     elif type == 'circle':
+#         prf_mask = make_circle_mask(dim, x, y, sigma_pure)
+#     elif type == 'full_gaussian':
+#         prf_mask = make_gaussian_2d(dim, x, y, prf_size * (dim / 8.4))
+#     elif type == 'cut_gaussian':
+#         prf_mask = css_gaussian_cut(dim, x, y, prf_size * (dim / 8.4))
+#     elif type == 'outline':
+#         prf_mask = (make_circle_mask(dim, x, y, prf_size * (dim / 8.4), fill = 'n'))
+#     else:
+#         raise ValueError(f"Invalid type: {type}. Available mask types are 'gaussian','circle','full_gaussian','cut_gaussian', and 'outline'.")
+    
+#     # Convert pixel indices to degrees of visual angle
+#     x_deg = (x - (dim / 2)) * degrees_per_pixel
+#     y_deg = ((dim / 2) - y) * degrees_per_pixel
+    
+#     if plot == 'y':
+#         fig, ax = plt.subplots(figsize=(8, 8))
+#         ax.imshow(prf_mask, cmap='bone', origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
+#         ax.set_title(f'Region Of Interest: {roi}\n'
+#                     f'Voxel: [{x_vox}, {y_vox}, {z_vox}]\n'
+#                     f'pRF x,y,σ: {round(x_deg, 1), round(y_deg, 1), round(deg_radius, 1)}\n'
+#                     f'Angle: {round(prf_angle, 2)}°\nEccentricity: {round(prf_ecc, 2)}°\n'
+#                     f'Exponent: {round(prf_expt, 2)}\nSize: {round(prf_size, 2)}°\n'
+#                     f'Explained pRF variance (R2): {round(prf_rsq, 2)}%')
+#         ax.set_xlabel('Horizontal Degrees of Visual Angle')
+#         ax.set_ylabel('Vertical Degrees of Visual Angle')
+
+#         # Set ticks at every 0.1 step
+#         ax.xaxis.set_major_locator(MultipleLocator(0.5))
+#         ax.yaxis.set_major_locator(MultipleLocator(0.5))
+
+#             # Create a dictionary to store the values
+#     prf_output_dict = {
+#         'mask': prf_mask,
+#         'x': x,
+#         'y': y,
+#         'pix_radius': pix_radius,
+#         'deg_radius': deg_radius, 
+#         'iterations': iter,
+#         'x_vox': x_vox,
+#         'y_vox': y_vox,
+#         'z_vox': z_vox,
+#         'x_deg': x_deg,
+#         'y_deg': y_deg,
+#         'angle': prf_angle,
+#         'eccentricity': prf_ecc,
+#         'exponent': prf_expt,
+#         'size': prf_size,
+#         'R2': prf_rsq
+#     }
+
+#         # Return the dictionary
+#     return prf_output_dict
+
 # # This class is to make sure that the heatmap can still be plotted if all pRF
 # # options have been considered.
 class AllPRFConsidered(Exception):
@@ -534,7 +745,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         # so c_index is the y coordinate and r_index is the x coordinate. 
         # the * (dim / 8.4) is the factor to translate it into raw pixel values
         
-        y = ((1 + dim) / 2) - (prf_ecc * np.sin(np.radians(-prf_angle)) * (dim / 8.4)) #y in pix (c_index)
+        y = ((1 + dim) / 2) + (prf_ecc * np.sin(np.radians(prf_angle)) * (dim / 8.4)) #y in pix (c_index)
         x = ((1 + dim) / 2) + (prf_ecc * np.cos(np.radians(prf_angle)) * (dim / 8.4)) #x in pix (r_index)
 
         degrees_per_pixel = 8.4 / dim
@@ -590,8 +801,8 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         raise ValueError(f"Invalid type: {type}. Available mask types are 'gaussian','circle','full_gaussian','cut_gaussian', and 'outline'.")
     
     # Convert pixel indices to degrees of visual angle
-    x_deg = (x - (dim / 2)) * degrees_per_pixel
-    y_deg = ((dim / 2) - y) * degrees_per_pixel
+    x_deg = (x - ((dim + 2) / 2)) * degrees_per_pixel
+    y_deg = (((dim + 2) / 2) - y) * degrees_per_pixel
     
     if plot == 'y':
         fig, ax = plt.subplots(figsize=(8, 8))
@@ -818,6 +1029,78 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
 
 
 # This function applies a gaussian filter to the loaded image
+# def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heatmask = None, 
+#                 binary_masks = None, prf_proc_dict = None, roi = 'V1', sigma_min=1, sigma_max=25, 
+#                 rand_seed = None, invert = 'n', central = 'n', filter_dict = None, grid = 'n'):
+#     # arguments can be specified manually, or generated randomly if none are given
+#     # when entered manually there is no specification of parameters (yet)
+#     # I have to think about whether this is actually relevant, don't think so.
+#     # It's nothing more than a check whether it works, which it does.
+
+#     masked_arr = np.zeros(image.shape) # Create empty array for masked image
+#     if type == 'heatmask':
+#         # prf_mask = np.mean(heatmask, axis=2)
+#         prf_mask = heatmask
+#     else:
+#         if x is None and y is None and sigma is None:
+#             prf_info = get_mask(dim = image.shape[0], subject = 'subj01', plot = 'n', 
+#                                 binary_masks = binary_masks, prf_proc_dict = prf_proc_dict, 
+#                                 type = type, sigma_min=sigma_min, sigma_max=sigma_max, 
+#                                 rand_seed = rand_seed, filter_dict = filter_dict, grid = grid)
+
+        
+#         x, y, sigma = prf_info['x'], prf_info['y'], prf_info['pix_radius']
+#         masked_arr = np.zeros(image.shape) # Create empty array for masked image
+
+#         pix_radius = sigma #* (image.shape[0]/8.4)
+        
+#         if central == 'y':
+#             x = y = ((image.shape[0] + 1) / 2)
+#             pix_radius = (2 * (image.shape[0] / 8.4))
+
+            
+#         if type == 'gaussian':
+#             prf_mask = make_gaussian_2d(image.shape[0], x, y, pix_radius)
+#         elif type == 'circle':
+#             prf_mask = make_circle_mask(image.shape[0], x, y, pix_radius)
+#         elif type == 'full_gaussian':
+#             prf_mask = make_gaussian_2d(image.shape[0], x, y, pix_radius)
+#         elif type == 'cut_gaussian':
+#             prf_mask = css_gaussian_cut(image.shape[0], x, y, pix_radius)
+#         elif type == 'outline':
+#             prf_mask = (make_circle_mask(image.shape[0], x, y, pix_radius, fill = 'n'))
+#         else:
+#             raise ValueError(f"Invalid type: {type}. Available mask types are 'gaussian','circle','full_gaussian','cut_gaussian', and 'outline'.")
+
+#     # Apply the mask per layer of the input image using matrix multiplication
+#     for colour in range(image.shape[2]):
+#         if invert == 'n':
+#             # masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(prf_mask)
+#             masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(prf_mask)
+#         elif invert == 'y':
+#             masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(1 - prf_mask)
+            
+
+#     # Normalize the masked image according to the RGB range of 0-255
+#     masked_img = masked_arr / 255
+
+#     # ax.imshow(masked_img, origin='upper', extent=[0,image.shape[0],0,image.shape[0]])
+#     fig, ax = plt.subplots(figsize=(8, 8))
+#     ax.imshow(masked_img, origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
+#     ax.set_title(f'Region Of Interest: {roi}\n')
+#     ax.set_xlabel('Horizontal Degrees of Visual Angle')
+#     ax.set_ylabel('Vertical Degrees of Visual Angle')
+
+
+
+
+#     # Set ticks at every 0.1 step
+#     ax.xaxis.set_major_locator(MultipleLocator(0.5))
+#     ax.yaxis.set_major_locator(MultipleLocator(0.5))
+    
+#     return prf_info
+
+# This function applies a gaussian filter to the loaded image
 def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heatmask = None, 
                 binary_masks = None, prf_proc_dict = None, roi = 'V1', sigma_min=1, sigma_max=25, 
                 rand_seed = None, invert = 'n', central = 'n', filter_dict = None, grid = 'n'):
@@ -865,23 +1148,38 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
     for colour in range(image.shape[2]):
         if invert == 'n':
             # masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(prf_mask)
-            masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(prf_mask)
+            # masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(prf_mask)
+            masked_arr[:,:,colour] = image[:,:,colour] * prf_mask
         elif invert == 'y':
-            masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(1 - prf_mask)
+            # masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(1 - prf_mask)
+            masked_arr[:,:,colour] = image[:,:,colour] * 1 - prf_mask
             
 
     # Normalize the masked image according to the RGB range of 0-255
     masked_img = masked_arr / 255
 
-    # ax.imshow(masked_img, origin='upper', extent=[0,image.shape[0],0,image.shape[0]])
+    # # ax.imshow(masked_img, origin='upper', extent=[0,image.shape[0],0,image.shape[0]])
+    # fig, ax = plt.subplots(figsize=(8, 8))
+    # ax.imshow(masked_img, origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
+    # # ax.set_title(f'Region Of Interest: {roi}\n')
+    # ax.set_xlabel('Horizontal Degrees of Visual Angle')
+    # ax.set_ylabel('Vertical Degrees of Visual Angle')
+    
+    center = (prf_info['x'].astype(int), prf_info['y'].astype(int))
+
+    rms_contrast, gray_image, mask, patch_pixels, mean_intensity = calculate_rms_contrast_circle(image, center = center, radius = prf_info['pix_radius'].astype(int))
+
     fig, ax = plt.subplots(figsize=(8, 8))
-    ax.imshow(masked_img, origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
-    ax.set_title(f'Region Of Interest: {roi}\n')
+    ax.imshow(masked_img, cmap='bone', origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
+    ax.set_title(f'Region Of Interest: {roi}\n'
+                f'Voxel: [{prf_info["x_vox"]}, {prf_info["y_vox"]}, {prf_info["z_vox"]}]\n'
+                f'pRF x,y,σ: {round(prf_info["x_deg"], 1), round(prf_info["y_deg"], 1), round(prf_info["deg_radius"], 1)}\n'
+                f'Angle: {round(prf_info["angle"], 2)}°\nEccentricity: {round(prf_info["eccentricity"], 2)}°\n'
+                f'Exponent: {round(prf_info["exponent"], 2)}\nSize: {round(prf_info["size"], 2)}°\n'
+                f'Explained pRF variance (R2): {round(prf_info["R2"], 2)}%\n'
+                f'Root Mean Square (RMS) contrast of patch: {round(rms_contrast, 2)}')
     ax.set_xlabel('Horizontal Degrees of Visual Angle')
     ax.set_ylabel('Vertical Degrees of Visual Angle')
-
-
-
 
     # Set ticks at every 0.1 step
     ax.xaxis.set_major_locator(MultipleLocator(0.5))
@@ -889,3 +1187,47 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
     
     return prf_info
 
+
+# This one probably should be moved to the imgproc.py doc later, and then be called on in the imports.
+def calculate_rms_contrast_circle(image_array, center, radius):
+    """
+    Calculate the Root Mean Square (RMS) contrast of a circular patch in a color image.
+
+    Parameters:
+    - image_array (numpy.ndarray): Input color image array of shape (height, width, channels).
+    - center (tuple): Center coordinates of the circular patch (x, y).
+    - radius (int): Radius of the circular patch.
+
+    Returns:
+    - tuple: (RMS contrast value within the circular patch, image with circle drawn)
+    """
+    # Convert the image to grayscale
+    gray_image = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
+
+    # Extract circular patch
+    mask = np.zeros_like(gray_image)
+    cv2.circle(mask, center, radius, 1, thickness=-1)  # Filled circle as a mask
+    patch_pixels = gray_image[mask == 1]
+
+    # Draw circle on the original image
+    image_with_circle = image_array.copy()
+    cv2.circle(image_with_circle, center, radius, (0, 255, 0), thickness=2)  # Green circle
+
+    # Calculate mean intensity
+    mean_intensity = np.mean(patch_pixels)
+
+    # Calculate RMS contrast within the circular patch
+    rms_contrast = np.sqrt(np.mean((patch_pixels - mean_intensity)**2))
+
+    # Calculate Contrast Energy (CE)
+    ce = np.sum((patch_pixels - mean_intensity)**2) / len(patch_pixels)
+
+    # Calculate Spatial Coherence (SC)
+    sc = ce / (np.std(patch_pixels)**2)
+
+    # Display the image with the circle
+    plt.imshow(image_with_circle)
+    plt.title('Image with Circle')
+    plt.show()
+    
+    return rms_contrast, ce, sc, image_with_circle, mask, patch_pixels, mean_intensity
