@@ -3,8 +3,9 @@ import matplotlib.pyplot as plt
 import random
 import h5py
 import numpy as np
-# from funcs.imgproc import show_stim
 from scipy.io import loadmat
+import cv2
+from scipy.stats import weibull_min
 
 
 # Function to show a randomly selected image of the nsd dataset
@@ -68,10 +69,12 @@ def get_imgs_designmx():
     
     
     
+
+
 def calculate_rms_contrast_circle(image_array, center, radius):
     """
-    Calculate the Root Mean Square (RMS) contrast, Contrast Energy (CE), and Spatial Coherence (SC)
-    of a circular patch in a color image.
+    Calculate the Root Mean Square (RMS) contrast and fit a Weibull distribution to pixel intensities
+    within a circular patch in a color image.
 
     Parameters:
     - image_array (numpy.ndarray): Input color image array of shape (height, width, channels).
@@ -79,7 +82,8 @@ def calculate_rms_contrast_circle(image_array, center, radius):
     - radius (int): Radius of the circular patch.
 
     Returns:
-    - tuple: (RMS contrast, CE, SC, image with circle drawn)
+    - tuple: (RMS contrast value within the circular patch, Weibull parameters, image with circle drawn,
+              histogram plot, Weibull fit plot)
     """
     # Convert the image to grayscale
     gray_image = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
@@ -99,29 +103,43 @@ def calculate_rms_contrast_circle(image_array, center, radius):
     # Calculate RMS contrast within the circular patch
     rms_contrast = np.sqrt(np.mean((patch_pixels - mean_intensity)**2))
 
-    # Calculate Contrast Energy (CE)
-    ce = np.sum((patch_pixels - mean_intensity)**2) / len(patch_pixels)
+    # Alternative weibull fit, centered around 0 (so subtracting the mean of all intensities)
+    # Works very badly, I think the problem only arises when pRFs are too small
+    # centered_patch_pixels = patch_pixels - mean_intensity
+    # weibull_params = weibull_min.fit(centered_patch_pixels)
 
-    # Calculate Spatial Coherence (SC)
-    # sc = ce / (np.std(patch_pixels)**2)
 
-# Calculate Spatial Coherence (SC)
-    sc = (np.std(patch_pixels)**2) / ce
+    # Fit a Weibull distribution to pixel intensities
+    weibull_params = weibull_min.fit(patch_pixels)
 
-    
-    
-    print("CE:", ce)
-    print("SC:", sc)
-    print("Patch Pixels:", patch_pixels)
-    print("Std Dev:", np.std(patch_pixels))
-    
-    
-    # Display the image with the circle
-    plt.imshow(image_with_circle)
-    plt.title('Image with Circle')
+    # Plot contrast histogram
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.hist(patch_pixels, bins=50, density=True, color='lightblue', alpha=0.7)
+    plt.title('Contrast Histogram')
+    plt.xlabel('Pixel Intensity')
+    plt.ylabel('Frequency')
+
+    # Plot Weibull fit
+    plt.subplot(1, 2, 2)
+    plt.hist(patch_pixels, bins=50, density=True, color='lightblue', alpha=0.7)
+    x_range = np.linspace(min(patch_pixels), max(patch_pixels), 100)
+    plt.plot(x_range, weibull_min.pdf(x_range, *weibull_params), 'r-', lw=2, label='Weibull Fit')
+    plt.title('Contrast Histogram with Weibull Fit')
+    plt.xlabel('Pixel Intensity')
+    plt.ylabel('Frequency')
+    plt.legend()
     plt.show()
-    
-    return rms_contrast, ce, sc, image_with_circle, mask, patch_pixels, mean_intensity
+
+    # Display the image with the circle
+    fig, ax = plt.subplots(figsize=(8.8, 8.8))
+    ax.imshow(image_with_circle)
+    ax.set_title('Natural Scene with highlighted pRF')
+    ax.axis('off')  # Turn off axis
+    plt.show()
+
+    return rms_contrast, weibull_params, image_with_circle, mask, patch_pixels, mean_intensity
+
 
 def calculate_rms_contrast_color(image_array):
     """

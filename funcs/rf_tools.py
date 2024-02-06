@@ -1,4 +1,3 @@
-print('diarreeklont')
 import os
 import sys
 from tkinter import Y
@@ -16,6 +15,7 @@ from nsdcode.nsd_datalocation import nsd_datalocation
 from nsdcode.nsd_output import nsd_write_fs
 from nsdcode.utils import makeimagestack
 from scipy.ndimage import binary_dilation
+from funcs.imgproc import calculate_rms_contrast_circle
 import io
 import json
 # from scipy.ndimage import gaussian_filter
@@ -476,11 +476,14 @@ def compare_radius(prf_dictionary, size_key='size', sigma_key='lin_sigma', x_lim
 
 
 # Function to compare the relative nsd R2 values (over all sessions) per pRF size
-def rsq_to_size(prf_dict=None, vismask_dict=None):
+# make sure this one also works for the prf R2 values. 
+def rsq_to_size(prf_dict=None, vismask_dict=None, rsq_type = 'nsd'):
     sns.set_style("white")
     bright_palette = sns.color_palette('bright', n_colors=len(prf_dict['subj01']['proc']))
-    
-    nsd_rsq_full = nsd_R2_dict(vismask_dict)
+    if rsq_type == 'nsd':
+        nsd_rsq_full = nsd_R2_dict(vismask_dict)
+    # elif rsq_type == 'prf':
+    #     nsd_rsq_full = 
     
     # Create subplots for each ROI
     fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharex=True, sharey=True)
@@ -745,7 +748,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         # so c_index is the y coordinate and r_index is the x coordinate. 
         # the * (dim / 8.4) is the factor to translate it into raw pixel values
         
-        y = ((1 + dim) / 2) + (prf_ecc * np.sin(np.radians(prf_angle)) * (dim / 8.4)) #y in pix (c_index)
+        y = ((1 + dim) / 2) - (prf_ecc * np.sin(np.radians(prf_angle)) * (dim / 8.4)) #y in pix (c_index)
         x = ((1 + dim) / 2) + (prf_ecc * np.cos(np.radians(prf_angle)) * (dim / 8.4)) #x in pix (r_index)
 
         degrees_per_pixel = 8.4 / dim
@@ -819,6 +822,10 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         # Set ticks at every 0.1 step
         ax.xaxis.set_major_locator(MultipleLocator(0.5))
         ax.yaxis.set_major_locator(MultipleLocator(0.5))
+        
+        if grid == 'y':
+            ax.grid(which='both', linestyle='--', linewidth=0.5, color='black')
+
 
             # Create a dictionary to store the values
     prf_output_dict = {
@@ -1102,7 +1109,7 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
 
 # This function applies a gaussian filter to the loaded image
 def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heatmask = None, 
-                binary_masks = None, prf_proc_dict = None, roi = 'V1', sigma_min=1, sigma_max=25, 
+                binary_masks = None, prf_proc_dict = None, roi = 'V1', sigma_min=1, sigma_max=25, ecc_max = 4.2,
                 rand_seed = None, invert = 'n', central = 'n', filter_dict = None, grid = 'n'):
     # arguments can be specified manually, or generated randomly if none are given
     # when entered manually there is no specification of parameters (yet)
@@ -1117,7 +1124,7 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
         if x is None and y is None and sigma is None:
             prf_info = get_mask(dim = image.shape[0], subject = 'subj01', plot = 'n', 
                                 binary_masks = binary_masks, prf_proc_dict = prf_proc_dict, 
-                                type = type, sigma_min=sigma_min, sigma_max=sigma_max, 
+                                type = type, sigma_min=sigma_min, sigma_max=sigma_max, ecc_max = ecc_max,
                                 rand_seed = rand_seed, filter_dict = filter_dict, grid = grid)
 
         
@@ -1167,7 +1174,8 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
     
     center = (prf_info['x'].astype(int), prf_info['y'].astype(int))
 
-    rms_contrast, gray_image, mask, patch_pixels, mean_intensity = calculate_rms_contrast_circle(image, center = center, radius = prf_info['pix_radius'].astype(int))
+    rms_contrast, weibull_pars, gray_image, mask, patch_pixels, mean_intensity = calculate_rms_contrast_circle(image, center = center, radius = prf_info['pix_radius'].astype(int))
+    sc, loc, ce = weibull_pars # Extract the spatial coherence (shape), location (on x-axis), and contrast energy (width, scale)
 
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.imshow(masked_img, cmap='bone', origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
@@ -1177,57 +1185,21 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
                 f'Angle: {round(prf_info["angle"], 2)}°\nEccentricity: {round(prf_info["eccentricity"], 2)}°\n'
                 f'Exponent: {round(prf_info["exponent"], 2)}\nSize: {round(prf_info["size"], 2)}°\n'
                 f'Explained pRF variance (R2): {round(prf_info["R2"], 2)}%\n'
-                f'Root Mean Square (RMS) contrast of patch: {round(rms_contrast, 2)}')
+                f'Root Mean Square (RMS) contrast of patch: {round(rms_contrast, 2)}\n'
+                f'Contrast Energy (CE) of patch (Weibull width): {round(ce, 2)}\n'
+                f'Spatial Coherence (SC) of patch (Weibull shape): {round(sc, 2)}\n'
+                f'Weibull location on x-axis: {round(loc, 2)}')
     ax.set_xlabel('Horizontal Degrees of Visual Angle')
     ax.set_ylabel('Vertical Degrees of Visual Angle')
+
+# f'Voxel: [{prf_info["x_vox"]}, {prf_info["y_vox"]}, {prf_info["z_vox"]}]\n'
+
+    if grid == 'y':
+        ax.grid(which='both', linestyle='--', linewidth=0.5, color='black')
 
     # Set ticks at every 0.1 step
     ax.xaxis.set_major_locator(MultipleLocator(0.5))
     ax.yaxis.set_major_locator(MultipleLocator(0.5))
     
-    return prf_info
+    return prf_info, weibull_pars
 
-
-# This one probably should be moved to the imgproc.py doc later, and then be called on in the imports.
-def calculate_rms_contrast_circle(image_array, center, radius):
-    """
-    Calculate the Root Mean Square (RMS) contrast of a circular patch in a color image.
-
-    Parameters:
-    - image_array (numpy.ndarray): Input color image array of shape (height, width, channels).
-    - center (tuple): Center coordinates of the circular patch (x, y).
-    - radius (int): Radius of the circular patch.
-
-    Returns:
-    - tuple: (RMS contrast value within the circular patch, image with circle drawn)
-    """
-    # Convert the image to grayscale
-    gray_image = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
-
-    # Extract circular patch
-    mask = np.zeros_like(gray_image)
-    cv2.circle(mask, center, radius, 1, thickness=-1)  # Filled circle as a mask
-    patch_pixels = gray_image[mask == 1]
-
-    # Draw circle on the original image
-    image_with_circle = image_array.copy()
-    cv2.circle(image_with_circle, center, radius, (0, 255, 0), thickness=2)  # Green circle
-
-    # Calculate mean intensity
-    mean_intensity = np.mean(patch_pixels)
-
-    # Calculate RMS contrast within the circular patch
-    rms_contrast = np.sqrt(np.mean((patch_pixels - mean_intensity)**2))
-
-    # Calculate Contrast Energy (CE)
-    ce = np.sum((patch_pixels - mean_intensity)**2) / len(patch_pixels)
-
-    # Calculate Spatial Coherence (SC)
-    sc = ce / (np.std(patch_pixels)**2)
-
-    # Display the image with the circle
-    plt.imshow(image_with_circle)
-    plt.title('Image with Circle')
-    plt.show()
-    
-    return rms_contrast, ce, sc, image_with_circle, mask, patch_pixels, mean_intensity
