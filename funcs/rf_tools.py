@@ -475,16 +475,23 @@ def compare_radius(prf_dictionary, size_key='size', sigma_key='lin_sigma', x_lim
     return all_subs
 
 
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+import numpy as np
+
+
 # Function to compare the relative nsd R2 values (over all sessions) per pRF size
 # make sure this one also works for the prf R2 values. 
 def rsq_to_size(prf_dict=None, vismask_dict=None, rsq_type = 'nsd'):
+    n_subjects = len(list(prf_dict.keys()))
+    
     sns.set_style("white")
     bright_palette = sns.color_palette('bright', n_colors=len(prf_dict['subj01']['proc']))
     if rsq_type == 'nsd':
-        nsd_rsq_full = nsd_R2_dict(vismask_dict)
-    # elif rsq_type == 'prf':
-    #     nsd_rsq_full = 
-    
+        rsq_all = nsd_R2_dict(vismask_dict)
+
     # Create subplots for each ROI
     fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharex=True, sharey=True)
     axes = axes.flatten()
@@ -493,10 +500,17 @@ def rsq_to_size(prf_dict=None, vismask_dict=None, rsq_type = 'nsd'):
         data = {'RSQ': [], 'Size': []}
 
         for subject in list(prf_dict.keys()):
-            rsq = nsd_rsq_full[subject]['R2_roi'][roi][:, 3]
+            
+            if rsq_type == 'nsd':
+                
+                rsq = rsq_all[subject]['R2_roi'][roi][:, 3]
+            elif rsq_type == 'prf':
+                rsq = prf_dict[subject]['proc'][roi]['R2'][:, 3]
+            
+            
             size = prf_dict[subject]['proc'][roi]['size'][:, 3]
 
-            valid_indices = (0 <= size) & (size <= 8.5)
+            valid_indices = (0 <= size) & (size <= 8.5) & (rsq > 0)
 
             rsq = rsq[valid_indices]
             size = size[valid_indices]
@@ -514,13 +528,13 @@ def rsq_to_size(prf_dict=None, vismask_dict=None, rsq_type = 'nsd'):
         # Regression line for the entire set of dots
         x = df['Size'].values.reshape(-1, 1)
         y = df['RSQ'].values
-        reg = LinearRegression().fit(x, y)
-        axes[i].plot(x, reg.predict(x), color='black', linewidth=1.5)
+        # reg = LinearRegression().fit(x, y)
+        # axes[i].plot(x, reg.predict(x), color='black', linewidth=1.5)
         
         axes[i].set_xticks(np.arange(0, 8.5, 0.5))
 
         axes[i].set_xlabel('pRF size in degrees of visual angle')
-        axes[i].set_ylabel('R-squared % explained variance of BOLD signal')
+        axes[i].set_ylabel(f'R-squared % explained variance of {rsq_type} signal')
 
     plt.suptitle('Comparison of explained variance (R2) per pRF size for visual regions of interest')
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust subplot layout
