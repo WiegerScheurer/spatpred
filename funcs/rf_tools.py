@@ -1168,27 +1168,17 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
     # Apply the mask per layer of the input image using matrix multiplication
     for colour in range(image.shape[2]):
         if invert == 'n':
-            # masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(prf_mask)
-            # masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(prf_mask)
             masked_arr[:,:,colour] = image[:,:,colour] * prf_mask
         elif invert == 'y':
-            # masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(1 - prf_mask)
             masked_arr[:,:,colour] = image[:,:,colour] * 1 - prf_mask
             
 
     # Normalize the masked image according to the RGB range of 0-255
     masked_img = masked_arr / 255
 
-    # # ax.imshow(masked_img, origin='upper', extent=[0,image.shape[0],0,image.shape[0]])
-    # fig, ax = plt.subplots(figsize=(8, 8))
-    # ax.imshow(masked_img, origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
-    # # ax.set_title(f'Region Of Interest: {roi}\n')
-    # ax.set_xlabel('Horizontal Degrees of Visual Angle')
-    # ax.set_ylabel('Vertical Degrees of Visual Angle')
-    
     center = (prf_info['x'].astype(int), prf_info['y'].astype(int))
 
-    rms_contrast, weibull_pars, gray_image, mask, patch_pixels, mean_intensity = calculate_rms_contrast_circle(image, center = center, radius = prf_info['pix_radius'].astype(int))
+    rms_contrast, weibull_pars, gray_image, mask, patch_pixels, mean_intensity = calculate_rms_contrast_circle(image, center = center, radius = prf_info['pix_radius'].astype(int), hist = 'y', circ_plot = 'y')
     sc, loc, ce = weibull_pars # Extract the spatial coherence (shape), location (on x-axis), and contrast energy (width, scale)
 
     fig, ax = plt.subplots(figsize=(8, 8))

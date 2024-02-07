@@ -71,7 +71,7 @@ def get_imgs_designmx():
     
 
 
-def calculate_rms_contrast_circle(image_array, center, radius):
+def calculate_rms_contrast_circle(image_array, center, radius, hist = 'n', circ_plot = 'n'):
     """
     Calculate the Root Mean Square (RMS) contrast and fit a Weibull distribution to pixel intensities
     within a circular patch in a color image.
@@ -112,24 +112,26 @@ def calculate_rms_contrast_circle(image_array, center, radius):
     # Fit a Weibull distribution to pixel intensities
     weibull_params = weibull_min.fit(patch_pixels)
 
-    # Plot contrast histogram
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    plt.hist(patch_pixels, bins=50, density=True, color='lightblue', alpha=0.7)
-    plt.title('Contrast Histogram')
-    plt.xlabel('Pixel Intensity')
-    plt.ylabel('Frequency')
+    if hist == 'y':
+        # Plot contrast histogram
+        plt.figure(figsize=(12, 6))
+        plt.subplot(1, 2, 1)
+        plt.hist(patch_pixels, bins=50, density=True, color='lightblue', alpha=0.7)
+        plt.title('Contrast Histogram')
+        plt.xlabel('Pixel Intensity')
+        plt.ylabel('Frequency')
 
-    # Plot Weibull fit
-    plt.subplot(1, 2, 2)
-    plt.hist(patch_pixels, bins=50, density=True, color='lightblue', alpha=0.7)
-    x_range = np.linspace(min(patch_pixels), max(patch_pixels), 100)
-    plt.plot(x_range, weibull_min.pdf(x_range, *weibull_params), 'r-', lw=2, label='Weibull Fit')
-    plt.title('Contrast Histogram with Weibull Fit')
-    plt.xlabel('Pixel Intensity')
-    plt.ylabel('Frequency')
-    plt.legend()
-    plt.show()
+    if circ_plot == 'y':
+        # Plot Weibull fit
+        plt.subplot(1, 2, 2)
+        plt.hist(patch_pixels, bins=50, density=True, color='lightblue', alpha=0.7)
+        x_range = np.linspace(min(patch_pixels), max(patch_pixels), 100)
+        plt.plot(x_range, weibull_min.pdf(x_range, *weibull_params), 'r-', lw=2, label='Weibull Fit')
+        plt.title('Contrast Histogram with Weibull Fit')
+        plt.xlabel('Pixel Intensity')
+        plt.ylabel('Frequency')
+        plt.legend()
+        plt.show()
 
     # Display the image with the circle
     fig, ax = plt.subplots(figsize=(8.8, 8.8))
