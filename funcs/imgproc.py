@@ -93,10 +93,6 @@ def calculate_rms_contrast_circle(image_array, center, radius, hist = 'n', circ_
     cv2.circle(mask, center, radius, 1, thickness=-1)  # Filled circle as a mask
     patch_pixels = gray_image[mask == 1]
 
-    # Draw circle on the original image
-    image_with_circle = image_array.copy()
-    cv2.circle(image_with_circle, center, radius, (0, 255, 0), thickness=2)  # Green circle
-
     # Calculate mean intensity
     mean_intensity = np.mean(patch_pixels)
 
@@ -108,9 +104,8 @@ def calculate_rms_contrast_circle(image_array, center, radius, hist = 'n', circ_
     # centered_patch_pixels = patch_pixels - mean_intensity
     # weibull_params = weibull_min.fit(centered_patch_pixels)
 
-
-    # Fit a Weibull distribution to pixel intensities
-    weibull_params = weibull_min.fit(patch_pixels)
+    weibull_params = None
+    image_with_circle = None
 
     if hist == 'y':
         # Plot contrast histogram
@@ -120,9 +115,10 @@ def calculate_rms_contrast_circle(image_array, center, radius, hist = 'n', circ_
         plt.title('Contrast Histogram')
         plt.xlabel('Pixel Intensity')
         plt.ylabel('Frequency')
-
-    if circ_plot == 'y':
         # Plot Weibull fit
+        
+        # Fit a Weibull distribution to pixel intensities
+        weibull_params = weibull_min.fit(patch_pixels)
         plt.subplot(1, 2, 2)
         plt.hist(patch_pixels, bins=50, density=True, color='lightblue', alpha=0.7)
         x_range = np.linspace(min(patch_pixels), max(patch_pixels), 100)
@@ -132,13 +128,19 @@ def calculate_rms_contrast_circle(image_array, center, radius, hist = 'n', circ_
         plt.ylabel('Frequency')
         plt.legend()
         plt.show()
+        
+    if circ_plot == 'y':
+            # Draw circle on the original image
+        image_with_circle = image_array.copy()
+        cv2.circle(image_with_circle, center, radius, (0, 255, 0), thickness=2)  # Green circle
 
-    # Display the image with the circle
-    fig, ax = plt.subplots(figsize=(8.8, 8.8))
-    ax.imshow(image_with_circle)
-    ax.set_title('Natural Scene with highlighted pRF')
-    ax.axis('off')  # Turn off axis
-    plt.show()
+        # Display the image with the circle
+        fig, ax = plt.subplots(figsize=(8.8, 8.8))
+        ax.imshow(image_with_circle)
+        ax.set_title('Natural Scene with highlighted pRF')
+        ax.axis('off')  # Turn off axis
+        plt.show()
+        
 
     return rms_contrast, weibull_params, image_with_circle, mask, patch_pixels, mean_intensity
 
