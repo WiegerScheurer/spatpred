@@ -15,7 +15,6 @@ from nsdcode.nsd_datalocation import nsd_datalocation
 from nsdcode.nsd_output import nsd_write_fs
 from nsdcode.utils import makeimagestack
 from scipy.ndimage import binary_dilation
-from funcs.imgproc import calculate_rms_contrast_circle
 import io
 import json
 # from scipy.ndimage import gaussian_filter
@@ -710,7 +709,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
              prf_proc_dict = None, type = 'full_gaussian', roi = 'V2', 
              plot = 'y', heatmap = 'n', prf_vec = None, iter = None, excl_reason = 'n', 
              sigma_min = 0, sigma_max = 4.2, ecc_max = 4.2, rand_seed = None, filter_dict = None, 
-             ecc_strict = None, grid = 'n'):
+             ecc_strict = None, grid = 'n', fill_outline = 'n'):
 
     if rand_seed == None:
         random.seed(random.randint(1, 1000000))
@@ -813,7 +812,10 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
     elif type == 'cut_gaussian':
         prf_mask = css_gaussian_cut(dim, x, y, prf_size * (dim / 8.4))
     elif type == 'outline':
-        prf_mask = (make_circle_mask(dim, x, y, prf_size * (dim / 8.4), fill = 'n'))
+        x = y = ((dim + 2)/2)
+        x_deg = y_deg = prf_angle = prf_ecc = prf_expt = 0
+        deg_radius = prf_size = ecc_max
+        prf_mask = (make_circle_mask(dim, ((dim+2)/2), ((dim+2)/2), ecc_max * (dim / 8.4), fill = fill_outline))
     else:
         raise ValueError(f"Invalid type: {type}. Available mask types are 'gaussian','circle','full_gaussian','cut_gaussian', and 'outline'.")
     
@@ -841,7 +843,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
             ax.grid(which='both', linestyle='--', linewidth=0.5, color='black')
 
 
-            # Create a dictionary to store the values
+            # Create a dictionary to store the output values
     prf_output_dict = {
         'mask': prf_mask,
         'x': x,
@@ -1050,93 +1052,21 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
 
 
 # This function applies a gaussian filter to the loaded image
-# def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heatmask = None, 
-#                 binary_masks = None, prf_proc_dict = None, roi = 'V1', sigma_min=1, sigma_max=25, 
-#                 rand_seed = None, invert = 'n', central = 'n', filter_dict = None, grid = 'n'):
-#     # arguments can be specified manually, or generated randomly if none are given
-#     # when entered manually there is no specification of parameters (yet)
-#     # I have to think about whether this is actually relevant, don't think so.
-#     # It's nothing more than a check whether it works, which it does.
-
-#     masked_arr = np.zeros(image.shape) # Create empty array for masked image
-#     if type == 'heatmask':
-#         # prf_mask = np.mean(heatmask, axis=2)
-#         prf_mask = heatmask
-#     else:
-#         if x is None and y is None and sigma is None:
-#             prf_info = get_mask(dim = image.shape[0], subject = 'subj01', plot = 'n', 
-#                                 binary_masks = binary_masks, prf_proc_dict = prf_proc_dict, 
-#                                 type = type, sigma_min=sigma_min, sigma_max=sigma_max, 
-#                                 rand_seed = rand_seed, filter_dict = filter_dict, grid = grid)
-
-        
-#         x, y, sigma = prf_info['x'], prf_info['y'], prf_info['pix_radius']
-#         masked_arr = np.zeros(image.shape) # Create empty array for masked image
-
-#         pix_radius = sigma #* (image.shape[0]/8.4)
-        
-#         if central == 'y':
-#             x = y = ((image.shape[0] + 1) / 2)
-#             pix_radius = (2 * (image.shape[0] / 8.4))
-
-            
-#         if type == 'gaussian':
-#             prf_mask = make_gaussian_2d(image.shape[0], x, y, pix_radius)
-#         elif type == 'circle':
-#             prf_mask = make_circle_mask(image.shape[0], x, y, pix_radius)
-#         elif type == 'full_gaussian':
-#             prf_mask = make_gaussian_2d(image.shape[0], x, y, pix_radius)
-#         elif type == 'cut_gaussian':
-#             prf_mask = css_gaussian_cut(image.shape[0], x, y, pix_radius)
-#         elif type == 'outline':
-#             prf_mask = (make_circle_mask(image.shape[0], x, y, pix_radius, fill = 'n'))
-#         else:
-#             raise ValueError(f"Invalid type: {type}. Available mask types are 'gaussian','circle','full_gaussian','cut_gaussian', and 'outline'.")
-
-#     # Apply the mask per layer of the input image using matrix multiplication
-#     for colour in range(image.shape[2]):
-#         if invert == 'n':
-#             # masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(prf_mask)
-#             masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(prf_mask)
-#         elif invert == 'y':
-#             masked_arr[:,:,colour] = image[:,:,colour] * np.flipud(1 - prf_mask)
-            
-
-#     # Normalize the masked image according to the RGB range of 0-255
-#     masked_img = masked_arr / 255
-
-#     # ax.imshow(masked_img, origin='upper', extent=[0,image.shape[0],0,image.shape[0]])
-#     fig, ax = plt.subplots(figsize=(8, 8))
-#     ax.imshow(masked_img, origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
-#     ax.set_title(f'Region Of Interest: {roi}\n')
-#     ax.set_xlabel('Horizontal Degrees of Visual Angle')
-#     ax.set_ylabel('Vertical Degrees of Visual Angle')
-
-
-
-
-#     # Set ticks at every 0.1 step
-#     ax.xaxis.set_major_locator(MultipleLocator(0.5))
-#     ax.yaxis.set_major_locator(MultipleLocator(0.5))
-    
-#     return prf_info
-
-# This function applies a gaussian filter to the loaded image
 def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heatmask = None, 
                 binary_masks = None, prf_proc_dict = None, roi = 'V1', sigma_min=1, sigma_max=25, ecc_max = 4.2,
-                rand_seed = None, invert = 'n', central = 'n', filter_dict = None, grid = 'n'):
+                rand_seed = None, invert = 'n', central = 'n', filter_dict = None, grid = 'n', fill = 'y'):
     # arguments can be specified manually, or generated randomly if none are given
     # when entered manually there is no specification of parameters (yet)
     # I have to think about whether this is actually relevant, don't think so.
     # It's nothing more than a check whether it works, which it does.
-
+    dim = image.shape[0]
     masked_arr = np.zeros(image.shape) # Create empty array for masked image
     if type == 'heatmask':
         # prf_mask = np.mean(heatmask, axis=2)
         prf_mask = heatmask
     else:
         if x is None and y is None and sigma is None:
-            prf_info = get_mask(dim = image.shape[0], subject = 'subj01', plot = 'n', 
+            prf_info = get_mask(dim = dim, subject = 'subj01', plot = 'n', 
                                 binary_masks = binary_masks, prf_proc_dict = prf_proc_dict, 
                                 type = type, sigma_min=sigma_min, sigma_max=sigma_max, ecc_max = ecc_max,
                                 rand_seed = rand_seed, filter_dict = filter_dict, grid = grid)
@@ -1148,20 +1078,26 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
         pix_radius = sigma #* (image.shape[0]/8.4)
         
         if central == 'y':
-            x = y = ((image.shape[0] + 1) / 2)
-            pix_radius = (2 * (image.shape[0] / 8.4))
+            x = y = ((dim + 1) / 2)
+            pix_radius = (2 * (dim / 8.4))
 
             
         if type == 'gaussian':
-            prf_mask = make_gaussian_2d(image.shape[0], x, y, pix_radius)
+            prf_mask = make_gaussian_2d(dim, x, y, pix_radius)
         elif type == 'circle':
-            prf_mask = make_circle_mask(image.shape[0], x, y, pix_radius)
+            prf_mask = make_circle_mask(dim, x, y, pix_radius)
         elif type == 'full_gaussian':
-            prf_mask = make_gaussian_2d(image.shape[0], x, y, pix_radius)
+            prf_mask = make_gaussian_2d(dim, x, y, pix_radius)
         elif type == 'cut_gaussian':
-            prf_mask = css_gaussian_cut(image.shape[0], x, y, pix_radius)
+            prf_mask = css_gaussian_cut(dim, x, y, pix_radius)
+        # elif type == 'outline':
+        #     prf_mask = (make_circle_mask(image.shape[0], x, y, pix_radius, fill = 'n'))
         elif type == 'outline':
-            prf_mask = (make_circle_mask(image.shape[0], x, y, pix_radius, fill = 'n'))
+            dim = image.shape[0]
+            x = y = ((dim + 2)/2)
+            x_deg = y_deg = prf_angle = prf_ecc = prf_expt = 0
+            deg_radius = prf_size = ecc_max
+            prf_mask = (make_circle_mask(dim, ((dim+2)/2), ((dim+2)/2), ecc_max * (dim / 8.4), fill = fill_outline))
         else:
             raise ValueError(f"Invalid type: {type}. Available mask types are 'gaussian','circle','full_gaussian','cut_gaussian', and 'outline'.")
 
@@ -1178,8 +1114,15 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
 
     center = (prf_info['x'].astype(int), prf_info['y'].astype(int))
 
-    rms_contrast, weibull_pars, gray_image, mask, patch_pixels, mean_intensity = calculate_rms_contrast_circle(image, center = center, radius = prf_info['pix_radius'].astype(int), hist = 'y', circ_plot = 'y')
-    sc, loc, ce = weibull_pars # Extract the spatial coherence (shape), location (on x-axis), and contrast energy (width, scale)
+    x, y = prf_info['x'].astype('int'), prf_info['y'].astype('int')
+    radius = prf_info['pix_radius'].astype('int')
+    mask_w_in = prf_info['mask']
+    
+    # Create boolean mask of exact same size as weighted pRF patch
+    rf_mask_in = make_circle_mask(425, x, y, radius, fill = 'y', margin_width = 0)
+    rms_contrast = get_rms_contrast(image,mask_w_in,rf_mask_in,normalise=True)
+    # rms_contrast, weibull_pars, gray_image, mask, patch_pixels, mean_intensity = calculate_rms_contrast_circle(image, center = center, radius = prf_info['pix_radius'].astype(int), hist = 'y', circ_plot = 'y')
+    # sc, loc, ce = weibull_pars # Extract the spatial coherence (shape), location (on x-axis), and contrast energy (width, scale)
 
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.imshow(masked_img, cmap='bone', origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
@@ -1189,14 +1132,12 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
                 f'Angle: {round(prf_info["angle"], 2)}°\nEccentricity: {round(prf_info["eccentricity"], 2)}°\n'
                 f'Exponent: {round(prf_info["exponent"], 2)}\nSize: {round(prf_info["size"], 2)}°\n'
                 f'Explained pRF variance (R2): {round(prf_info["R2"], 2)}%\n'
-                f'Root Mean Square (RMS) contrast of patch: {round(rms_contrast, 2)}\n'
-                f'Contrast Energy (CE) of patch (Weibull width): {round(ce, 2)}\n'
-                f'Spatial Coherence (SC) of patch (Weibull shape): {round(sc, 2)}\n'
-                f'Weibull location on x-axis: {round(loc, 2)}')
+                f'Root Mean Square (RMS) contrast of patch: {round(rms_contrast, 2)}')
+                # f'Contrast Energy (CE) of patch (Weibull width): {round(ce, 2)}\n'
+                # f'Spatial Coherence (SC) of patch (Weibull shape): {round(sc, 2)}\n'
+                # f'Weibull location on x-axis: {round(loc, 2)}')
     ax.set_xlabel('Horizontal Degrees of Visual Angle')
     ax.set_ylabel('Vertical Degrees of Visual Angle')
-
-# f'Voxel: [{prf_info["x_vox"]}, {prf_info["y_vox"]}, {prf_info["z_vox"]}]\n'
 
     if grid == 'y':
         ax.grid(which='both', linestyle='--', linewidth=0.5, color='black')
