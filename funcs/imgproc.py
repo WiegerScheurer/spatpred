@@ -174,7 +174,7 @@ def get_rms_contrast(ar_in,mask_w_in,rf_mask_in,normalise=True):
     # root mean square contrast
     
     
-def get_contrast_df(n_images = None, roi = 'V1', subject = 'subj01', ecc_max = 1, ecc_strict = 'y', 
+def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'subj01', ecc_max = 1, ecc_strict = 'y', 
                      prf_proc_dict = None, binary_masks = None, rf_type = 'prf'):
     
     designmx = get_imgs_designmx()
@@ -182,9 +182,9 @@ def get_contrast_df(n_images = None, roi = 'V1', subject = 'subj01', ecc_max = 1
     if n_images == 'all':
         n_images = len(designmx['subj01'])
     
-    rms_list, image_id_list, roi_list, subject_list = [], [], [], []
+    indices, rms_list, image_id_list, roi_list, subject_list = [], [], [], [], []
       
-    for img_no in range(n_images):
+    for img_no in range(start_img_no, n_images + start_img_no):
         ar_in = show_stim(img_no = img_no, hide = 'y')[0]
         
         if rf_type == 'prf':
@@ -210,14 +210,14 @@ def get_contrast_df(n_images = None, roi = 'V1', subject = 'subj01', ecc_max = 1
             rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
             
         # Get root mean square contrast of image and add to list
+        indices.append(img_no)
         rms_list.append(get_rms_contrast(ar_in, mask_w_in, rf_mask_in, normalise = True))
         image_id_list.append(designmx[subject][img_no])
         roi_list.append(roi)
         subject_list.append(subject)
         if img_no % 10 == 0:
-            print(f"Processing image number: {img_no} out of {n_images}")
+            print(f"Processing image number: {img_no} out of {n_images + start_img_no}")
 
-        
     contrast_df = pd.DataFrame({
         'rms': rms_list,
         'image_id': image_id_list,
@@ -225,13 +225,10 @@ def get_contrast_df(n_images = None, roi = 'V1', subject = 'subj01', ecc_max = 1
         'subject': subject_list
     })
     
+    contrast_df = contrast_df.set_index(np.array(indices))
+    
     return contrast_df
     
-        
-        
-        
-        
-
 # This function applies a gaussian filter to the loaded image
 def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heatmask = None, 
                 binary_masks = None, prf_proc_dict = None, roi = 'V1', sigma_min=1, sigma_max=25, ecc_max = 4.2,
