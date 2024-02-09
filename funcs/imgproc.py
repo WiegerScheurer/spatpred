@@ -182,7 +182,7 @@ def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'su
     if n_images == 'all':
         n_images = len(designmx['subj01'])
     
-    indices, rms_list, image_id_list, roi_list, subject_list = [], [], [], [], []
+    indices, rms_list, image_id_list= [], [], []
       
     for img_no in range(start_img_no, n_images + start_img_no):
         ar_in = show_stim(img_no = img_no, hide = 'y')[0]
@@ -213,17 +213,22 @@ def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'su
         indices.append(img_no)
         rms_list.append(get_rms_contrast(ar_in, mask_w_in, rf_mask_in, normalise = True))
         image_id_list.append(designmx[subject][img_no])
-        roi_list.append(roi)
-        subject_list.append(subject)
+        # roi_list.append(roi)
+        # subject_list.append(subject)
         if img_no % 10 == 0:
             print(f"Processing image number: {img_no} out of {n_images + start_img_no}")
 
     contrast_df = pd.DataFrame({
         'rms': rms_list,
-        'image_id': image_id_list,
-        'roi': roi_list,
-        'subject': subject_list
+        'image_id': image_id_list
+        # 'roi': roi_list,
+        # 'subject': subject_list
     })
+    
+    contrast_df.insert(2, 'roi', [roi] * contrast_df.shape[0])
+    contrast_df.insert(3, 'subject', [subject] * contrast_df.shape[0])
+    contrast_df.insert(4, 'central_radius', [ecc_max] * contrast_df.shape[0])
+    
     
     contrast_df = contrast_df.set_index(np.array(indices))
     
