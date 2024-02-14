@@ -262,7 +262,7 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
         
         if central == 'y':
             x = y = ((dim + 1) / 2)
-            pix_radius = (2 * (dim / 8.4))
+            pix_radius = (ecc_max * (dim / 8.4))
 
             
         if type == 'gaussian':
@@ -289,7 +289,7 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
         if invert == 'n':
             masked_arr[:,:,colour] = image[:,:,colour] * prf_mask
         elif invert == 'y':
-            masked_arr[:,:,colour] = image[:,:,colour] * 1 - prf_mask
+            masked_arr[:,:,colour] = image[:,:,colour] * (1 - prf_mask)
             
 
     # Normalize the masked image according to the RGB range of 0-255

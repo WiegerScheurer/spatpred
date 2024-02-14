@@ -26,3 +26,11 @@ def get_zscore(data, print_ars = 'y'):
     return z_scores
 
 
+def multiple_regression(X, y):
+    # Add a column of ones to the end of the X matrix
+    X = np.hstack((X, np.ones((X.shape[0], 1))))
+
+    # Calculate the coefficients
+    beta = np.dot(np.linalg.inv(np.dot(X.T, X)), np.dot(X.T, y))
+
+    return beta
