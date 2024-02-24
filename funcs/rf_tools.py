@@ -743,24 +743,31 @@ def compare_masks(mask_dict = None, prf_dict = None, subject='subj01', roi='V1',
     plt.show()
 
 
+import numpy as np
+from matplotlib.ticker import MultipleLocator
+
 # Function to compare the heatmaps on different bases, need to add different comparison types, than just roi. For now suffices
+
 def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=None, basis='roi',
                      mask_type='cut_gaussian', cmap='CMRmap', roi='V1', excl_reason='n', sigma_min=0,
-                     sigma_max=4.2, ecc_max=2, print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid = 'n'):
+                     sigma_max=4.2, ecc_max=2, print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid='n'):
     if basis == 'roi':
         rois = sorted(prf_proc_dict['subj01']['proc'].keys())
 
-    def plot_mask(ax, mask, title, last=None):
-        img = ax.imshow(mask, cmap=cmap)
-        ax.set_title(title)
-        ax.axis('off')
+    def plot_mask(ax, mask, title, subtitle='aars', last=None, extent=[-4.2, 4.2, -4.2, 4.2]):
+        img = ax.imshow(mask, cmap=cmap, extent=extent)
+        ax.set_title(title, fontsize = 13, weight = 'semibold')
+        
+        if subtitle:
+            ax.text(0.5, 1.02, subtitle, transform=ax.transAxes,
+                    ha='center', va='bottom', fontsize=12)  # Adjust fontsize as needed
+        
         ax.set_xlabel('Horizontal Degrees of Visual Angle')
         ax.set_ylabel('Vertical Degrees of Visual Angle')
-        # if last == 'y':
-        #     cbar = plt.colorbar(img, ax=ax, pad=0.01)  # Ensure colorbar placement
-        #     cbar.set_label('pRF density')
+        ax.xaxis.set_major_locator(MultipleLocator(2))
+        ax.yaxis.set_major_locator(MultipleLocator(2))
 
-    fig, axs = plt.subplots(1, 4, figsize=(20, 5))
+    fig, axs = plt.subplots(1, 4, figsize=(18, 5))
 
     for n, roi in enumerate(rois):
         heatmap, iter, end_premat, roi, prf_sizes, rel_surf, total_prfs_found = prf_heatmap(
@@ -769,14 +776,14 @@ def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=
                                     sigma_min=sigma_min, sigma_max=sigma_max, ecc_max=ecc_max,
                                     print_prog=print_prog, subjects='all', outline_degs=outline_degs,
                                     filter_dict=filter_dict, fill_outline=fill_outline, plot_heat='n',
-                                    ecc_strict=ecc_strict, grid = grid)
+                                    ecc_strict=ecc_strict, grid=grid)
 
         last_plot = 'y' if n == (len(rois) - 1) else 'n'
-        plot_mask(axs[n], heatmap, f'{roi}\n Average pRF radius: {round(np.mean(prf_sizes), 2)}°, {rel_surf}% of outline surface\n'
-                  f'Total amount of pRFs found: {total_prfs_found}', last=last_plot)
-
+        plot_mask(axs[n], heatmap, f'{roi}\n\n', f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°,\n {rel_surf}% of outline surface', last=last_plot)
+    
     plt.tight_layout()
     plt.show()
+
 
 # class AllPRFConsidered(Exception):
 #     pass

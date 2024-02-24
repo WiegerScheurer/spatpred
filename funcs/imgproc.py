@@ -328,3 +328,4 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
     ax.yaxis.set_major_locator(MultipleLocator(0.5))
     
     return prf_info #, weibull_pars
+
