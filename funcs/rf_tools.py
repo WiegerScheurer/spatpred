@@ -7,7 +7,7 @@ import nibabel as nib
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from matplotlib.lines import Line2D
+# from matplotlib.lines import Line2Dgit 
 from matplotlib.ticker import MultipleLocator
 import nsdcode
 from nsdcode.nsd_mapdata import NSDmapdata

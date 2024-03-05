@@ -145,8 +145,9 @@ def feature_df(subject, feature, feat_per_img, designmx):
         
     return df
     
-    
-feature_df_s1 = feature_df('subject', 'rms', all_feats, designmx = dmx)
+# call it like this:
+# feature_df_s1 = feature_df('subject', 'rms', all_feats, designmx = dmx)
+
 # This one works, but gives a different (yet correlated) rms value, for some reason. Figure out why
 
 # def calculate_rms_contrast_circle(image_array, center, radius, hist = 'n', circ_plot = 'n'):
