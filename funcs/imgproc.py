@@ -9,6 +9,7 @@ from scipy.io import loadmat
 import cv2
 from scipy.stats import weibull_min
 from matplotlib.ticker import MultipleLocator
+from skimage import color
 from funcs.rf_tools import get_mask, make_circle_mask, css_gaussian_cut, make_gaussian_2d
 
 # Function to show a randomly selected image of the nsd dataset
@@ -145,7 +146,7 @@ def get_imgs_designmx():
 #     return rms_contrast, weibull_params, image_with_circle, mask, patch_pixels, mean_intensity
 
 # Function to get rms contrast for input image, mask patch, and weighted mask
-def get_rms_contrast(ar_in,mask_w_in,rf_mask_in,normalise=True):
+def get_rms_contrast(ar_in,mask_w_in,rf_mask_in,normalise=True, plot = 'n'):
 
     """
     rms contrast, computing contrast with respect to uniform mean
@@ -168,14 +169,50 @@ def get_rms_contrast(ar_in,mask_w_in,rf_mask_in,normalise=True):
     square_contrast=np.square((ar_in-(ar_in[rf_mask_in].mean())))
 
     msquare_contrast=(mask_w_in*square_contrast).sum()
-    
-    # mean square contrast
+    if plot == 'y':
+        fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+
+        plt.subplots_adjust(wspace=0.01)
+
+        axs[1].set_title(f'rms = {np.sqrt(msquare_contrast):.2f}')
+        axs[0].imshow(square_contrast, cmap = 'gist_gray')
+        axs[0].axis('off') 
+        axs[1].imshow(mask_w_in*square_contrast, cmap = 'gist_gray')
+        axs[1].axis('off') 
+
     return(np.sqrt(msquare_contrast))
-    # root mean square contrast
+
+# Function that calculates rms but based on a RGB to LAB conversion, which follows the CIELAB colour space
+# This aligns best with the way humans perceive visual input. 
+def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, normalise = True, plot = 'n'):
+    # Convert RGB image to LAB colour space
+    lab_image = color.rgb2lab(rgb_image)
     
+    ar_in = lab_image[:, :, 0] # Extract the L* channel for luminance values, set as input array
+
+    if normalise == True:
+        ar_in = ar_in/np.max(ar_in)
     
+    square_contrast=np.square((ar_in-(ar_in[rf_mask_in].mean())))
+
+    msquare_contrast=(mask_w_in*square_contrast).sum()
+    
+    if plot == 'y':
+        fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+
+        plt.subplots_adjust(wspace=0.01)
+
+        axs[1].set_title(f'rms = {np.sqrt(msquare_contrast):.2f}')
+        axs[0].imshow(square_contrast, cmap = 'gist_gray')
+        axs[0].axis('off') 
+        axs[1].imshow(mask_w_in*square_contrast, cmap = 'gist_gray')
+        axs[1].axis('off') 
+        
+    return (np.sqrt(msquare_contrast))
+    
+
 def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'subj01', ecc_max = 1, ecc_strict = 'y', 
-                     prf_proc_dict = None, binary_masks = None, rf_type = 'prf'):
+                     prf_proc_dict = None, binary_masks = None, rf_type = 'prf', contrast_type = 'rms_lab'):
     
     designmx = get_imgs_designmx()
     
@@ -211,7 +248,13 @@ def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'su
             
         # Get root mean square contrast of image and add to list
         indices.append(img_no)
-        rms_list.append(get_rms_contrast(ar_in, mask_w_in, rf_mask_in, normalise = True))
+        
+        if contrast_type == 'rms_lab':
+            rms_list.append(get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, normalise = True, plot = 'n'))
+        elif contrast_type == 'rms':
+            rms_list.append(get_rms_contrast(ar_in, mask_w_in, rf_mask_in, normalise = True, plot = 'n'))
+            
+        # rms_list.append(get_rms_contrast(ar_in, mask_w_in, rf_mask_in, normalise = True))
         image_id_list.append(designmx[subject][img_no])
         # roi_list.append(roi)
         # subject_list.append(subject)
@@ -226,9 +269,9 @@ def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'su
     })
     
     # Remove this roi thing, or well, only when rf_type = 'center'
-    contrast_df.insert(2, 'roi', [roi] * contrast_df.shape[0])
-    contrast_df.insert(3, 'subject', [subject] * contrast_df.shape[0])
-    contrast_df.insert(4, 'central_radius', [ecc_max] * contrast_df.shape[0])
+    # contrast_df.insert(2, 'roi', [roi] * contrast_df.shape[0])
+    contrast_df.insert(2, 'subject', [subject] * contrast_df.shape[0])
+    contrast_df.insert(3, 'central_radius', [ecc_max] * contrast_df.shape[0])
     
     contrast_df = contrast_df.set_index(np.array(indices))
     
