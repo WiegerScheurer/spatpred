@@ -10,6 +10,7 @@ import cv2
 from scipy.stats import weibull_min
 from matplotlib.ticker import MultipleLocator
 from skimage import color
+from multiprocessing import Pool
 from funcs.rf_tools import get_mask, make_circle_mask, css_gaussian_cut, make_gaussian_2d
 
 # Function to show a randomly selected image of the nsd dataset
@@ -70,6 +71,82 @@ def get_imgs_designmx():
     
     return stims_design_mx
     
+# These two functions are coupled to run the feature computations in parallel.
+# This saves a lot of time. Should be combined with the feature_df function to assign
+# the values to the corresponding trials.
+def rms_single(args, ecc_max = 1):
+    i, start, n = args
+    
+    dim = show_stim(hide = 'y')[0].shape[0]
+    x = y = (dim + 1)/2
+    radius = ecc_max * (dim / 8.4)
+    mask_w_in = css_gaussian_cut(dim, x, y, radius)
+    rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
+    
+    ar_in = show_stim(img_no = i, hide = 'y')[0]
+    
+    if i % 100 == 0:
+        print(f"Processing image number: {i} out of {n + start}")
+    return get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, normalise = True, plot = 'n')
+
+def rms_all(start, n, ecc_max = 1):
+    img_vec = list(range(start, start + n))
+
+    # Create a pool of worker processes
+    with Pool() as p:
+        rms_vec = p.map(rms_single, [(i, start, n) for i in img_vec])
+
+    rms_dict = pd.DataFrame({
+        'rms': rms_vec
+    })
+
+    rms_dict = rms_dict.set_index(np.array(img_vec))
+    return rms_dict
+
+
+# Function to calculate rms scores for image independent of design matrix. Faster option, later should be used to fill the
+# dictionaries based on the design matrices. 
+# This is the sequential version of the parallel one above, not useful so delete.
+
+def rms_all_seq(start, n, ecc_max = 1):
+    rms_vec = []
+    img_vec = range(start, start + n)
+    for i in img_vec:
+        ar_in = show_stim(img_no = start + i, hide = 'y')[0]  
+        dim = ar_in.shape[0]
+        x = y = (dim + 1)/2
+        radius = ecc_max * (dim / 8.4)
+        mask_w_in = css_gaussian_cut(dim, x, y, radius)
+        rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
+        
+        rms_vec.append(get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, normalise = True, plot = 'n'))
+        
+    rms_dict = pd.DataFrame({
+        'rms': rms_vec
+    })
+    
+    rms_dict.set_index(np.array(img_vec))
+    return rms_dict
+
+
+# This function creates a dataframe containing the rms contrast values for each image in the design matrix
+# This way you can chronologically map the feature values per subject based on the design matrix image order
+def feature_df(subject, feature, feat_per_img, designmx):
+
+    if feature == 'rms': 
+        
+        ices = list(designmx[subject])
+        rms_all = feat_per_img['rms'][ices]
+        
+        df = pd.DataFrame({'img_no': ices,
+                           'rms':rms_all})
+        
+    df = df.set_index(np.array(range(0, len(df))))
+        
+    return df
+    
+    
+feature_df_s1 = feature_df('subject', 'rms', all_feats, designmx = dmx)
 # This one works, but gives a different (yet correlated) rms value, for some reason. Figure out why
 
 # def calculate_rms_contrast_circle(image_array, center, radius, hist = 'n', circ_plot = 'n'):
@@ -209,8 +286,10 @@ def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, normalise = True, plo
         axs[1].axis('off') 
         
     return (np.sqrt(msquare_contrast))
-    
-
+   
+   
+# Function to get contrast features based on the design matrix of a subject. 
+# Extend the function so it does so by mapping the precomputed rms values with the function below.  
 def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'subj01', ecc_max = 1, ecc_strict = 'y', 
                      prf_proc_dict = None, binary_masks = None, rf_type = 'prf', contrast_type = 'rms_lab'):
     
@@ -221,8 +300,11 @@ def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'su
     
     indices, rms_list, image_id_list= [], [], []
       
-    for img_no in range(start_img_no, n_images + start_img_no):
-        ar_in = show_stim(img_no = img_no, hide = 'y')[0]
+    img_vec = designmx[subject][start_img_no : n_images + start_img_no]  
+    
+    # for img_no in range(start_img_no, n_images + start_img_no):
+    for n_img, img_id in enumerate(img_vec):
+        ar_in = show_stim(img_no = img_id, hide = 'y')[0]
         
         if rf_type == 'prf':
             # Acquire mask based on subject, roi, outline. Type is cut_gaussian by default, based on NSD paper
@@ -247,7 +329,7 @@ def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'su
             rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
             
         # Get root mean square contrast of image and add to list
-        indices.append(img_no)
+        indices.append(n_img)
         
         if contrast_type == 'rms_lab':
             rms_list.append(get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, normalise = True, plot = 'n'))
@@ -255,11 +337,11 @@ def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'su
             rms_list.append(get_rms_contrast(ar_in, mask_w_in, rf_mask_in, normalise = True, plot = 'n'))
             
         # rms_list.append(get_rms_contrast(ar_in, mask_w_in, rf_mask_in, normalise = True))
-        image_id_list.append(designmx[subject][img_no])
+        image_id_list.append(designmx[subject][n_img])
         # roi_list.append(roi)
         # subject_list.append(subject)
-        if img_no % 10 == 0:
-            print(f"Processing image number: {img_no} out of {n_images + start_img_no}")
+        if n_img % 10 == 0:
+            print(f"Processing image number: {n_img} out of {n_images + start_img_no}")
 
     contrast_df = pd.DataFrame({
         'rms': rms_list,
@@ -276,7 +358,7 @@ def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'su
     contrast_df = contrast_df.set_index(np.array(indices))
     
     return contrast_df
-    
+
 # This function applies a gaussian filter to the loaded image
 def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heatmask = None, 
                 binary_masks = None, prf_proc_dict = None, roi = 'V1', sigma_min=1, sigma_max=25, ecc_max = 4.2,
