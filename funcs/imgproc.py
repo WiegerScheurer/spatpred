@@ -225,10 +225,10 @@ def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'su
         # 'subject': subject_list
     })
     
+    # Remove this roi thing, or well, only when rf_type = 'center'
     contrast_df.insert(2, 'roi', [roi] * contrast_df.shape[0])
     contrast_df.insert(3, 'subject', [subject] * contrast_df.shape[0])
     contrast_df.insert(4, 'central_radius', [ecc_max] * contrast_df.shape[0])
-    
     
     contrast_df = contrast_df.set_index(np.array(indices))
     
