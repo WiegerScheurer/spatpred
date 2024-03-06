@@ -99,3 +99,122 @@ def calculate_rms_contrast_circle(image_array, center, radius, hist = 'n', circ_
         
 
     return rms_contrast, weibull_params, image_with_circle, mask, patch_pixels, mean_intensity
+
+
+
+
+################################## RF_TOOLS ##################################
+
+
+
+def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussian', cmap='gist_heat', 
+                roi='V2', sigma_min=1, sigma_max=25, ecc_max = 4.2, print_prog='n', excl_reason = 'n', subjects='all',
+                outline_degs = None, filter_dict = None, fill_outline = 'n', plot_heat = 'y', ecc_strict = None, grid = 'n'):
+    
+    outline_surface = np.pi * outline_degs**2
+    prf_sumstack = []
+    prf_sizes = []
+    total_prfs_found = 0
+    if subjects == 'all':
+        subjects = list(binary_masks)
+    else:
+        subjects = [subjects]
+        
+    # To make sure that the maximum amount of pRFs that is searched through is adapted to the individual
+    for subject in subjects:
+        # This is to make sure that the random sampling is done correctly, for different restrictions on the amount of
+        # pRFs to sample from. This can be restricted through exclusion criteria, or for example the filter_dict.
+        if filter_dict != None:
+            smaller_xyz = filter_dict[subject][f'{roi}_mask'][:, :3]
+            # filter = np.any(np.all(binary_masks[subject][f'{roi}_mask'][:, None, :3] == smaller_xyz, axis=-1), axis=1)
+            filter = np.any(np.all(prf_proc_dict[subject]['proc'][f'{roi}_mask']['angle'][:, None, :3] == smaller_xyz, axis=-1), axis=1)
+            roi_flt = filter_dict[subject][f'{roi}_mask'].shape[0] # Amount of voxels in top rsq dict for subj, roi
+            prf_vec = random.sample(range(roi_flt), roi_flt) # Create random vector to shuffle order voxels to consider
+            
+        else:
+            filter = range(0, prf_proc_dict[subject]['proc'][f'{roi}_mask']['angle'].shape[0])
+            roi_flt = binary_masks[subject][f'{roi}_mask'] # This is the total number of voxels for subj, roi
+            prf_vec = random.sample(range(np.sum(roi_flt)), np.sum(roi_flt)) # Idem dito as in the 'if' part
+            
+        # FIX THIS STILL!!! I think it works now, but I need to check it.
+        if n_prfs == 'all':
+            n_prfs_subject = np.sum(binary_masks[subject][f'{roi}_mask']) # This does not work
+            # n_prfs_subject = random.randint(10,20)
+        else:
+            n_prfs_subject = n_prfs
+
+        # Create an empty array to fill with the masks
+        prf_single = np.zeros([dim, dim, n_prfs_subject])
+
+        iter = 0
+        end_premat = False
+        for prf in range(n_prfs_subject):
+            try:
+                # prf_single[:, :, prf], _, _, _, new_iter = get_mask(dim=dim,
+                prf_dict = get_mask(dim=dim,
+                                    subject=subject,
+                                    binary_masks=binary_masks,
+                                    prf_proc_dict=prf_proc_dict,
+                                    type=mask_type,
+                                    roi=roi,
+                                    plot='n',
+                                    heatmap='y',
+                                    prf_vec=prf_vec,
+                                    iter=iter,
+                                    sigma_min=sigma_min,
+                                    sigma_max=sigma_max,
+                                    ecc_max = ecc_max,
+                                    excl_reason=excl_reason,
+                                    filter_dict = filter_dict,
+                                    ecc_strict = ecc_strict,
+                                    grid = grid)
+                prf_single[:, :, prf] = prf_dict['mask']
+                iter = prf_dict['iterations']
+                prf_size = prf_dict['size']
+                prf_sizes.append(prf_size)
+                if print_prog == 'y':
+                    print(f"Subject: {subject}, Voxel {prf+1} out of {n_prfs_subject} found")
+                    if (prf+1) == n_prfs_subject:
+                        print('\n')
+            except AllPRFConsidered:
+                if prf >= n_prfs_subject:
+                    print(f'All potential pRFs have been considered at least once.\n'
+                        f'Total amount of pRFs found: {len(prf_sizes)}')
+                    end_premat = True
+                    
+                break  # Exit the loop immediately
+        
+        prf_sumstack.append(np.mean(prf_single, axis=2))
+        total_prfs_found += len(prf_sizes)
+         
+    avg_prf_surface = np.pi * np.mean(prf_sizes)**2
+    relative_surface = round(((avg_prf_surface / outline_surface) * 100), 2)
+    # Combine heatmaps of all subjects
+    prf_sum_all_subjects = np.mean(np.array(prf_sumstack), axis=0)
+    outline = make_circle_mask(425, 213, 213, outline_degs * 425/8.4, fill=fill_outline)
+    # Create a circle outline if an array is provide in the outline argument (should be same dimensions, binary)
+    prf_sum_all_subjects += (np.max(prf_sum_all_subjects) * outline) if outline_degs is not None else 1
+
+    # Display the plot
+    fig, ax = plt.subplots(figsize=(8, 8))
+    im = ax.imshow(prf_sum_all_subjects, cmap=cmap, origin='lower', extent=[-4.2, 4.2, -4.2, 4.2])
+    ax.set_title(f'Region Of Interest: {roi}\n'
+                 f'Spatial restriction of central {2 * ecc_max}° visual angle\n'
+                 f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°, {relative_surface}% of outline surface\n'
+                 f'Total amount of pRFs found: {total_prfs_found}')
+    ax.set_xlabel('Horizontal Degrees of Visual Angle')
+    ax.set_ylabel('Vertical Degrees of Visual Angle')
+    cbar = plt.colorbar(im, ax=ax, shrink = .6)
+    cbar.set_label('pRF density')  
+    
+    # Set ticks at every 0.1 step
+    ax.xaxis.set_major_locator(MultipleLocator(0.5))
+    ax.yaxis.set_major_locator(MultipleLocator(0.5))
+
+    if plot_heat == 'n':
+        plt.close()
+    else: 
+        plt.show()
+
+    return prf_sum_all_subjects, iter, end_premat, roi, prf_sizes, relative_surface, total_prfs_found
+

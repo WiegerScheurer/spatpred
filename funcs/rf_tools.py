@@ -25,7 +25,7 @@ import os
 import seaborn as sns
 import pprint as pprint
 from sklearn.linear_model import LinearRegression
-
+import copy
 
 # Function to load in nifti (.nii.gz) data and create some useful variables 
 def get_dat(path):
@@ -756,7 +756,7 @@ def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=
     # Create a new dictionary to store the masks for all the pRFs that pass the requirements
     prfmask_dict_all = copy.deepcopy(binary_masks)
 
-    def plot_mask(ax, mask, title, subtitle='aars', last=None, extent=[-4.2, 4.2, -4.2, 4.2]):
+    def plot_mask(ax, mask, title, subtitle='this is invisible', last=None, extent=[-4.2, 4.2, -4.2, 4.2]):
         img = ax.imshow(mask, cmap=cmap, extent=extent)
         ax.set_title(title, fontsize = 13, weight = 'semibold')
         
@@ -841,6 +841,9 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
                 roi='V2', sigma_min=1, sigma_max=25, ecc_max = 4.2, print_prog='n', excl_reason = 'n', subjects='all',
                 outline_degs = None, filter_dict = None, fill_outline = 'n', plot_heat = 'y', ecc_strict = None, grid = 'n'):
     
+    # Create new dictionary to store the filtered voxels that pass the pRF requirements imposed
+    prfmask_dict = copy.deepcopy(binary_masks)
+    
     outline_surface = np.pi * outline_degs**2
     prf_sumstack = []
     prf_sizes = []
@@ -863,12 +866,13 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
             
         else:
             filter = range(0, prf_proc_dict[subject]['proc'][f'{roi}_mask']['angle'].shape[0])
-            roi_flt = binary_masks[subject][f'{roi}_mask'] # This is the total number of voxels for subj, roi
-            prf_vec = random.sample(range(np.sum(roi_flt)), np.sum(roi_flt)) # Idem dito as in the 'if' part
+            roi_flt = np.sum(binary_masks[subject][f'{roi}_mask']).astype('int') # This is the total number of voxels for subj, roi
+            prf_vec = random.sample(range(roi_flt), roi_flt) # Create random vector to shuffle order voxels to consider
+            # prf_vec = random.sample(range(np.sum(roi_flt)), np.sum(roi_flt)) # Idem dito as in the 'if' part
             
-        # FIX THIS STILL!!!
+        # FIX THIS STILL!!! ??
         if n_prfs == 'all':
-            n_prfs_subject = np.sum(binary_masks[subject][f'{roi}_mask']) # This does not work
+            n_prfs_subject = np.sum(binary_masks[subject][f'{roi}_mask']) # This does not work. I think it does now
             # n_prfs_subject = random.randint(10,20)
         else:
             n_prfs_subject = n_prfs
@@ -876,6 +880,9 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
         # Create an empty array to fill with the masks
         prf_single = np.zeros([dim, dim, n_prfs_subject])
 
+        # Set the filtered dictionary values to zero
+        prfmask_dict[subject][f'{roi}_mask'] = np.zeros(binary_masks[subject][f'{roi}_mask'].shape)
+        
         iter = 0
         end_premat = False
         for prf in range(n_prfs_subject):
@@ -898,10 +905,14 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
                                     filter_dict = filter_dict,
                                     ecc_strict = ecc_strict,
                                     grid = grid)
+                
                 prf_single[:, :, prf] = prf_dict['mask']
                 iter = prf_dict['iterations']
                 prf_size = prf_dict['size']
                 prf_sizes.append(prf_size)
+                
+                prfmask_dict[subject][f'{roi}_mask'][prf_dict['x_vox']][prf_dict['y_vox']][prf_dict['z_vox']] = 1
+                
                 if print_prog == 'y':
                     print(f"Subject: {subject}, Voxel {prf+1} out of {n_prfs_subject} found")
                     if (prf+1) == n_prfs_subject:
@@ -946,5 +957,4 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
     else: 
         plt.show()
 
-    return prf_sum_all_subjects, iter, end_premat, roi, prf_sizes, relative_surface, total_prfs_found
-
+    return prf_sum_all_subjects, iter, end_premat, roi, prf_sizes, relative_surface, total_prfs_found, prfmask_dict
