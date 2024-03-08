@@ -372,19 +372,20 @@ def get_betas(subjects, voxels, start_session, end_session):
 
         hrf_betas = {}
         
-        for session in range(start_session, end_session):
+        for session in range(start_session, end_session + 1):
             session += 1
             if session < 10:
-                session = f'0{session}'
+                session_str = f'0{session}'
+            else: session_str = f'{session}'
             
             # session_nifti = betas_ses1 # Uncomment to check functionality of the code, if betas_ses1 has been loaded before.
-            session_nifti = (nib.load(f'/home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/betas_session{session}.nii.gz')).get_fdata(caching = 'unchanged')
+            session_nifti = (nib.load(f'/home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/betas_session{session_str}.nii.gz')).get_fdata(caching = 'unchanged')
             n_imgs = session_nifti.shape[3]
         
             print(f'Working on session: {session} of subject: {subject}')
             for roi in rois: 
                 
-                if session == '01':
+                if session == (start_session + 1):
                     hrf_betas[roi] = {}
                     # beta_dict[subject][roi] = {}
         
@@ -398,23 +399,23 @@ def get_betas(subjects, voxels, start_session, end_session):
                 for voxel in range(n_voxels):
                     vox_idx = vox_indices[voxel] # Get the voxel indices for the current voxel
                 
-                    hrf_betas_ses = (np.array(session_nifti[tuple(vox_idx)]).reshape(n_imgs, 1))/300
+                    hrf_betas_ses = (np.array(session_nifti[tuple(vox_idx)]).reshape(n_imgs, 1))/300 # Divide by 300 to return to percent signal change units.
                     
-                    if session == '01':
+                    if session == (start_session + 1):
                         hrf_betas[roi][f'voxel{voxel + 1}'] = hrf_betas_ses
+                    else:    
+                        total_betas = np.append(hrf_betas[roi][f'voxel{voxel + 1}'], hrf_betas_ses)
                         
-                    total_betas = np.append(hrf_betas[roi][f'voxel{voxel + 1}'], hrf_betas_ses)
+                        hrf_betas[roi][f'voxel{voxel + 1}'] = total_betas
                     
-                    hrf_betas[roi][f'voxel{voxel + 1}'] = total_betas
-                
-            with open('./data/custom_files/intermediate_hrf_save.pkl', 'wb') as fp:
+            with open('./data/custom_files/subj01/intermediate_hrf_save.pkl', 'wb') as fp:
                 pickle.dump(hrf_betas, fp)
                 print('     - Back-up saved to intermediate_hrf_save.pkl\n')
                     
         beta_dict[subject] = hrf_betas               
         
-    with open('./data/custom_files/beta_dict.pkl', 'wb') as fp:
+    with open(f'./data/custom_files/subj01/beta_dict{start_session}_{end_session}.pkl', 'wb') as fp:
         pickle.dump(beta_dict, fp)
-        print('     - Back-up saved to beta_dict.pkl\n')        
+        print('     - Back-up saved to beta_dict{start_session}_{end_session}.pkl\n')        
                 
     return beta_dict
