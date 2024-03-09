@@ -20,7 +20,15 @@ def multivariate_regression(X, y_matrix):
     beta_values = results.params[:-1, :]
     intercept_values = results.params[-1, :]
 
-    return beta_values, intercept_values
+    # Squeeze the last dimension out of y_matrix_reshaped
+    y_matrix_squeezed = np.squeeze(y_matrix_reshaped, axis=-1)
+
+    # Calculate R-squared values
+    ss_res = np.sum((y_matrix_squeezed - results.fittedvalues)**2, axis=0)
+    ss_tot = np.sum((y_matrix_squeezed - np.mean(y_matrix_squeezed, axis=0))**2, axis=0)
+    rsquared_values = 1 - ss_res / ss_tot
+
+    return beta_values, intercept_values, rsquared_values
 
 def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all'):
     reg_dict = {}
@@ -46,12 +54,13 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         # y_matrix = np.array([hrfs[roi][tuple(vox_idx)][:n_imgs] for vox_idx in vox_indices]).T / 300
 
         # Perform multivariate regression
-        beta_values, intercept_values = multivariate_regression(X, y_matrix)
+        beta_values, intercept_values, rsquared_values = multivariate_regression(X, y_matrix)
 
         for voxel, vox_idx in enumerate(vox_indices):
             reg_dict[roi][f'vox{voxel}'] = {
                 'xyz': list(vox_idx),
                 'beta': beta_values[:, voxel],
+                'R2': rsquared_values[voxel],
                 'icept': intercept_values[voxel]
             }
 
