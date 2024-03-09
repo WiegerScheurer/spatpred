@@ -3,6 +3,88 @@ import statsmodels.api as sm
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import copy
+
+
+# Function to create a dictionary containing all the relevant HRF signal info for the relevant voxels.
+def get_hrf_dict(subjects, voxels):
+    
+    hrf_dict = {}
+    
+    for subject in [subjects]:
+        hrf_dict[subject] = {}
+
+
+        # Get a list of files in the directory
+        files = os.listdir(f'/home/rfpred/data/custom_files/{subject}')
+
+        # Filter files that start with "beta_dict" and end with ".pkl"
+        filtered_files = [file for file in files if file.startswith("beta_dict") and file.endswith(".pkl")]
+
+        # Sort files based on the first number after 'beta_dict'
+        sorted_files = sorted(filtered_files, key=lambda x: int(''.join(filter(str.isdigit, x.split('beta_dict')[1]))))
+
+        # Print the sorted file names
+        for n_file, file_name in enumerate(sorted_files):
+            print(file_name)
+                
+            # Load in the boolean mask for inner circle voxel selection per roi.
+            with open(f'/home/rfpred/data/custom_files/subj01/{file_name}', 'rb') as fp:
+                beta_session = pickle.load(fp)
+            
+            rois = list(beta_session[subject].keys())
+            
+            if n_file == 0:
+                hrf_dict[subject] = copy.deepcopy(beta_session[subject])
+            for roi in rois:
+                # hrf_dict[subject][roi] = {}
+                n_voxels = len(beta_session[subject][roi])
+                # print(n_voxels)
+                
+                
+                voxel_mask = voxels[subject][roi] # These is the boolean mask for the specific subject, roi
+                
+                vox_indices = np.zeros([n_voxels, 3], dtype = int) # Initiate an empty array to store vox indices
+                
+                for coordinate in range(vox_indices.shape[1]): # Fill the array with the voxel coordinates as indices
+                    vox_indices[:, coordinate] = np.where(voxel_mask == 1)[coordinate]
+                    
+                for voxel in range(len(beta_session[subject][roi])):
+                    hrf_betas_ses = copy.deepcopy(beta_session[subject][roi][f'voxel{voxel + 1}'])
+                    # print(f'Processing voxel: {voxel + 1}')
+                    
+                    if n_file == 0:
+                        # hrf_dict[subject][roi][f'voxel{voxel + 1}'] = {}
+                        total_betas = hrf_betas_ses
+                        hrf_dict[subject][roi][f'voxel{voxel+1}'] = {
+                            'xyz': list(vox_indices[voxel]),
+                            'hrf_betas': total_betas,
+                            'hrf_betas_z': 0,
+                            'hrf_rsquared': 0,
+                            'hrf_rsquared_z': 0
+                        }
+                             
+                    else: 
+                        old_betas = hrf_dict[subject][roi][f'voxel{voxel + 1}']['hrf_betas']
+                        hrf_dict[subject][roi][f'voxel{voxel + 1}']['hrf_betas']
+                        total_betas = np.append(old_betas, hrf_betas_ses)   
+                             
+                    hrf_dict[subject][roi][f'voxel{voxel+1}'] = {
+                        'xyz': list(vox_indices[voxel]),
+                        'hrf_betas': total_betas,
+                        'hrf_betas_z': 0,
+                        'hrf_rsquared': 0,
+                        'hrf_rsquared_z': 0
+                    }
+            print(len(hrf_dict[subject][roi][f'voxel{voxel+1}']['hrf_betas']))
+            
+            
+    with open(f'./data/custom_files/{subjects}hrf_dict.pkl', 'wb') as fp:
+        pickle.dump(hrf_dict, fp)
+    
+            
+    return hrf_dict
+
 
 def multivariate_regression(X, y_matrix):
     # Add a constant term to the independent variable matrix

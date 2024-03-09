@@ -552,7 +552,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
              prf_proc_dict = None, type = 'full_gaussian', roi = 'V2', 
              plot = 'y', heatmap = 'n', prf_vec = None, iter = None, excl_reason = 'n', 
              sigma_min = 0, sigma_max = 4.2, ecc_min = 0, ecc_max = 4.2, rand_seed = None, filter_dict = None, 
-             ecc_strict = None, grid = 'n', fill_outline = 'n', area = 'central'):
+             ecc_strict = None, grid = 'n', fill_outline = 'n'):
 
     if rand_seed == None:
         random.seed(random.randint(1, 1000000))
@@ -600,7 +600,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         # Condition to regulate the strictness of maximum eccentricity values
         if ecc_strict == 'y':
             outer_bound = prf_ecc + prf_size
-            inner_bound = np.abs(prf_ecc - prf_size)
+            inner_bound = prf_ecc - prf_size
         
         # Sinus is used to calculate height, cosinus width
         # so c_index is the y coordinate and r_index is the x coordinate. 
@@ -618,25 +618,16 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
             deg_radius = prf_size
             pix_radius = prf_size * (dim / 8.4)
         
-        if area == 'central':
-            valid_conditions = (
-                0 < x < dim,
-                0 < y < dim,
-                sigma_min < deg_radius,
-                deg_radius < sigma_max,
-                outer_bound < ecc_max,
-                ecc_min < inner_bound,
-                prf_ecc > ecc_min
-                # prf_expt > 0
+        valid_conditions = (
+            0 < x < dim,
+            0 < y < dim,
+            sigma_min < deg_radius,
+            deg_radius < sigma_max,
+            outer_bound < ecc_max,
+            ecc_min < inner_bound,
+            prf_ecc > ecc_min
+            # prf_expt > 0
             )
-        # elif area == 'periphery':
-        #     valid_conditions = (                
-        #         0 < x < dim,
-        #         0 < y < dim,
-        #         sigma_min < deg_radius,
-        #         deg_radius < sigma_max,
-        #         outer_bound > ecc_min,
-        #         # prf_expt > 0)
 
         if all(valid_conditions):
             break
@@ -722,6 +713,39 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         # Return the dictionary
     return prf_output_dict
 
+# Function to compare the different ways of reaching a pRF filter. Nonlinear (CSS) and linear
+def compare_masks(mask_dict = None, prf_dict = None, subject='subj01', roi='V1', sigma_min=0.1, 
+                  sigma_max=4.2, cmap = 'afmhot'):
+  
+    def plot_mask(ax, mask, title):
+        ax.imshow(mask, cmap = cmap)
+        ax.set_title(title)
+        ax.axis('off')
+
+    # Assuming get_mask returns the mask you want to plot
+    dobbel = random.randint(1, 1000)
+
+    circle_dict = get_mask(dim=425, subject=subject, binary_masks = mask_dict, 
+                                       prf_proc_dict=prf_dict, type='circle', roi=roi,
+                                       plot='n', excl_reason='n', sigma_min=sigma_min, sigma_max=sigma_max, rand_seed=dobbel)
+
+    gaus = make_gaussian_2d(425, circle_dict['x'], circle_dict['y'], circle_dict['pix_radius'])
+    full_gaus = make_gaussian_2d(425, circle_dict['x'], circle_dict['y'], (circle_dict['size'] * (425 / 8.4)))
+    cut_gaus = css_gaussian_cut(425, circle_dict['x'], circle_dict['y'], (circle_dict['size'] * (425 / 8.4)))
+    
+    # Create a figure with 1 row and 3 columns
+    fig, axs = plt.subplots(1, 4, figsize=(20, 5))
+
+    # Plot each mask on a separate axis
+    plot_mask(axs[0], circle_dict['mask'], 'Boolean mask')
+    plot_mask(axs[1], gaus, 'Simple Gaussian')
+    plot_mask(axs[2], full_gaus, 'Full CSS input responsive Gaussian \n with prf_size as sigma')
+    plot_mask(axs[3], cut_gaus, '1 SD cut CSS Gaussian')
+
+    # Add a main title for the entire figure
+    fig.suptitle(f'{roi} of {subject}', fontsize=14)
+
+    plt.show()
 
 
 # # This class is to make sure that the heatmap can still be plotted if all pRF
@@ -850,3 +874,92 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
         plt.show()
 
     return prf_sum_all_subjects, iter, end_premat, roi, prf_sizes, relative_surface, total_prfs_found, prfmask_dict
+
+
+
+
+def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=None, basis='roi',
+                     mask_type='cut_gaussian', cmap='CMRmap', roi='V1', excl_reason='n', sigma_min=0,
+                     sigma_max=4.2, ecc_min = 0, ecc_max=2, print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid='n'):
+    if basis == 'roi':
+        rois = sorted(prf_proc_dict['subj01']['proc'].keys())
+
+    prfmask_dict_all = copy.deepcopy(binary_masks)
+
+    def plot_mask(ax, mask, title, subtitle='aars', last=None, extent=[-4.2, 4.2, -4.2, 4.2]):
+        img = ax.imshow(mask, cmap=cmap, extent=extent)
+        ax.set_title(title, fontsize = 13, weight = 'semibold')
+        
+        if subtitle:
+            ax.text(0.5, 1.02, subtitle, transform=ax.transAxes,
+                    ha='center', va='bottom', fontsize=12)  # Adjust fontsize as needed
+        
+        ax.set_xlabel('Horizontal Degrees of Visual Angle')
+        ax.set_ylabel('Vertical Degrees of Visual Angle')
+        ax.xaxis.set_major_locator(MultipleLocator(2))
+        ax.yaxis.set_major_locator(MultipleLocator(2))
+
+    fig, axs = plt.subplots(1, 4, figsize=(18, 5))
+
+    for n, roi in enumerate(rois):
+                
+        heatmap, iter, end_premat, roi, prf_sizes, rel_surf, total_prfs_found, prfmask_dict_all = prf_heatmap(
+                                    n_prfs, binary_masks=prfmask_dict_all, prf_proc_dict=prf_proc_dict,
+                                    mask_type=mask_type, cmap=cmap, roi=roi[:2], excl_reason=excl_reason,
+                                    sigma_min=sigma_min, sigma_max=sigma_max, ecc_min = ecc_min, ecc_max=ecc_max,
+                                    print_prog=print_prog, subjects='all', outline_degs=outline_degs,
+                                    filter_dict=filter_dict, fill_outline=fill_outline, plot_heat='n',
+                                    ecc_strict=ecc_strict, grid=grid)
+
+        
+
+        last_plot = 'y' if n == (len(rois) - 1) else 'n'
+        plot_mask(axs[n], heatmap, f'{roi}\n\n\n', f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°,\n {rel_surf}% of outline surface\n total pRFs found: {len(prf_sizes)}', last=last_plot)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return prfmask_dict_all
+
+# Function that does the same but it plots them differently and removes headers so it can be used in documents.
+def compare_heatmaps_clean(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=None, basis='roi',
+                     mask_type='cut_gaussian', cmap='CMRmap', roi='V1', excl_reason='n', sigma_min=0,
+                     sigma_max=4.2, ecc_min = 0, ecc_max=2, print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid='n'):
+    if basis == 'roi':
+        rois = sorted(prf_proc_dict['subj01']['proc'].keys())
+
+    # Create a new dictionary to store the masks for all the pRFs that pass the requirements
+    prfmask_dict_all = copy.deepcopy(binary_masks)
+
+    def plot_mask(ax, mask, title, subtitle='aars', last=None, extent=[-4.2, 4.2, -4.2, 4.2]):
+        img = ax.imshow(mask, cmap=cmap, extent=extent)
+        ax.set_title(title, fontsize = 13, weight = 'semibold')
+        
+        if subtitle:
+            ax.text(0.5, 1.02, subtitle, transform=ax.transAxes,
+                    ha='center', va='bottom', fontsize=12)  # Adjust fontsize as needed
+        
+        ax.set_xlabel('Horizontal Degrees of Visual Angle')
+        ax.set_ylabel('Vertical Degrees of Visual Angle')
+        ax.xaxis.set_major_locator(MultipleLocator(2))
+        ax.yaxis.set_major_locator(MultipleLocator(2))
+
+    fig, axs = plt.subplots(2, 2, figsize=(11, 11))
+
+    for n, roi in enumerate(rois):
+        heatmap, iter, end_premat, roi, prf_sizes, rel_surf, total_prfs_found, prfmask_dict_all = prf_heatmap(
+                                    n_prfs, binary_masks=prfmask_dict_all, prf_proc_dict=prf_proc_dict,
+                                    mask_type=mask_type, cmap=cmap, roi=roi[:2], excl_reason=excl_reason,
+                                    sigma_min=sigma_min, sigma_max=sigma_max, ecc_min = ecc_min, ecc_max=ecc_max,
+                                    print_prog=print_prog, subjects='all', outline_degs=outline_degs,
+                                    filter_dict=filter_dict, fill_outline=fill_outline, plot_heat='n',
+                                    ecc_strict=ecc_strict, grid=grid)
+
+        last_plot = 'y' if n == (len(rois) - 1) else 'n'
+        plot_mask(axs[n//2, n%2], heatmap, f'{roi}\n\n\n', f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°,\n {rel_surf}% of outline surface\n total pRFs found: {len(prf_sizes)}', last=last_plot)
+        # plot_mask(axs[n], heatmap, f'{roi}\n\n\n', f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°,\n {rel_surf}% of outline surface\n total pRFs found: {len(prf_sizes)}', last=last_plot)
+
+    plt.tight_layout()
+    plt.show()
+    
+    return prfmask_dict_all
