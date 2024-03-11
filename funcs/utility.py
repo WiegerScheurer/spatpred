@@ -124,3 +124,22 @@ def hypotheses_plot():
 
     plt.tight_layout()
     plt.show()
+    
+    
+# Turn a boolean nifti mask  or 3d
+def numpy2coords(boolean_array):
+    # Get the coordinates of the True values in the boolean array
+    coordinates = np.array(np.where(boolean_array)).T
+    return coordinates
+
+def coords2numpy(coordinates, shape):
+    # Create a boolean array with the same shape as the original array
+    boolean_array = np.zeros(shape, dtype=bool)
+    # Set the coordinates to True
+    boolean_array[tuple(coordinates.T)] = True
+    return boolean_array
+
+# Function to return the voxel coordinates based on the parameter represented in the 4th column
+def filter_array_by_size(array, size_min, size_max):
+    filtered_array = array[(array[:, 3] >= size_min) & (array[:, 3] <= size_max)]
+    return filtered_array
