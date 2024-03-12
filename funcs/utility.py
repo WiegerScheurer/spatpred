@@ -147,7 +147,7 @@ def filter_array_by_size(array, size_min, size_max):
 
 # give new array that only contains the common rows, used for post hoc voxel selection.
 def find_common_rows(array1, array2):
-    array1_view = array1[:,:3].view([('', array1.dtype)]*array1[:,:3].shape[1])
-    array2_view = array2[:,:3].view([('', array2.dtype)]*array2[:,:3].shape[1])
-    common_rows = np.intersect1d(array1_view, array2_view).view(array1.dtype).reshape(-1, array1.shape[1])
+    set1 = set(map(tuple, array1[:,:3]))
+    set2 = set(map(tuple, array2[:,:3]))
+    common_rows = np.array([list(x) for x in set1 & set2])
     return common_rows
