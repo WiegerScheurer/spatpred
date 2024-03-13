@@ -151,3 +151,4 @@ def find_common_rows(array1, array2):
     set2 = set(map(tuple, array2[:,:3]))
     common_rows = np.array([list(x) for x in set1 & set2])
     return common_rows
+
