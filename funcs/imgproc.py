@@ -70,24 +70,29 @@ def get_imgs_designmx():
         stims_design_mx[subject] = stim_list.astype(int)
     
     return stims_design_mx
-    
+
+
 # These two functions are coupled to run the feature computations in parallel.
 # This saves a lot of time. Should be combined with the feature_df function to assign
 # the values to the corresponding trials.
-def rms_single(args, ecc_max = 1):
+def rms_single(args, ecc_max = 1, loc = 'center'):
     i, start, n = args
-    
     dim = show_stim(hide = 'y')[0].shape[0]
-    x = y = (dim + 1)/2
     radius = ecc_max * (dim / 8.4)
+
+    if loc == 'center':
+        x = y = (dim + 1)/2
+    elif loc == 'irrelevant_patch':
+        x = y = radius + 10
+        
     mask_w_in = css_gaussian_cut(dim, x, y, radius)
     rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
-    
-    ar_in = show_stim(img_no = i, hide = 'y')[0]
+    ar_in = show_stim(img_no = i, hide = 'y')[0]  
     
     if i % 100 == 0:
         print(f"Processing image number: {i} out of {n + start}")
     return get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, normalise = True, plot = 'n')
+
 
 def rms_all(start, n, ecc_max = 1):
     img_vec = list(range(start, start + n))
@@ -102,6 +107,8 @@ def rms_all(start, n, ecc_max = 1):
 
     rms_dict = rms_dict.set_index(np.array(img_vec))
     return rms_dict
+
+
 
 # This function creates a dataframe containing the rms contrast values for each image in the design matrix
 # This way you can chronologically map the feature values per subject based on the design matrix image order
@@ -226,6 +233,14 @@ def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'su
             dim = ar_in.shape[0]
             x = y = (dim + 1)/2
             radius = ecc_max * (dim / 8.4)
+            mask_w_in = css_gaussian_cut(dim, x, y, radius)
+            rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
+            
+        elif rf_type == 'irrelevant_patch':
+            dim = ar_in.shape[0]
+            radius = ecc_max * (dim / 8.4)
+            x = y = (dim + 1)/2
+            x = y = radius
             mask_w_in = css_gaussian_cut(dim, x, y, radius)
             rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
             
@@ -358,7 +373,8 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
 # Code to acquire the hrf parameters for each subject, roi, voxel
 # Importantly, it allows working with the data without crashing (though only for max 3 sessions at a time). 
 # It loads in the nifti files, extracts the required data, overwrites it.
-def get_betas(subjects, voxels, start_session, end_session):
+
+def get_betas(subjects, voxels, start_session, end_session, prf_region = 'center'):
     beta_dict = {}
     
     if subjects == 'all':
@@ -399,7 +415,7 @@ def get_betas(subjects, voxels, start_session, end_session):
                 for voxel in range(n_voxels):
                     vox_idx = vox_indices[voxel] # Get the voxel indices for the current voxel
                 
-                    hrf_betas_ses = (np.array(session_nifti[tuple(vox_idx)]).reshape(n_imgs, 1))/300 # Divide by 300 to return to percent signal change units.
+                    hrf_betas_ses = (np.array(session_nifti[tuple(vox_idx)]).reshape(n_imgs, 1))/300
                     
                     if session == (start_session + 1):
                         hrf_betas[roi][f'voxel{voxel + 1}'] = hrf_betas_ses
@@ -414,7 +430,7 @@ def get_betas(subjects, voxels, start_session, end_session):
                     
         beta_dict[subject] = hrf_betas               
         
-    with open(f'./data/custom_files/subj01/beta_dict{start_session}_{end_session}.pkl', 'wb') as fp:
+    with open(f'./data/custom_files/subj01/beta_dict{start_session}_{end_session}_{prf_region}.pkl', 'wb') as fp:
         pickle.dump(beta_dict, fp)
         print('     - Back-up saved to beta_dict{start_session}_{end_session}.pkl\n')        
                 

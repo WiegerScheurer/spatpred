@@ -100,7 +100,102 @@ def calculate_rms_contrast_circle(image_array, center, radius, hist = 'n', circ_
 
     return rms_contrast, weibull_params, image_with_circle, mask, patch_pixels, mean_intensity
 
+# These two functions are coupled to run the feature computations in parallel.
+# This saves a lot of time. Should be combined with the feature_df function to assign
+# the values to the corresponding trials.
+def rms_single(args, ecc_max = 1):
+    i, start, n = args
+    
+    dim = show_stim(hide = 'y')[0].shape[0]
+    x = y = (dim + 1)/2
+    radius = ecc_max * (dim / 8.4)
+    mask_w_in = css_gaussian_cut(dim, x, y, radius)
+    rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
+    
+    ar_in = show_stim(img_no = i, hide = 'y')[0]
+    
+    if i % 100 == 0:
+        print(f"Processing image number: {i} out of {n + start}")
+    return get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, normalise = True, plot = 'n')
 
+def rms_all(start, n, ecc_max = 1):
+    img_vec = list(range(start, start + n))
+
+    # Create a pool of worker processes
+    with Pool() as p:
+        rms_vec = p.map(rms_single, [(i, start, n) for i in img_vec])
+
+    rms_dict = pd.DataFrame({
+        'rms': rms_vec
+    })
+
+    rms_dict = rms_dict.set_index(np.array(img_vec))
+    return rms_dict
+
+# Code to acquire the hrf parameters for each subject, roi, voxel
+# Importantly, it allows working with the data without crashing (though only for max 3 sessions at a time). 
+# It loads in the nifti files, extracts the required data, overwrites it.
+def get_betas(subjects, voxels, start_session, end_session):
+    beta_dict = {}
+    
+    if subjects == 'all':
+        subjects = [f'subj{i:02d}' for i in range(1, 9)]
+    else:
+        subjects = [subjects]
+    for subject in subjects:
+        beta_dict[subject] = {}
+        
+        rois = list(voxels[subject].keys())
+
+        hrf_betas = {}
+        
+        for session in range(start_session, end_session + 1):
+            session += 1
+            if session < 10:
+                session_str = f'0{session}'
+            else: session_str = f'{session}'
+            
+            # session_nifti = betas_ses1 # Uncomment to check functionality of the code, if betas_ses1 has been loaded before.
+            session_nifti = (nib.load(f'/home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/betas_session{session_str}.nii.gz')).get_fdata(caching = 'unchanged')
+            n_imgs = session_nifti.shape[3]
+        
+            print(f'Working on session: {session} of subject: {subject}')
+            for roi in rois: 
+                
+                if session == (start_session + 1):
+                    hrf_betas[roi] = {}
+                    # beta_dict[subject][roi] = {}
+        
+                voxel_mask = voxels[subject][roi] # These is the boolean mask for the specific subject, roi
+                n_voxels = np.sum(voxel_mask).astype('int') # This is the amount of voxels in this roi
+                vox_indices = np.zeros([n_voxels, voxel_mask.ndim], dtype = int) # Initiate an empty array to store vox indices                
+                
+                for coordinate in range(vox_indices.shape[1]): # Fill the array with the voxel coordinates as indices
+                    vox_indices[:, coordinate] = np.where(voxel_mask == 1)[coordinate]
+                    
+                for voxel in range(n_voxels):
+                    vox_idx = vox_indices[voxel] # Get the voxel indices for the current voxel
+                
+                    hrf_betas_ses = (np.array(session_nifti[tuple(vox_idx)]).reshape(n_imgs, 1))/300 # Divide by 300 to return to percent signal change units.
+                    
+                    if session == (start_session + 1):
+                        hrf_betas[roi][f'voxel{voxel + 1}'] = hrf_betas_ses
+                    else:    
+                        total_betas = np.append(hrf_betas[roi][f'voxel{voxel + 1}'], hrf_betas_ses)
+                        
+                        hrf_betas[roi][f'voxel{voxel + 1}'] = total_betas
+                    
+            with open('./data/custom_files/subj01/intermediate_hrf_save.pkl', 'wb') as fp:
+                pickle.dump(hrf_betas, fp)
+                print('     - Back-up saved to intermediate_hrf_save.pkl\n')
+                    
+        beta_dict[subject] = hrf_betas               
+        
+    with open(f'./data/custom_files/subj01/beta_dict{start_session}_{end_session}.pkl', 'wb') as fp:
+        pickle.dump(beta_dict, fp)
+        print('     - Back-up saved to beta_dict{start_session}_{end_session}.pkl\n')        
+                
+    return beta_dict
 
 
 ################################## RF_TOOLS ##################################
@@ -218,3 +313,83 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
 
     return prf_sum_all_subjects, iter, end_premat, roi, prf_sizes, relative_surface, total_prfs_found
 
+############################ analyses.py
+
+# Function to create a dictionary containing all the relevant HRF signal info for the relevant voxels.
+def get_hrf_dict(subjects, voxels):
+    
+    hrf_dict = {}
+    
+    for subject in [subjects]:
+        hrf_dict[subject] = {}
+
+
+        # Get a list of files in the directory
+        files = os.listdir(f'/home/rfpred/data/custom_files/{subject}')
+
+        # Filter files that start with "beta_dict" and end with ".pkl"
+        filtered_files = [file for file in files if file.startswith("beta_dict") and file.endswith(".pkl")]
+
+        # Sort files based on the first number after 'beta_dict'
+        sorted_files = sorted(filtered_files, key=lambda x: int(''.join(filter(str.isdigit, x.split('beta_dict')[1]))))
+
+        # Print the sorted file names
+        for n_file, file_name in enumerate(sorted_files):
+            print(file_name)
+                
+            # Load in the boolean mask for inner circle voxel selection per roi.
+            with open(f'/home/rfpred/data/custom_files/subj01/{file_name}', 'rb') as fp:
+                beta_session = pickle.load(fp)
+            
+            rois = list(beta_session[subject].keys())
+            
+            if n_file == 0:
+                hrf_dict[subject] = copy.deepcopy(beta_session[subject])
+            for roi in rois:
+                # hrf_dict[subject][roi] = {}
+                n_voxels = len(beta_session[subject][roi])
+                # print(n_voxels)
+                
+                
+                voxel_mask = voxels[subject][roi] # These is the boolean mask for the specific subject, roi
+                
+                vox_indices = np.zeros([n_voxels, 3], dtype = int) # Initiate an empty array to store vox indices
+                
+                for coordinate in range(vox_indices.shape[1]): # Fill the array with the voxel coordinates as indices
+                    vox_indices[:, coordinate] = np.where(voxel_mask == 1)[coordinate]
+                    
+                for voxel in range(len(beta_session[subject][roi])):
+                    hrf_betas_ses = copy.deepcopy(beta_session[subject][roi][f'voxel{voxel + 1}'])
+                    # print(f'Processing voxel: {voxel + 1}')
+                    
+                    if n_file == 0:
+                        # hrf_dict[subject][roi][f'voxel{voxel + 1}'] = {}
+                        total_betas = hrf_betas_ses
+                        hrf_dict[subject][roi][f'voxel{voxel+1}'] = {
+                            'xyz': list(vox_indices[voxel]),
+                            'hrf_betas': total_betas,
+                            'hrf_betas_z': 0,
+                            'hrf_rsquared': 0,
+                            'hrf_rsquared_z': 0
+                        }
+                             
+                    else: 
+                        old_betas = hrf_dict[subject][roi][f'voxel{voxel + 1}']['hrf_betas']
+                        hrf_dict[subject][roi][f'voxel{voxel + 1}']['hrf_betas']
+                        total_betas = np.append(old_betas, hrf_betas_ses)   
+                             
+                    hrf_dict[subject][roi][f'voxel{voxel+1}'] = {
+                        'xyz': list(vox_indices[voxel]),
+                        'hrf_betas': total_betas,
+                        'hrf_betas_z': 0,
+                        'hrf_rsquared': 0,
+                        'hrf_rsquared_z': 0
+                    }
+            print(len(hrf_dict[subject][roi][f'voxel{voxel+1}']['hrf_betas']))
+            
+            
+    with open(f'./data/custom_files/{subjects}hrf_dict.pkl', 'wb') as fp:
+        pickle.dump(hrf_dict, fp)
+    
+            
+    return hrf_dict
