@@ -4,4 +4,5 @@ bin
 tmp
 aws
 aws-cli
-alien_nbs
+alien_nbs/
+!alien_nbs/CFS_stimuli_contrast.ipynb
