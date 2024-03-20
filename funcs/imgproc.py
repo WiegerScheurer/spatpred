@@ -14,7 +14,7 @@ from multiprocessing import Pool
 from funcs.rf_tools import get_mask, make_circle_mask, css_gaussian_cut, make_gaussian_2d
 
 # Function to show a randomly selected image of the nsd dataset
-def show_stim(hide = 'n', img_no = 'random'):
+def show_stim(hide = 'n', img_no = 'random', small = 'n'):
     # Example code to show how to access the image files, these are all 73000 of them, as np.arrays
     # I keep it like this as it might be useful to also store the reconstructed images with the autoencoder
     # using a .hdf5 folder structure, but I can change this later on.
@@ -30,9 +30,11 @@ def show_stim(hide = 'n', img_no = 'random'):
         else: image_no = img_no
         
         test_image = img_brick_dataset[image_no]
-            
+    hor = ver = 10
+    if small == 'y':
+        hor = ver = 5        
     if hide == 'n':
-        plt.figure(figsize=(10, 10))
+        plt.figure(figsize=(hor, ver))
         plt.imshow(test_image)
         plt.title(f'Image number {image_no}')
         plt.axis('off')
