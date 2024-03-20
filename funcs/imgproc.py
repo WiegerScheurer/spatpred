@@ -130,6 +130,30 @@ def feature_df(subject, feature, feat_per_img, designmx):
 # feature_df_s1 = feature_df('subject', 'rms', all_feats, designmx = dmx)
 
 
+# Function to create a dictionary that includes (so far only RMS) contrast values for each subject
+def get_visfeature_dict(subjects, all_rms, all_irrelevant_rms, dmx):
+    results = {}
+    for subject in subjects:
+        # Subject specific object with the correct sequence of RMS contrast values per image.
+        rms = feature_df(subject=subject, feature='rms', feat_per_img=all_rms, designmx=dmx)
+        rms_irrelevant = feature_df(subject=subject, feature='rms', feat_per_img=all_irrelevant_rms, designmx=dmx)
+
+        # Standardize the root mean square values by turning them into z-scores
+        rms_z = get_zscore(rms['rms'], print_ars='n')
+        rms_irrelevant_z = get_zscore(rms_irrelevant['rms'], print_ars='n')
+
+        # Add the z-scored RMS contrast values to the dataframe
+        if rms.shape[1] == 2:
+            rms.insert(2, 'rms_z', rms_z)
+        if rms_irrelevant.shape[1] == 2:
+            rms_irrelevant.insert(2, 'rms_z', rms_irrelevant_z)
+
+        # Store the dataframes in the results dictionary
+        results[subject] = {'rms': rms, 'rms_irrelevant': rms_irrelevant}
+
+    return results
+
+
 # Function to get rms contrast for input image, mask patch, and weighted mask
 def get_rms_contrast(ar_in,mask_w_in,rf_mask_in,normalise=True, plot = 'n'):
 

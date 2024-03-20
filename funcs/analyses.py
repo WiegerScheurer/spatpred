@@ -62,7 +62,7 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
                     
                 voxdict_select[subject][roi] = voxel_mask
                 n_voxels = numpy2coords(voxel_mask).shape[0]
-                print(n_voxels)
+                print(f'\tAmount of voxels: {n_voxels}')
 
                 vox_indices = np.zeros([n_voxels, 3], dtype = int) # Initiate an empty array to store vox indices
                 hrf_dict[subject][roi]['roi_sizes'] = size_slct
@@ -97,7 +97,8 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
                         'hrf_rsquared': 0,
                         'hrf_rsquared_z': 0
                     }
-            print(len(hrf_dict[subject][roi][f'voxel{voxel+1}']['hrf_betas']))
+            n_betas = len(hrf_dict[subject][roi][f'voxel{voxel+1}']['hrf_betas'])
+            print(f'\tProcessed images: {n_betas}')
 
     if plot_sizes == 'y':
         fig, axs = plt.subplots(2, 2, figsize=(10, 8))  # Create a figure with 2x2 subplots
@@ -107,8 +108,9 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
             sizes = hrf_dict[subject][roi]['roi_sizes'][:, 3]
             color = cmap(i / len(rois))  # Get a color from the color map
             sns.histplot(sizes, kde=True, ax=axs[i], color=color)  # Plot on the i-th subplot
-            axs[i].set_title(f'RF sizes for {roi} (n={sizes.shape[0]})')  # Include the number of voxels in the title
+            axs[i].set_title(f'RF sizes for {roi[:2]} (n={sizes.shape[0]})')  # Include the number of voxels in the title
             axs[i].set_xlim([min_size-.1, max_size+.1])  # Set the x-axis limit from 0 to 2
+        fig.suptitle(f'{prf_region}', fontsize=18)
         plt.tight_layout()
         plt.show()
                 

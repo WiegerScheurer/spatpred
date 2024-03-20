@@ -393,3 +393,39 @@ def get_hrf_dict(subjects, voxels):
     
             
     return hrf_dict
+
+
+
+def regression_dict(subject, feat_type, voxels, hrfs, feat_vals, n_imgs = 'all'):
+    reg_dict = {}
+    # Set the amount of images to regress over in case all images are available.
+    if n_imgs == 'all':
+        n_imgs = len(feat_vals)
+        
+    X = np.array(feat_vals[feat_type][:n_imgs]).reshape(n_imgs, 1) # Set the input matrix for the regression analysis
+    
+    # This function will run the multiple regression analysis for each voxel, roi, image, for a subject.
+    rois = list(voxels[subject].keys())
+    
+
+    for roi in rois:
+        reg_dict[roi] = {}
+        voxel_mask = voxels[subject][roi] # These is the boolean mask for the specific subject, roi
+        n_voxels = np.sum(voxel_mask).astype('int') # This is the amount of voxels in this roi
+        vox_indices = np.zeros([n_voxels, voxel_mask.ndim], dtype = int) # Initiate an empty array to store vox indices
+        
+        for coordinate in range(vox_indices.shape[1]): # Fill the array with the voxel coordinates as indices
+            vox_indices[:, coordinate] = np.where(voxel_mask == 1)[coordinate]
+            
+        for voxel in range(n_voxels):
+            vox_idx = vox_indices[voxel] # Get the voxel indices for the current voxel
+            # y = (np.array(hrfs[tuple(vox_idx)][:n_imgs]).reshape(n_imgs, 1))/300 # Set the output matrix for the regression analysis
+            y = hrfs[subject][roi][f'voxel{voxel + 1}']['hrf_betas']
+            beta, icept = multiple_regression(X, y)
+            reg_dict[roi][f'vox{voxel}'] = {
+            'xyz': list(vox_idx),
+            'beta': beta,
+            'icept': icept
+            }
+            
+    return reg_dict, X, y
