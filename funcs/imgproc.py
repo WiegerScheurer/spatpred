@@ -77,7 +77,7 @@ def get_imgs_designmx():
 # These two functions are coupled to run the feature computations in parallel.
 # This saves a lot of time. Should be combined with the feature_df function to assign
 # the values to the corresponding trials.
-def rms_single(args, ecc_max = 1, loc = 'center'):
+def rms_single(args, ecc_max = 1, loc = 'center', plot = 'n'):
     i, start, n = args
     dim = show_stim(hide = 'y')[0].shape[0]
     radius = ecc_max * (dim / 8.4)
@@ -93,7 +93,7 @@ def rms_single(args, ecc_max = 1, loc = 'center'):
     
     if i % 100 == 0:
         print(f"Processing image number: {i} out of {n + start}")
-    return get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, normalise = True, plot = 'n')
+    return get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, normalise = True, plot = plot)
 
 
 def rms_all(start, n, ecc_max = 1):
