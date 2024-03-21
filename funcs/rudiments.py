@@ -198,6 +198,40 @@ def get_betas(subjects, voxels, start_session, end_session):
     return beta_dict
 
 
+
+# Function that calculates rms but based on a RGB to LAB conversion, which follows the CIELAB colour space
+# This aligns best with the way humans perceive visual input. 
+def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, normalise = True, plot = 'n'):
+    # Convert RGB image to LAB colour space
+    lab_image = color.rgb2lab(rgb_image)
+    
+    ar_in = lab_image[:, :, 0] # Extract the L* channel for luminance values, set as input array
+
+    if normalise == True:
+        ar_in = ar_in/np.max(ar_in)
+    
+    square_contrast=np.square((ar_in-(ar_in[rf_mask_in].mean())))
+
+    msquare_contrast=(mask_w_in*square_contrast).sum()
+    
+    if plot == 'y':
+        fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+
+        plt.subplots_adjust(wspace=0.01)
+
+        axs[1].set_title(f'rms = {np.sqrt(msquare_contrast):.2f}')
+        axs[0].imshow(square_contrast, cmap = 'gist_gray')
+        axs[0].axis('off') 
+        axs[1].imshow(mask_w_in*square_contrast, cmap = 'gist_gray')
+        axs[1].axis('off') 
+        
+    return (np.sqrt(msquare_contrast))
+   
+   
+   
+
+
+
 ################################## RF_TOOLS ##################################
 
 

@@ -77,7 +77,7 @@ def get_imgs_designmx():
 # These two functions are coupled to run the feature computations in parallel.
 # This saves a lot of time. Should be combined with the feature_df function to assign
 # the values to the corresponding trials.
-def rms_single(args, ecc_max = 1, loc = 'center', plot = 'n'):
+def rms_single(args, ecc_max = 1, loc = 'center', plot = 'n', normalise = True, crop_prior:bool = False, crop_post:bool = False, cmap = 'gist_gray'):
     i, start, n = args
     dim = show_stim(hide = 'y')[0].shape[0]
     radius = ecc_max * (dim / 8.4)
@@ -89,11 +89,20 @@ def rms_single(args, ecc_max = 1, loc = 'center', plot = 'n'):
         
     mask_w_in = css_gaussian_cut(dim, x, y, radius)
     rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
-    ar_in = show_stim(img_no = i, hide = 'y')[0]  
+    full_ar_in = ar_in = show_stim(img_no = i, hide = 'y')[0]  
     
     if i % 100 == 0:
         print(f"Processing image number: {i} out of {n + start}")
-    return get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, normalise = True, plot = plot)
+        
+    if crop_prior:
+        
+        x_min, x_max, y_min, y_max = get_bounding_box(rf_mask_in)
+        
+        ar_in = ar_in[x_min:x_max, y_min:y_max]
+        mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
+        rf_mask_in = rf_mask_in[x_min:x_max, y_min:y_max]
+        
+    return get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, full_ar_in, normalise = normalise, plot = plot, cmap = cmap, crop_prior = crop_prior, crop_post = crop_post)
 
 
 def rms_all(start, n, ecc_max = 1):
@@ -193,20 +202,26 @@ def get_rms_contrast(ar_in,mask_w_in,rf_mask_in,normalise=True, plot = 'n'):
 
     return(np.sqrt(msquare_contrast))
 
+
 # Function that calculates rms but based on a RGB to LAB conversion, which follows the CIELAB colour space
 # This aligns best with the way humans perceive visual input. 
-def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, normalise = True, plot = 'n'):
+def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, full_array, normalise = True, plot = 'n', cmap = 'gist_gray', crop_prior:bool = False, crop_post:bool = False):
     # Convert RGB image to LAB colour space
     lab_image = color.rgb2lab(rgb_image)
     
     ar_in = lab_image[:, :, 0] # Extract the L* channel for luminance values, set as input array
-
+        
     if normalise == True:
         ar_in = ar_in/np.max(ar_in)
     
     square_contrast=np.square((ar_in-(ar_in[rf_mask_in].mean())))
-
     msquare_contrast=(mask_w_in*square_contrast).sum()
+    
+    if crop_post:     
+        x_min, x_max, y_min, y_max = get_bounding_box(rf_mask_in)
+        
+        square_contrast = square_contrast[x_min:x_max, y_min:y_max]
+        mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
     
     if plot == 'y':
         fig, axs = plt.subplots(1, 2, figsize=(10, 5))
@@ -214,13 +229,12 @@ def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, normalise = True, plo
         plt.subplots_adjust(wspace=0.01)
 
         axs[1].set_title(f'rms = {np.sqrt(msquare_contrast):.2f}')
-        axs[0].imshow(square_contrast, cmap = 'gist_gray')
+        axs[0].imshow(square_contrast, cmap = cmap)
         axs[0].axis('off') 
-        axs[1].imshow(mask_w_in*square_contrast, cmap = 'gist_gray')
+        axs[1].imshow(mask_w_in*square_contrast, cmap = cmap)
         axs[1].axis('off') 
         
     return (np.sqrt(msquare_contrast))
-   
    
 # Function to get contrast features based on the design matrix of a subject. 
 # Extend the function so it does so by mapping the precomputed rms values with the function below.  
