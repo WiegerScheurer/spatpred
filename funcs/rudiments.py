@@ -492,4 +492,69 @@ def multivariate_regression(X, y_matrix):
 
     return beta_values, intercept_values, rsquared_values
 
+def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', z_scorey:bool = False, meancentery:bool = False):
+    reg_dict = {}
+    
+    # Set the amount of images to regress over in case all images are available.
+    if n_imgs == 'all':
+        n_imgs = len(feat_vals)
+    
+    X = np.array(feat_vals[feat_type][:n_imgs]).reshape(n_imgs, 1)  # Set the input matrix for the regression analysis
 
+    # This function will run the multiple regression analysis for each voxel, roi, image, for a subject.
+    rois = list(voxels[subject].keys())
+
+    for roi in rois:
+        reg_dict[roi] = {}
+        voxel_mask = voxels[subject][roi]  # These are the boolean mask for the specific subject, roi
+        n_voxels = np.sum(voxel_mask).astype('int')  # This is the number of voxels in this roi
+        vox_indices = np.column_stack(np.where(voxel_mask == 1))  # Get voxel indices for the current ROI
+        
+        # Extract y_matrix for all voxels within the ROI
+            
+
+            
+        y_matrix = np.array([hrfs[subject][roi][f'voxel{voxel + 1}']['hrf_betas'] for voxel, xyz in enumerate(vox_indices)]).T #/ 300
+
+        if z_scorey:
+            
+            
+            y_matrix = get_zscore(y_matrix, print_ars = 'n')
+            
+        if meancentery:
+            y_matrix = mean_center(y_matrix, print_ars = 'n')
+            
+        # Perform multivariate regression
+        beta_values, intercept_values, rsquared_value, reg_model = multivariate_regression(X, y_matrix, z_scorey = z_scorey, meancentery = meancentery)
+        
+        
+        reg_dict[roi]['voxels'] = {}
+        
+        for voxel, vox_idx in enumerate(vox_indices):
+            reg_dict[roi]['voxels'][f'vox{voxel}'] = {
+                'xyz': list(vox_idx),
+                'beta': beta_values[voxel],
+                'icept': intercept_values[voxel]
+            }
+            
+        reg_dict[roi]['y_matrix'] = y_matrix
+        reg_dict[roi]['all_reg_betas'] = beta_values
+        reg_dict[roi]['all_intercepts'] = intercept_values
+        reg_dict[roi]['rsquared'] = rsquared_value
+    
+    return reg_dict, X
+
+################################# USEFUL SCHEISSE
+
+# Saving dictionary with visual feats
+
+for subj in visfeats_rms:
+    # Mean center the 'rms' values
+    visfeats_rms[subj]['rms']['rms_mc'] = mean_center(visfeats_rms[subj]['rms']['rms'], print_ars = 'n')
+    # Mean center the 'rms_irrelevant' values
+    visfeats_rms[subj]['rms_irrelevant']['rms_mc'] = mean_center(visfeats_rms[subj]['rms_irrelevant']['rms'], print_ars = 'n')
+    
+    
+# Save a dictionary 
+with open(f'./data/custom_files/all_visfeats_rms8.pkl', 'wb') as fp:
+    pickle.dump(visfeats_rms, fp)

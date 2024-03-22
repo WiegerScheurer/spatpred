@@ -29,7 +29,18 @@ def get_zscore(data, print_ars = 'y'):
         
     return z_scores
 
-# 
+def mean_center(data, print_ars = 'y'):
+    mean_value = np.mean(data)
+
+    # Mean centering
+    centered_data = data - mean_value
+
+    if print_ars == 'y':
+        print("Original array:", data)
+        print("Centered data:", centered_data)
+        
+    return centered_data
+ 
 def multiple_regression(X, y):
     # Add a column of ones to the end of the X matrix
     X = np.hstack((X, np.ones((X.shape[0], 1))))

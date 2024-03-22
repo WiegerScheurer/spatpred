@@ -6,8 +6,9 @@ import pandas as pd
 import copy
 import os
 import pickle
+from matplotlib.colors import LinearSegmentedColormap
 from sklearn.linear_model import LinearRegression
-from funcs.utility import numpy2coords, coords2numpy, filter_array_by_size, find_common_rows, get_zscore
+from funcs.utility import numpy2coords, coords2numpy, filter_array_by_size, find_common_rows, get_zscore, mean_center
 
 # Function to create a dictionary containing all the relevant HRF signal info for the relevant voxels.
 def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, max_size = 1, prf_proc_dict = None, vox_n_cutoff = None, plot_sizes = 'n'):
@@ -125,7 +126,7 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
 
 
 
-def multivariate_regression(X, y_matrix, z_scorey:bool = False):
+def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool = False):
     # Reshape X to (n_imgs, 1) if it's not already
     if X.ndim == 1:
         X = X.reshape(-1, 1)
@@ -133,6 +134,9 @@ def multivariate_regression(X, y_matrix, z_scorey:bool = False):
 
     if z_scorey:
         y_matrix = get_zscore(y_matrix, print_ars = 'n')
+        
+    if meancentery:
+        y_matrix = mean_center(y_matrix, print_ars = 'n')
 
     # Fit the multivariate regression model
     model = LinearRegression().fit(X, y_matrix)
@@ -146,7 +150,7 @@ def multivariate_regression(X, y_matrix, z_scorey:bool = False):
 
     return beta_values, intercept_values, rsquared_values, model
 
-def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', z_scorey:bool = False):
+def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', z_scorey:bool = False, meancentery:bool = False):
     reg_dict = {}
     
     # Set the amount of images to regress over in case all images are available.
@@ -166,14 +170,18 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         
         # Extract y_matrix for all voxels within the ROI
             
-        if z_scorey:
-            y_matrix = get_zscore(y_matrix, print_ars = 'n')
+
             
         y_matrix = np.array([hrfs[subject][roi][f'voxel{voxel + 1}']['hrf_betas'] for voxel, xyz in enumerate(vox_indices)]).T #/ 300
 
-
+        if z_scorey:
+            y_matrix = get_zscore(y_matrix, print_ars = 'n')
+            
+        if meancentery:
+            y_matrix = mean_center(y_matrix, print_ars = 'n')
+            
         # Perform multivariate regression
-        beta_values, intercept_values, rsquared_value, reg_model = multivariate_regression(X, y_matrix, z_scorey = z_scorey)
+        beta_values, intercept_values, rsquared_value, reg_model = multivariate_regression(X, y_matrix, z_scorey = z_scorey, meancentery = meancentery)
         
         
         reg_dict[roi]['voxels'] = {}
@@ -191,16 +199,6 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         reg_dict[roi]['rsquared'] = rsquared_value
     
     return reg_dict, X
-
-
-import numpy as np
-from matplotlib.colors import LinearSegmentedColormap
-
-import numpy as np
-from matplotlib.colors import LinearSegmentedColormap
-
-import numpy as np
-from matplotlib.colors import LinearSegmentedColormap
 
 
 def plot_roi_beta_distribution(reg_dict, dictdescrip1 = '', icept_correct = None, feat_type = '', comparison_reg_dict = None, dictdescrip2 = '', comptype = ''):
@@ -247,11 +245,11 @@ def plot_roi_beta_distribution(reg_dict, dictdescrip1 = '', icept_correct = None
 
         axes[i].set_ylabel('Occurrence freq', weight = 'normal', fontsize = 12, color='white')
         axes[i].tick_params(colors='white')
-        axes[0].legend(fontsize = 'large')
+        axes[i].legend(fontsize = 'large')
 
     for ax in axes:
         ax.set_xlim(min_x, max_x)  # Set the x range to include all data
-        ax.set_xticks(np.around(np.arange(min_x, max_x, .2), 2))  # Set the ticks to be more frequent and round them
+        ax.set_xticks(np.around(np.arange(min_x, max_x, .1), 2))  # Set the ticks to be more frequent and round them
 
     if len(comptype) != 0: comptype = f'\n{comptype}' 
     
@@ -286,6 +284,8 @@ def plot_beta_to_icept(reg_dict, dictdescrip1 = '', comparison_reg_dict = None, 
         axs[row, col].set_title(roi[:2], color='white')
         axs[row, col].tick_params(colors='white')
     axs[0, 0].legend(fontsize = 'medium')
+    
+    if len(comptype) != 0: comptype = f'\n{comptype}' 
 
     fig.suptitle(f'Regression betas to intercepts of subject 1, {feat_type}{comptype}', fontsize=16, y=1, color='white')
 

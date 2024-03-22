@@ -14,7 +14,6 @@ from nsdcode.nsd_mapdata import NSDmapdata
 from nsdcode.nsd_datalocation import nsd_datalocation
 from nsdcode.nsd_output import nsd_write_fs
 from nsdcode.utils import makeimagestack
-from scipy.ndimage import binary_dilation
 import io
 import json
 # from scipy.ndimage import gaussian_filter
