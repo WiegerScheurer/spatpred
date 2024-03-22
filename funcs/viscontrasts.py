@@ -11,6 +11,9 @@ import mat73
 from scipy import io
 
 
+
+
+# This does not work like this, better remove
 def lgn_statistics(im, file_name:str, threshold_lgn, coc:bool=True, config=None, verbose_filename:bool = True, verbose: bool = False, compute_extra_statistics: bool = False, 
                    crop_masks: list = [], force_recompute:bool=False, cache:bool=True, home_path:str='/home/niklas', ToRGC=lambda x: x, fov_imsize:tuple=None, result_manager=None):
 

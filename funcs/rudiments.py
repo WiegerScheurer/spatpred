@@ -463,3 +463,33 @@ def regression_dict(subject, feat_type, voxels, hrfs, feat_vals, n_imgs = 'all')
             }
             
     return reg_dict, X, y
+
+
+
+def multivariate_regression(X, y_matrix):
+    # Add a constant term to the independent variable matrix
+    X_with_constant = sm.add_constant(X)
+
+    # Reshape y_matrix to (n_imgs, n_voxels)
+    n_imgs, n_voxels = y_matrix.shape
+    y_matrix_reshaped = y_matrix.reshape(n_imgs, n_voxels, 1)
+
+    # Fit the multivariate regression model
+    model = sm.OLS(y_matrix_reshaped, X_with_constant)
+    results = model.fit()
+
+    # Extract beta coefficients and intercepts
+    beta_values = results.params[:-1, :]
+    intercept_values = results.params[-1, :]
+
+    # Squeeze the last dimension out of y_matrix_reshaped
+    y_matrix_squeezed = np.squeeze(y_matrix_reshaped, axis=-1)
+
+    # Calculate R-squared values
+    ss_res = np.sum((y_matrix_squeezed - results.fittedvalues)**2, axis=0)
+    ss_tot = np.sum((y_matrix_squeezed - np.mean(y_matrix_squeezed, axis=0))**2, axis=0)
+    rsquared_values = 1 - ss_res / ss_tot
+
+    return beta_values, intercept_values, rsquared_values
+
+

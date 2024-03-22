@@ -6,7 +6,8 @@ import pandas as pd
 import copy
 import os
 import pickle
-from funcs.utility import numpy2coords, coords2numpy, filter_array_by_size, find_common_rows
+from sklearn.linear_model import LinearRegression
+from funcs.utility import numpy2coords, coords2numpy, filter_array_by_size, find_common_rows, get_zscore
 
 # Function to create a dictionary containing all the relevant HRF signal info for the relevant voxels.
 def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, max_size = 1, prf_proc_dict = None, vox_n_cutoff = None, plot_sizes = 'n'):
@@ -120,33 +121,30 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
             
     return hrf_dict, voxdict_select, joint_voxels, size_selected_voxels
 
-def multivariate_regression(X, y_matrix):
-    # Add a constant term to the independent variable matrix
-    X_with_constant = sm.add_constant(X)
 
-    # Reshape y_matrix to (n_imgs, n_voxels)
-    n_imgs, n_voxels = y_matrix.shape
-    y_matrix_reshaped = y_matrix.reshape(n_imgs, n_voxels, 1)
+
+def multivariate_regression(X, y_matrix, z_scorey:bool = False):
+    # Reshape X to (n_imgs, 1) if it's not already
+    if X.ndim == 1:
+        X = X.reshape(-1, 1)
+
+
+    if z_scorey:
+        y_matrix = get_zscore(y_matrix, print_ars = 'n')
 
     # Fit the multivariate regression model
-    model = sm.OLS(y_matrix_reshaped, X_with_constant)
-    results = model.fit()
+    model = LinearRegression().fit(X, y_matrix)
 
     # Extract beta coefficients and intercepts
-    beta_values = results.params[:-1, :]
-    intercept_values = results.params[-1, :]
-
-    # Squeeze the last dimension out of y_matrix_reshaped
-    y_matrix_squeezed = np.squeeze(y_matrix_reshaped, axis=-1)
+    beta_values = model.coef_
+    intercept_values = model.intercept_
 
     # Calculate R-squared values
-    ss_res = np.sum((y_matrix_squeezed - results.fittedvalues)**2, axis=0)
-    ss_tot = np.sum((y_matrix_squeezed - np.mean(y_matrix_squeezed, axis=0))**2, axis=0)
-    rsquared_values = 1 - ss_res / ss_tot
+    rsquared_values = model.score(X, y_matrix)
 
-    return beta_values, intercept_values, rsquared_values
+    return beta_values, intercept_values, rsquared_values, model
 
-def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all'):
+def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', z_scorey:bool = False):
     reg_dict = {}
     
     # Set the amount of images to regress over in case all images are available.
@@ -154,7 +152,7 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         n_imgs = len(feat_vals)
     
     X = np.array(feat_vals[feat_type][:n_imgs]).reshape(n_imgs, 1)  # Set the input matrix for the regression analysis
-    
+  
     # This function will run the multiple regression analysis for each voxel, roi, image, for a subject.
     rois = list(voxels[subject].keys())
 
@@ -165,41 +163,63 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         vox_indices = np.column_stack(np.where(voxel_mask == 1))  # Get voxel indices for the current ROI
         
         # Extract y_matrix for all voxels within the ROI
-        
+            
+        if z_scorey:
+            y_matrix = get_zscore(y_matrix, print_ars = 'n')
+            
         y_matrix = np.array([hrfs[subject][roi][f'voxel{voxel + 1}']['hrf_betas'] for voxel, xyz in enumerate(vox_indices)]).T #/ 300
-        # y_matrix = np.array([hrfs[roi][tuple(vox_idx)][:n_imgs] for vox_idx in vox_indices]).T / 300
 
         # Perform multivariate regression
-        beta_values, intercept_values, rsquared_values = multivariate_regression(X, y_matrix)
-
+        beta_values, intercept_values, rsquared_value, reg_model = multivariate_regression(X, y_matrix, z_scorey = z_scorey)
+        
+        reg_dict[roi]['voxels'] = {}
+        
         for voxel, vox_idx in enumerate(vox_indices):
-            reg_dict[roi][f'vox{voxel}'] = {
+            reg_dict[roi]['voxels'][f'vox{voxel}'] = {
                 'xyz': list(vox_idx),
-                'beta': beta_values[:, voxel],
-                'R2': rsquared_values[voxel],
+                'beta': beta_values[voxel],
                 'icept': intercept_values[voxel]
             }
+            
+        reg_dict[roi]['y_matrix'] = y_matrix
+        reg_dict[roi]['all_reg_betas'] = beta_values
+        reg_dict[roi]['all_intercepts'] = intercept_values
+        reg_dict[roi]['rsquared'] = rsquared_value
+        
 
-    return reg_dict, X, y_matrix
 
-def plot_roi_beta_distribution(reg_dict):
+    return reg_dict, X
+
+import seaborn as sns
+def plot_roi_beta_distribution(reg_dict, z_score = None, icept_correct = None, feat_type = ''):
+    
+    
     fig, axes = plt.subplots(4, 1, figsize=(12, 12), sharex=True)
     colors = sns.color_palette('ocean', n_colors=len(reg_dict))
-
+    num_bins = 30  # Specify the number of bins
+    icept_values = []
     for i, (roi, voxels) in enumerate(reg_dict.items()):
-        beta_values = np.concatenate([voxel_data['beta'] for voxel_data in voxels.values()])
-        sns.histplot(beta_values, kde=True, ax=axes[i], color=colors[i], label=f'{roi} ROI')
+        
+        beta_values = np.concatenate([voxel_data['beta'] for voxel_data in voxels['voxels'].values()])
+        plot_vals = beta_values
+        icept_values = np.concatenate([np.array([voxel_data['icept']]) for voxel_data in voxels['voxels'].values()])        
+
+        if icept_correct == 'y':
+            plot_vals = beta_values / get_zscore(icept_values, print_ars = 'n')
+
+        sns.histplot(plot_vals, kde=True, ax=axes[i], color=colors[i], label=f'{roi} ROI', bins=num_bins)  # Specify the bins
 
         axes[i].set_title(f'Distribution of Beta Values for {roi[:2]}\n'
-                          f'(n_voxels={len(voxels)})')
+                        f'n_voxels={len(beta_values)}')
         axes[i].set_ylabel('Occurrence freq', weight = 'normal', fontsize = 12)
-        axes[i].set_xlim(-1, 2)  # Set the same x range for all subplots
+        axes[i].set_xlim(-.05, .15)  # Set the same x range for all subplots
 
-        axes[i].set_xticks(np.arange(-1, 10, .5))  # Set the ticks to be more frequent
-
+        # axes[i].set_xticks(np.arange(-1, 15, .5))  # Set the ticks to be more frequent
+        axes[i].set_xticks(np.arange(-.05, .15, .05))  # Set the ticks to be more frequent
 
     axes[-1].set_xlabel('Beta values', weight = 'normal', fontsize = 12)
-    fig.suptitle('Multivariate regression approach (Subject 1, all images, HRF beta)', fontsize=16, y=1)
+    fig.suptitle(f'Multivariate regression approach (Subject 1, all images, HRF beta) {feat_type}', fontsize=16, y=1)
 
     plt.tight_layout()
     plt.show()
+    

@@ -12,6 +12,7 @@ from matplotlib.ticker import MultipleLocator
 from skimage import color
 from multiprocessing import Pool
 from funcs.rf_tools import get_mask, make_circle_mask, css_gaussian_cut, make_gaussian_2d
+from funcs.utility import get_zscore
 
 # Function to show a randomly selected image of the nsd dataset
 def show_stim(hide = 'n', img_no = 'random', small = 'n'):
@@ -73,15 +74,25 @@ def get_imgs_designmx():
     
     return stims_design_mx
 
+# Function get the min and max x,y values in order to acquire a perfect square crop of the RF mask.
+def get_bounding_box(mask):
+    # Get the indices where the mask is True
+    y_indices, x_indices = np.where(mask)
+
+    # Get the minimum and maximum indices along each axis
+    x_min, x_max = np.min(x_indices), np.max(x_indices)
+    y_min, y_max = np.min(y_indices), np.max(y_indices)
+
+    return x_min, x_max, y_min, y_max
+
 
 # These two functions are coupled to run the feature computations in parallel.
 # This saves a lot of time. Should be combined with the feature_df function to assign
 # the values to the corresponding trials.
-def rms_single(args, ecc_max = 1, loc = 'center', plot = 'n', normalise = True, crop_prior:bool = False, crop_post:bool = False, cmap = 'gist_gray'):
-    i, start, n = args
+def rms_single(args, ecc_max = 1, loc = 'center', plot = 'n', normalise = True, crop_prior:bool = False, crop_post:bool = False, save_plot:bool = False, cmap = 'gist_gray'):
+    i, start, n, plot, loc, crop_prior, crop_post, save_plot  = args
     dim = show_stim(hide = 'y')[0].shape[0]
     radius = ecc_max * (dim / 8.4)
-
     if loc == 'center':
         x = y = (dim + 1)/2
     elif loc == 'irrelevant_patch':
@@ -102,15 +113,18 @@ def rms_single(args, ecc_max = 1, loc = 'center', plot = 'n', normalise = True, 
         mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
         rf_mask_in = rf_mask_in[x_min:x_max, y_min:y_max]
         
-    return get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, full_ar_in, normalise = normalise, plot = plot, cmap = cmap, crop_prior = crop_prior, crop_post = crop_post)
+    return get_rms_contrast_lab(ar_in, mask_w_in, rf_mask_in, full_ar_in, normalise = normalise, 
+                                plot = plot, cmap = cmap, crop_prior = crop_prior, crop_post = crop_post, 
+                                save_plot = save_plot)
 
 
-def rms_all(start, n, ecc_max = 1):
+# This function is paired with rms_single to mass calculate the visual features using parallel computation.
+def rms_all(start, n, ecc_max = 1, plot = 'n', loc = 'center', crop_prior:bool = False, crop_post:bool = True, save_plot:bool = False):
     img_vec = list(range(start, start + n))
 
     # Create a pool of worker processes
     with Pool() as p:
-        rms_vec = p.map(rms_single, [(i, start, n) for i in img_vec])
+        rms_vec = p.map(rms_single, [(i, start, n, plot, loc, crop_prior, crop_post, save_plot) for i in img_vec])
 
     rms_dict = pd.DataFrame({
         'rms': rms_vec
@@ -118,7 +132,6 @@ def rms_all(start, n, ecc_max = 1):
 
     rms_dict = rms_dict.set_index(np.array(img_vec))
     return rms_dict
-
 
 
 # This function creates a dataframe containing the rms contrast values for each image in the design matrix
@@ -205,7 +218,7 @@ def get_rms_contrast(ar_in,mask_w_in,rf_mask_in,normalise=True, plot = 'n'):
 
 # Function that calculates rms but based on a RGB to LAB conversion, which follows the CIELAB colour space
 # This aligns best with the way humans perceive visual input. 
-def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, full_array, normalise = True, plot = 'n', cmap = 'gist_gray', crop_prior:bool = False, crop_post:bool = False):
+def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, full_array, normalise = True, plot = 'n', cmap = 'gist_gray', crop_prior:bool = False, crop_post:bool = False, save_plot:bool = False):
     # Convert RGB image to LAB colour space
     lab_image = color.rgb2lab(rgb_image)
     
@@ -234,8 +247,12 @@ def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, full_array, normalise
         axs[1].imshow(mask_w_in*square_contrast, cmap = cmap)
         axs[1].axis('off') 
         
+        if save_plot:
+            plt.savefig(f'rms_crop_prior_{str(crop_prior)}_crop_post_{str(crop_post)}.png')
+            
     return (np.sqrt(msquare_contrast))
-   
+
+
 # Function to get contrast features based on the design matrix of a subject. 
 # Extend the function so it does so by mapping the precomputed rms values with the function below.  
 def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'subj01', ecc_max = 1, ecc_strict = 'y', 
