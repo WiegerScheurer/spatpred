@@ -100,6 +100,8 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
                     }
             n_betas = len(hrf_dict[subject][roi][f'voxel{voxel+1}']['hrf_betas'])
             print(f'\tProcessed images: {n_betas}')
+            
+    plt.style.use('default')
 
     if plot_sizes == 'y':
         fig, axs = plt.subplots(2, 2, figsize=(10, 8))  # Create a figure with 2x2 subplots
@@ -108,7 +110,7 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
         for i, roi in enumerate(rois):
             sizes = hrf_dict[subject][roi]['roi_sizes'][:, 3]
             color = cmap(i / len(rois))  # Get a color from the color map
-            sns.histplot(sizes, kde=True, ax=axs[i], color=color)  # Plot on the i-th subplot
+            sns.histplot(sizes, kde=True, ax=axs[i], color=color, bins = 100)  # Plot on the i-th subplot
             axs[i].set_title(f'RF sizes for {roi[:2]} (n={sizes.shape[0]})')  # Include the number of voxels in the title
             axs[i].set_xlim([min_size-.1, max_size+.1])  # Set the x-axis limit from 0 to 2
         fig.suptitle(f'{prf_region}', fontsize=18)
@@ -152,7 +154,7 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         n_imgs = len(feat_vals)
     
     X = np.array(feat_vals[feat_type][:n_imgs]).reshape(n_imgs, 1)  # Set the input matrix for the regression analysis
-  
+
     # This function will run the multiple regression analysis for each voxel, roi, image, for a subject.
     rois = list(voxels[subject].keys())
 
@@ -169,8 +171,10 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
             
         y_matrix = np.array([hrfs[subject][roi][f'voxel{voxel + 1}']['hrf_betas'] for voxel, xyz in enumerate(vox_indices)]).T #/ 300
 
+
         # Perform multivariate regression
         beta_values, intercept_values, rsquared_value, reg_model = multivariate_regression(X, y_matrix, z_scorey = z_scorey)
+        
         
         reg_dict[roi]['voxels'] = {}
         
@@ -185,19 +189,32 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         reg_dict[roi]['all_reg_betas'] = beta_values
         reg_dict[roi]['all_intercepts'] = intercept_values
         reg_dict[roi]['rsquared'] = rsquared_value
-        
-
-
+    
     return reg_dict, X
 
-import seaborn as sns
-def plot_roi_beta_distribution(reg_dict, z_score = None, icept_correct = None, feat_type = ''):
+
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
+
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
+
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
+
+
+def plot_roi_beta_distribution(reg_dict, dictdescrip1 = '', icept_correct = None, feat_type = '', comparison_reg_dict = None, dictdescrip2 = '', comptype = ''):
+    plt.style.use('dark_background')  # Apply dark background theme
+    fig, axes = plt.subplots(4, 1, figsize=(12, 12), sharex=False)
     
-    
-    fig, axes = plt.subplots(4, 1, figsize=(12, 12), sharex=True)
-    colors = sns.color_palette('ocean', n_colors=len(reg_dict))
-    num_bins = 30  # Specify the number of bins
+    # COol custom color palettes
+    colors = LinearSegmentedColormap.from_list("my_palette", ["darkblue", "blue"], N=len(reg_dict))
+    comparison_colors = LinearSegmentedColormap.from_list("my_palette", ["darkred", "red"], N=len(comparison_reg_dict)) if comparison_reg_dict else None
+
+    num_bins = 40  # Specify the number of bins
     icept_values = []
+    min_x = np.inf
+    max_x = -np.inf
     for i, (roi, voxels) in enumerate(reg_dict.items()):
         
         beta_values = np.concatenate([voxel_data['beta'] for voxel_data in voxels['voxels'].values()])
@@ -205,21 +222,85 @@ def plot_roi_beta_distribution(reg_dict, z_score = None, icept_correct = None, f
         icept_values = np.concatenate([np.array([voxel_data['icept']]) for voxel_data in voxels['voxels'].values()])        
 
         if icept_correct == 'y':
-            plot_vals = beta_values / get_zscore(icept_values, print_ars = 'n')
+            plot_vals = beta_values / icept_values
 
-        sns.histplot(plot_vals, kde=True, ax=axes[i], color=colors[i], label=f'{roi} ROI', bins=num_bins)  # Specify the bins
+        sns.histplot(plot_vals, kde=True, ax=axes[i], color=colors(i/len(reg_dict)), label=f'{dictdescrip1} ({len(beta_values)} voxels)', bins=num_bins, edgecolor='black', alpha = .8)  # Specify the bins
 
-        axes[i].set_title(f'Distribution of Beta Values for {roi[:2]}\n'
-                        f'n_voxels={len(beta_values)}')
-        axes[i].set_ylabel('Occurrence freq', weight = 'normal', fontsize = 12)
-        axes[i].set_xlim(-.05, .15)  # Set the same x range for all subplots
+        min_x = min(min_x, np.min(plot_vals))
+        max_x = max(max_x, np.max(plot_vals))
 
-        # axes[i].set_xticks(np.arange(-1, 15, .5))  # Set the ticks to be more frequent
-        axes[i].set_xticks(np.arange(-.05, .15, .05))  # Set the ticks to be more frequent
+        if comparison_reg_dict is not None and roi in comparison_reg_dict:
+            comparison_voxels = comparison_reg_dict[roi]
+            comparison_beta_values = np.concatenate([voxel_data['beta'] for voxel_data in comparison_voxels['voxels'].values()])
+            comparison_plot_vals = comparison_beta_values
+            comparison_icept_values = np.concatenate([np.array([voxel_data['icept']]) for voxel_data in comparison_voxels['voxels'].values()])        
 
-    axes[-1].set_xlabel('Beta values', weight = 'normal', fontsize = 12)
-    fig.suptitle(f'Multivariate regression approach (Subject 1, all images, HRF beta) {feat_type}', fontsize=16, y=1)
+            if icept_correct == 'y':
+                comparison_plot_vals = comparison_beta_values / comparison_icept_values
+
+            sns.histplot(comparison_plot_vals, kde=True, ax=axes[i], color=comparison_colors(i/len(comparison_reg_dict)), label=f'{dictdescrip2} ({len(comparison_beta_values)} voxels)', bins=num_bins, edgecolor='black', alpha = .9)
+
+            min_x = min(min_x, np.min(comparison_plot_vals))
+            max_x = max(max_x, np.max(comparison_plot_vals))
+
+        axes[i].set_title(f'Distribution of Beta Values for {roi[:2]}', color='white')
+
+        axes[i].set_ylabel('Occurrence freq', weight = 'normal', fontsize = 12, color='white')
+        axes[i].tick_params(colors='white')
+        axes[0].legend(fontsize = 'large')
+
+    for ax in axes:
+        ax.set_xlim(min_x, max_x)  # Set the x range to include all data
+        ax.set_xticks(np.around(np.arange(min_x, max_x, .2), 2))  # Set the ticks to be more frequent and round them
+
+    if len(comptype) != 0: comptype = f'\n{comptype}' 
+    
+    fig.suptitle(f'Baseline visual feature regression of subject 1, {feat_type}{comptype}', fontsize=16, y=1, color='white')
 
     plt.tight_layout()
     plt.show()
     
+    
+def plot_beta_to_icept(reg_dict, dictdescrip1 = '', comparison_reg_dict = None, feat_type = '', dictdescrip2 = '', comptype = ''):
+    plt.style.use('dark_background')
+    fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+
+    rois = ['V1_mask', 'V2_mask', 'V3_mask', 'V4_mask']
+
+    for i, roi in enumerate(rois):
+        betas = [beta for vox in reg_dict[roi] for beta in reg_dict[roi]['all_reg_betas']]
+        icepts = [icept for vox in reg_dict[roi] for icept in reg_dict[roi]['all_intercepts']]
+
+        row = i // 2
+        col = i % 2
+
+        axs[row, col].scatter(betas, icepts, c='blue', label=dictdescrip1)
+        
+        if comparison_reg_dict and roi in comparison_reg_dict:
+            comparison_betas = [beta for vox in comparison_reg_dict[roi] for beta in comparison_reg_dict[roi]['all_reg_betas']]
+            comparison_icepts = [icept for vox in comparison_reg_dict[roi] for icept in comparison_reg_dict[roi]['all_intercepts']]
+            axs[row, col].scatter(comparison_betas, comparison_icepts, c='red', label=dictdescrip2)
+
+        axs[row, col].set_xlabel('betas', color='white')
+        axs[row, col].set_ylabel('icepts', color='white')
+        axs[row, col].set_title(roi[:2], color='white')
+        axs[row, col].tick_params(colors='white')
+    axs[0, 0].legend(fontsize = 'medium')
+
+    fig.suptitle(f'Regression betas to intercepts of subject 1, {feat_type}{comptype}', fontsize=16, y=1, color='white')
+
+    plt.tight_layout()
+    plt.show()
+    
+    
+def reg_plots(reg_dict, dictdescrip1 = '', icept_correct = None, feat_type = None, 
+              beta_hist:bool = True, beta_icept:bool = True, comparison_reg_dict = None, 
+              dictdescrip2 = '', comptype = ''):
+            
+    if beta_hist:
+        plot_roi_beta_distribution(reg_dict = reg_dict, dictdescrip1 = dictdescrip1, icept_correct = icept_correct, 
+                                   feat_type = feat_type, comparison_reg_dict = comparison_reg_dict, 
+                                   dictdescrip2 = dictdescrip2, comptype = comptype)
+    if beta_icept:
+        plot_beta_to_icept(reg_dict = reg_dict, dictdescrip1 = dictdescrip1, comparison_reg_dict = comparison_reg_dict, 
+                           feat_type = feat_type, dictdescrip2 = dictdescrip2, comptype = comptype)
