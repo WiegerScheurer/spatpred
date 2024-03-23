@@ -25,6 +25,9 @@ import seaborn as sns
 import pprint as pprint
 from sklearn.linear_model import LinearRegression
 import copy
+from scipy.ndimage import binary_dilation
+
+
 
 # Function to load in nifti (.nii.gz) data and create some useful variables 
 def get_dat(path):

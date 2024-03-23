@@ -150,6 +150,7 @@ def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool
 
     return beta_values, intercept_values, rsquared_values, model
 
+
 def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', z_scorey:bool = False, meancentery:bool = False):
     reg_dict = {}
     
@@ -169,16 +170,29 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         vox_indices = np.column_stack(np.where(voxel_mask == 1))  # Get voxel indices for the current ROI
         
         # Extract y_matrix for all voxels within the ROI
-            
-
-            
         y_matrix = np.array([hrfs[subject][roi][f'voxel{voxel + 1}']['hrf_betas'] for voxel, xyz in enumerate(vox_indices)]).T #/ 300
 
         if z_scorey:
-            y_matrix = get_zscore(y_matrix, print_ars = 'n')
-            
+            # Reshape y_matrix into 40 batches of 750 values
+            y_matrix_reshaped = y_matrix.reshape(-1, 750, y_matrix.shape[1])
+
+            # Initialize an empty array to store the z-scores
+            z_scores = np.empty_like(y_matrix_reshaped)
+
+            # Calculate the z-scores for each batch
+            for i in range(y_matrix_reshaped.shape[0]):
+                z_scores[i] = get_zscore(y_matrix_reshaped[i], print_ars='n')
+
+            # Flatten z_scores back into original shape
+            y_matrix = z_scores.reshape(y_matrix.shape)
+                        
         if meancentery:
-            y_matrix = mean_center(y_matrix, print_ars = 'n')
+            # Idem dito
+            y_matrix_reshaped = y_matrix.reshape(-1, 750, y_matrix.shape[1])
+            mc_scores = np.empty_like(y_matrix_reshaped)
+            for i in range(y_matrix_reshaped.shape[0]):
+                mc_scores[i] = mean_center(y_matrix_reshaped[i], print_ars='n')
+            y_matrix = mc_scores.reshape(y_matrix.shape)
             
         # Perform multivariate regression
         beta_values, intercept_values, rsquared_value, reg_model = multivariate_regression(X, y_matrix, z_scorey = z_scorey, meancentery = meancentery)
@@ -199,7 +213,6 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         reg_dict[roi]['rsquared'] = rsquared_value
     
     return reg_dict, X
-
 
 def plot_roi_beta_distribution(reg_dict, dictdescrip1 = '', icept_correct = None, feat_type = '', comparison_reg_dict = None, dictdescrip2 = '', comptype = ''):
     plt.style.use('dark_background')  # Apply dark background theme
@@ -249,8 +262,22 @@ def plot_roi_beta_distribution(reg_dict, dictdescrip1 = '', icept_correct = None
 
     for ax in axes:
         ax.set_xlim(min_x, max_x)  # Set the x range to include all data
-        ax.set_xticks(np.around(np.arange(min_x, max_x, .1), 2))  # Set the ticks to be more frequent and round them
+        # ax.set_xticks(np.around(np.arange(min_x, max_x, .05), 2))  # Set the ticks to be more frequent and round them
+        
+        # Calculate the maximum absolute value of min_x and max_x
+        max_abs = max(abs(min_x), abs(max_x))
 
+        # Generate ticks for negative values, 0 and positive values
+        negative_ticks = np.around(np.arange(min_x, 0, 0.1), 2)
+        positive_ticks = np.around(np.arange(0, max_abs + 0.1, 0.1), 2)  # +0.05 to include max_abs in the range
+
+        # Combine negative and positive ticks
+        ticks = np.concatenate((negative_ticks, positive_ticks))
+
+        ax.set_xticks(ticks)
+                
+                
+        
     if len(comptype) != 0: comptype = f'\n{comptype}' 
     
     fig.suptitle(f'Baseline visual feature regression of subject 1, {feat_type}{comptype}', fontsize=16, y=1, color='white')
@@ -291,6 +318,9 @@ def plot_beta_to_icept(reg_dict, dictdescrip1 = '', comparison_reg_dict = None, 
 
     plt.tight_layout()
     plt.show()
+    
+    
+
     
     
 def reg_plots(reg_dict, dictdescrip1 = '', icept_correct = None, feat_type = None, 

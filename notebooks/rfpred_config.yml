@@ -1,0 +1,11 @@
+pRF selection criteria:
+  - Central patch has radius of 1 degrees visual angle
+  - Strict means that the entire pRF must fall inside the central patch
+    - Entire pRF means in this case the radius of 1SD of the full gaussian, so this is pRF size as used in NSD
+      - This is the size of the css cut gaussian used
+
+Standardisation:
+  - HRF betas are z-scored per session
+  - Visual features are z-scored over all images
+
+

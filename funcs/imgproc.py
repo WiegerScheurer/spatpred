@@ -11,8 +11,11 @@ from scipy.stats import weibull_min
 from matplotlib.ticker import MultipleLocator
 from skimage import color
 from multiprocessing import Pool
+import nibabel as nib
+import pickle
 from funcs.rf_tools import get_mask, make_circle_mask, css_gaussian_cut, make_gaussian_2d
 from funcs.utility import get_zscore
+
 
 # Function to show a randomly selected image of the nsd dataset
 def show_stim(hide = 'n', img_no = 'random', small = 'n'):
