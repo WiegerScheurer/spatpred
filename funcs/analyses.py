@@ -48,10 +48,10 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
                 if vox_n_cutoff == None:
                     vox_n_cutoff = numpy2coords(voxel_mask).shape[0]
                 if min_size != None and max_size != None:
-                    preselect_voxels = numpy2coords(voxel_mask)[:vox_n_cutoff,:] # This cutoff is to allow for checking whether the amount of voxels per category matters (peripher/central)
+                    preselect_voxels = numpy2coords(voxel_mask)
                     size_selected_voxels = filter_array_by_size(prf_proc_dict[subject]['proc'][roi]['size'], min_size, max_size)
 
-                    joint_voxels = find_common_rows(preselect_voxels, size_selected_voxels)
+                    joint_voxels = find_common_rows(preselect_voxels, size_selected_voxels)[:vox_n_cutoff,:] # This cutoff is to allow for checking whether the amount of voxels per category matters (peripher/central)
                     
                     voxel_mask = coords2numpy(joint_voxels, voxels['subj01']['V1_mask'].shape) * 1
                     
@@ -124,7 +124,32 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
             
     return hrf_dict, voxdict_select, joint_voxels, size_selected_voxels
 
+def univariate_regression(X, y, z_scorey:bool = False, meancentery:bool = False):
+    # Reshape X to (n_imgs, 1) if it's not already
+    if X.ndim == 1:
+        X = X.reshape(-1, 1)
 
+    # Reshape y to (n_imgs, 1) if it's not already
+    if y.ndim == 1:
+        y = y.reshape(-1, 1)
+
+    if z_scorey:
+        y = get_zscore(y, print_ars = 'n')
+        
+    if meancentery:
+        y = mean_center(y, print_ars = 'n')
+
+    # Fit the univariate regression model
+    model = LinearRegression().fit(X, y)
+
+    # Extract beta coefficient and intercept
+    beta_value = model.coef_
+    intercept_value = model.intercept_
+
+    # Calculate R-squared value
+    rsquared_value = model.score(X, y)
+
+    return beta_value, intercept_value, rsquared_value, model, X, y
 
 def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool = False):
     # Reshape X to (n_imgs, 1) if it's not already
@@ -148,16 +173,17 @@ def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool
     # Calculate R-squared values
     rsquared_values = model.score(X, y_matrix)
 
-    return beta_values, intercept_values, rsquared_values, model
+    return beta_values, intercept_values, rsquared_values, model, X, y_matrix
 
 
-def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', z_scorey:bool = False, meancentery:bool = False):
+def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', z_scorey:bool = False, z_scorex:bool = False, meancentery:bool = False):
     reg_dict = {}
     
     # Set the amount of images to regress over in case all images are available.
     if n_imgs == 'all':
         n_imgs = len(feat_vals)
     
+    # CHECK THIS SIZE, SOMETHING MIGHT BE WRONG HEREERERERRER!!!!!!!!!!!
     X = np.array(feat_vals[feat_type][:n_imgs]).reshape(n_imgs, 1)  # Set the input matrix for the regression analysis
 
     # This function will run the multiple regression analysis for each voxel, roi, image, for a subject.
@@ -195,7 +221,7 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
             y_matrix = mc_scores.reshape(y_matrix.shape)
             
         # Perform multivariate regression
-        beta_values, intercept_values, rsquared_value, reg_model = multivariate_regression(X, y_matrix, z_scorey = z_scorey, meancentery = meancentery)
+        beta_values, intercept_values, rsquared_value, reg_model, X_used, y_used = multivariate_regression(X, y_matrix, z_scorey = z_scorey, meancentery = meancentery)
         
         
         reg_dict[roi]['voxels'] = {}
@@ -208,6 +234,7 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
             }
             
         reg_dict[roi]['y_matrix'] = y_matrix
+        reg_dict[roi]['X_matrix'] = X_used
         reg_dict[roi]['all_reg_betas'] = beta_values
         reg_dict[roi]['all_intercepts'] = intercept_values
         reg_dict[roi]['rsquared'] = rsquared_value

@@ -14,7 +14,7 @@ from multiprocessing import Pool
 import nibabel as nib
 import pickle
 from funcs.rf_tools import get_mask, make_circle_mask, css_gaussian_cut, make_gaussian_2d
-from funcs.utility import get_zscore
+from funcs.utility import get_zscore, mean_center
 
 
 # Function to show a randomly selected image of the nsd dataset
@@ -145,9 +145,13 @@ def feature_df(subject, feature, feat_per_img, designmx):
         
         ices = list(designmx[subject])
         rms_all = feat_per_img['rms'][ices]
+        rms_z = get_zscore(rms_all)
+        rms_mc = mean_center(rms_all)
         
         df = pd.DataFrame({'img_no': ices,
-                           'rms':rms_all})
+                           'rms':rms_all,
+                           'rms_z': rms_z,
+                           'rms_mc': rms_mc})
         
     df = df.set_index(np.array(range(0, len(df))))
         
