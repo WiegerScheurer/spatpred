@@ -255,6 +255,8 @@ def nsd_R2_dict(binary_masks = None):
 # Create a dictionary for the top n R2 prf/nsd values, the amount of explained variance
 # it does so for every visual roi and subject separately. dataset can be 'nsd' or 'prf'
 # and input_dict should be given accordingly.
+# I do have to think why I would use one of these, to what extent does it matter whether it is prf or nsd R2?
+# What are the exact differences?
 def rsquare_selection(input_dict = None, top_n = 1000, n_subjects = None, dataset = 'nsd'):
     rsq_dict = {}
     
@@ -554,7 +556,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
              prf_proc_dict = None, type = 'full_gaussian', roi = 'V2', 
              plot = 'y', heatmap = 'n', prf_vec = None, iter = None, excl_reason = 'n', 
              sigma_min = 0, sigma_max = 4.2, ecc_min = 0, ecc_max = 4.2, rand_seed = None, filter_dict = None, 
-             ecc_strict = None, grid = 'n', fill_outline = 'n'):
+             ecc_strict = None, grid = 'n', fill_outline = 'n', min_overlap = 0, add_central_patch:bool = False):
 
     if rand_seed == None:
         random.seed(random.randint(1, 1000000))
@@ -597,12 +599,14 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         sigma = prf_size * np.sqrt(prf_expt)
         sigma_pure = sigma * (dim / 8.4)
         outer_bound = inner_bound = prf_ecc
-        
+        prop_in_patch = 'irrelevant'
         
         # Condition to regulate the strictness of maximum eccentricity values
-        if ecc_strict == 'y':
+        # If ecc_strict is 'n', then any overlap suffices, as long as the centre is inside the patch
+        if ecc_strict == 'y' and min_overlap == 100:
             outer_bound = prf_ecc + prf_size
             inner_bound = prf_ecc - prf_size
+            
         
         # Sinus is used to calculate height, cosinus width
         # so c_index is the y coordinate and r_index is the x coordinate. 
@@ -619,7 +623,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         elif type == 'cut_gaussian' or type == 'full_gaussian' or type == 'outline':
             deg_radius = prf_size
             pix_radius = prf_size * (dim / 8.4)
-        
+
         valid_conditions = (
             0 < x < dim,
             0 < y < dim,
@@ -627,12 +631,25 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
             deg_radius < sigma_max,
             outer_bound < ecc_max,
             ecc_min < inner_bound,
-            prf_ecc > ecc_min
-            # prf_expt > 0
+            prf_ecc > ecc_min            
             )
 
         if all(valid_conditions):
-            break
+            
+            if ecc_strict == 'y' and min_overlap < 100:
+                central_patch = make_circle_mask(dim, ((dim+2)/2), ((dim+2)/2), ecc_max * (dim / 8.4), fill = 'y')
+                bin_prf = make_circle_mask(dim, x, y, pix_radius)
+                prop_in_patch = (np.sum(bin_prf * central_patch) / np.sum(bin_prf)) * 100
+                # print(f'Proportion inside the patch: {prop_in_patch}')
+            else: 
+                min_overlap = 0
+                prop_in_patch = 0
+                
+            prop_condition = (
+                prop_in_patch >= min_overlap
+            )
+            if prop_condition:
+                break
 
         # Check for argument option to print reason for excluding voxels
         elif excl_reason == 'y':
@@ -646,10 +663,14 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
             if not valid_conditions[3]:
                 print("   - sigma_pure too large")
             if not valid_conditions[4]:
-                print(f"   -  pRF outside of center {2 * ecc_max}° visual degrees")
+                print(f"   -  pRF outside of central {2 * ecc_max}° visual degrees")
+            if not valid_conditions[5]:
+                print(f"   -  pRF does not overlap enough with central patch: {prop_in_patch}% of required {min_overlap}%")
             # if not valid_conditions[4]:
             #     print("   - expt_ar value too small")
 
+    
+    
     # Note: all the masks are made using pixel values for x, y, and sigma
     # Check whether the same is done later on, in the heatmaps and get_img_prf.
     if type == 'gaussian':
@@ -672,15 +693,20 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
     x_deg = (x - ((dim + 2) / 2)) * degrees_per_pixel
     y_deg = (((dim + 2) / 2) - y) * degrees_per_pixel
     
+    central_patch = 0
+    if add_central_patch:
+        central_patch = make_circle_mask(dim, ((dim+2)/2), ((dim+2)/2), ecc_max * (dim / 8.4), fill = 'n')
+
     if plot == 'y':
         fig, ax = plt.subplots(figsize=(8, 8))
-        ax.imshow(prf_mask, cmap='bone', origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
+        ax.imshow((prf_mask + central_patch), cmap='bone', origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
         ax.set_title(f'Region Of Interest: {roi}\n'
                     f'Voxel: [{x_vox}, {y_vox}, {z_vox}]\n'
                     f'pRF x,y,σ: {round(x_deg, 1), round(y_deg, 1), round(deg_radius, 1)}\n'
                     f'Angle: {round(prf_angle, 2)}°\nEccentricity: {round(prf_ecc, 2)}°\n'
                     f'Exponent: {round(prf_expt, 2)}\nSize: {round(prf_size, 2)}°\n'
-                    f'Explained pRF variance (R2): {round(prf_rsq, 2)}%')
+                    f'Explained pRF variance (R2): {round(prf_rsq, 2)}%\n'
+                    f'pRF proportion inside central {2 * ecc_max}° patch: {round(prop_in_patch, 2)}%')
         ax.set_xlabel('Horizontal Degrees of Visual Angle')
         ax.set_ylabel('Vertical Degrees of Visual Angle')
 
@@ -709,7 +735,8 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         'eccentricity': prf_ecc,
         'exponent': prf_expt,
         'size': prf_size,
-        'R2': prf_rsq
+        'R2': prf_rsq,
+        'central_overlap': prop_in_patch
     }
 
         # Return the dictionary
@@ -756,7 +783,7 @@ class AllPRFConsidered(Exception):
     pass
 def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussian', cmap='gist_heat', 
                 roi='V2', sigma_min=1, sigma_max=25, ecc_min = 0, ecc_max = 4.2, print_prog='n', excl_reason = 'n', subjects='all',
-                outline_degs = None, filter_dict = None, fill_outline = 'n', plot_heat = 'y', ecc_strict = None, grid = 'n'):
+                outline_degs = None, filter_dict = None, fill_outline = 'n', plot_heat = 'y', ecc_strict = None, grid = 'n', min_overlap = 100):
     
     # Create new dictionary to store the filtered voxels that pass the pRF requirements imposed
     prfmask_dict = copy.deepcopy(binary_masks)
@@ -764,6 +791,7 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
     outline_surface = np.pi * outline_degs**2
     prf_sumstack = []
     prf_sizes = []
+    prf_overlaps = []
     total_prfs_found = 0
     if subjects == 'all':
         subjects = list(binary_masks)
@@ -822,12 +850,15 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
                                     excl_reason=excl_reason,
                                     filter_dict = filter_dict,
                                     ecc_strict = ecc_strict,
-                                    grid = grid)
+                                    grid = grid,
+                                    min_overlap = min_overlap)
                 
                 prf_single[:, :, prf] = prf_dict['mask']
                 iter = prf_dict['iterations']
                 prf_size = prf_dict['size']
                 prf_sizes.append(prf_size)
+                prf_overlap = prf_dict['central_overlap']
+                prf_overlaps.append(prf_overlap)
                 
                 prfmask_dict[subject][f'{roi}_mask'][prf_dict['x_vox']][prf_dict['y_vox']][prf_dict['z_vox']] = 1
                 
@@ -860,7 +891,8 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
     ax.set_title(f'Region Of Interest: {roi}\n'
                  f'Spatial restriction of central {2 * ecc_max}° visual angle\n'
                  f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°, {relative_surface}% of outline surface\n'
-                 f'Total amount of pRFs found: {total_prfs_found}')
+                 f'Total amount of pRFs found: {total_prfs_found}\n'
+                 f'Average pRF overlap with central patch: {round(np.mean(prf_overlaps), 2)}%')
     ax.set_xlabel('Horizontal Degrees of Visual Angle')
     ax.set_ylabel('Vertical Degrees of Visual Angle')
     cbar = plt.colorbar(im, ax=ax, shrink = .6)
@@ -875,14 +907,14 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
     else: 
         plt.show()
 
-    return prf_sum_all_subjects, iter, end_premat, roi, prf_sizes, relative_surface, total_prfs_found, prfmask_dict
+    return prf_sum_all_subjects, iter, end_premat, roi, prf_sizes, relative_surface, total_prfs_found, prfmask_dict, prf_overlaps
 
 
 
 
 def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=None, basis='roi',
                      mask_type='cut_gaussian', cmap='CMRmap', roi='V1', excl_reason='n', sigma_min=0,
-                     sigma_max=4.2, ecc_min = 0, ecc_max=2, print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid='n'):
+                     sigma_max=4.2, ecc_min = 0, ecc_max=2, print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid='n', min_overlap = 100):
     if basis == 'roi':
         rois = sorted(prf_proc_dict['subj01']['proc'].keys())
 
@@ -905,18 +937,20 @@ def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=
 
     for n, roi in enumerate(rois):
                 
-        heatmap, iter, end_premat, roi, prf_sizes, rel_surf, total_prfs_found, prfmask_dict_all = prf_heatmap(
+        heatmap, iter, end_premat, roi, prf_sizes, rel_surf, total_prfs_found, prfmask_dict_all, prf_overlaps = prf_heatmap(
                                     n_prfs, binary_masks=prfmask_dict_all, prf_proc_dict=prf_proc_dict,
                                     mask_type=mask_type, cmap=cmap, roi=roi[:2], excl_reason=excl_reason,
                                     sigma_min=sigma_min, sigma_max=sigma_max, ecc_min = ecc_min, ecc_max=ecc_max,
                                     print_prog=print_prog, subjects='all', outline_degs=outline_degs,
                                     filter_dict=filter_dict, fill_outline=fill_outline, plot_heat='n',
-                                    ecc_strict=ecc_strict, grid=grid)
+                                    ecc_strict=ecc_strict, grid=grid, min_overlap = min_overlap)
 
         
 
         last_plot = 'y' if n == (len(rois) - 1) else 'n'
-        plot_mask(axs[n], heatmap, f'{roi}\n\n\n', f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°,\n {rel_surf}% of outline surface\n total pRFs found: {len(prf_sizes)}', last=last_plot)
+        plot_mask(axs[n], heatmap, f'{roi}\n\n\n\n', subtitle = (f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°,\n'
+                  f'{rel_surf}% of outline surface\n total pRFs found: {len(prf_sizes)}\n'
+                  f'Average overlap with central patch: {round(np.mean(prf_overlaps), 2)}%'), last=last_plot)
     
     plt.tight_layout()
     plt.show()
@@ -926,7 +960,7 @@ def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=
 # Function that does the same but it plots them differently and removes headers so it can be used in documents.
 def compare_heatmaps_clean(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=None, basis='roi',
                      mask_type='cut_gaussian', cmap='CMRmap', roi='V1', excl_reason='n', sigma_min=0,
-                     sigma_max=4.2, ecc_min = 0, ecc_max=2, print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid='n'):
+                     sigma_max=4.2, ecc_min = 0, ecc_max=2, print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid='n', min_overlap = 100):
     if basis == 'roi':
         rois = sorted(prf_proc_dict['subj01']['proc'].keys())
 
@@ -949,13 +983,13 @@ def compare_heatmaps_clean(n_prfs, binary_masks=None, prf_proc_dict=None, filter
     fig, axs = plt.subplots(2, 2, figsize=(11, 11))
 
     for n, roi in enumerate(rois):
-        heatmap, iter, end_premat, roi, prf_sizes, rel_surf, total_prfs_found, prfmask_dict_all = prf_heatmap(
+        heatmap, iter, end_premat, roi, prf_sizes, rel_surf, total_prfs_found, prfmask_dict_all, prf_overlaps = prf_heatmap(
                                     n_prfs, binary_masks=prfmask_dict_all, prf_proc_dict=prf_proc_dict,
                                     mask_type=mask_type, cmap=cmap, roi=roi[:2], excl_reason=excl_reason,
                                     sigma_min=sigma_min, sigma_max=sigma_max, ecc_min = ecc_min, ecc_max=ecc_max,
                                     print_prog=print_prog, subjects='all', outline_degs=outline_degs,
                                     filter_dict=filter_dict, fill_outline=fill_outline, plot_heat='n',
-                                    ecc_strict=ecc_strict, grid=grid)
+                                    ecc_strict=ecc_strict, grid=grid, min_overlap = min_overlap)
 
         last_plot = 'y' if n == (len(rois) - 1) else 'n'
         plot_mask(axs[n//2, n%2], heatmap, f'{roi}\n\n\n', f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°,\n {rel_surf}% of outline surface\n total pRFs found: {len(prf_sizes)}', last=last_plot)
