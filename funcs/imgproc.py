@@ -186,6 +186,8 @@ def get_visfeature_dict(subjects, all_rms, all_irrelevant_rms, dmx):
 
 
 # Function to get rms contrast for input image, mask patch, and weighted mask
+# This is not the one we use, it is outdated but works though. The method of calculation is slightly different
+# as it uses simple averaging instead of HSL luminance to reduce colour channels.
 def get_rms_contrast(ar_in,mask_w_in,rf_mask_in,normalise=True, plot = 'n'):
 
     """
