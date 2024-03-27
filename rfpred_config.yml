@@ -1,0 +1,20 @@
+pRF selection criteria:
+  - Central patch has radius of 1 degrees visual angle
+  - pRFs fall strictly inside the central patch
+    - Strict means that the entire pRF surface overlaps with the central patch
+      - Entire pRF means in this case the radius of 1SD of the full gaussian, so this is pRF size as used in NSD
+        - This is the size of the css cut gaussian used
+  - The radius range of pRFs is between 0.25 and 1 degrees visual angle
+  - The eccentricity range of pRFs is between 0 and 10 degrees visual angle
+    - Minimum of .25 as smaller pRFs encode too little visual information to correspond with central patch
+    - Maximum of 1 as this is the maximum pRF size that fits inside the central patch
+
+Standardisation:
+  - HRF betas are z-scored per session
+  - Visual features are z-scored over all images
+
+Visual contrast:
+- RMS is computed for the patch-specific visual input
+  - Image is cropped prior to computing RMS
+
+

@@ -54,8 +54,6 @@ def lgn_statistics(im, file_name:str, threshold_lgn, coc:bool=True, config=None,
 
     imsize = im.shape[:2]
 
-    
-
     viewing_dist = lgn.get_attr('viewing_dist')
     imfovbeta, imfovgamma = get_field_of_view(lgn=lgn, imsize=fov_imsize, viewing_dist=viewing_dist)
     imfovbeta = ToRGC(imfovbeta).astype(int)

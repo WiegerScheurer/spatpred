@@ -151,7 +151,7 @@ def univariate_regression(X, y, z_scorey:bool = False, meancentery:bool = False)
 
     return beta_value, intercept_value, rsquared_value, model, X, y
 
-def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool = False):
+def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool = False, fit_intercept:bool = False):
     # Reshape X to (n_imgs, 1) if it's not already
     if X.ndim == 1:
         X = X.reshape(-1, 1)
@@ -164,7 +164,7 @@ def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool
         y_matrix = mean_center(y_matrix, print_ars = 'n')
 
     # Fit the multivariate regression model
-    model = LinearRegression().fit(X, y_matrix)
+    model = LinearRegression(fit_intercept=fit_intercept).fit(X, y_matrix)
 
     # Extract beta coefficients and intercepts
     beta_values = model.coef_
@@ -176,7 +176,9 @@ def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool
     return beta_values, intercept_values, rsquared_values, model, X, y_matrix
 
 
-def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', z_scorey:bool = False, z_scorex:bool = False, meancentery:bool = False):
+def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', 
+                                 z_scorey:bool = False, z_scorex:bool = False, meancentery:bool = False,
+                                 fit_intercept:bool = False):
     reg_dict = {}
     
     # Set the amount of images to regress over in case all images are available.
@@ -221,8 +223,14 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
             y_matrix = mc_scores.reshape(y_matrix.shape)
             
         # Perform multivariate regression
-        beta_values, intercept_values, rsquared_value, reg_model, X_used, y_used = multivariate_regression(X, y_matrix, z_scorey = z_scorey, meancentery = meancentery)
+        beta_values, intercept_values, rsquared_value, reg_model, X_used, y_used = multivariate_regression(X, y_matrix, z_scorey = z_scorey, meancentery = meancentery, fit_intercept = fit_intercept)
         
+        # If no intercept values are fit, set the output to all zeros.
+        # N.B. in reality these values are not exactly 0, so don't make the mistake of interpreting them as such.
+        # We just don't fit the intercept because we z-score both X and y, thus we theoretically shouldn't need an icept.
+        if fit_intercept == False:
+            intercept_values = np.zeros_like(beta_values)
+            
         
         reg_dict[roi]['voxels'] = {}
         
