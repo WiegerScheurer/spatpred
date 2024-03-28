@@ -556,12 +556,46 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
              prf_proc_dict = None, type = 'full_gaussian', roi = 'V2', 
              plot = 'y', heatmap = 'n', prf_vec = None, iter = None, excl_reason = 'n', 
              sigma_min = 0, sigma_max = 4.2, ecc_min = 0, ecc_max = 4.2, rand_seed = None, filter_dict = None, 
-             ecc_strict = None, grid = 'n', fill_outline = 'n', min_overlap = 0, add_central_patch:bool = False):
+             ecc_strict = None, grid = 'n', fill_outline = 'n', min_overlap = 0, add_central_patch:bool = False,
+             peripheral_center = None, angle_min = 0, angle_max = 360, patch_radius = 1):
 
     if rand_seed == None:
         random.seed(random.randint(1, 1000000))
     else:
         random.seed(rand_seed)
+    
+    
+    
+    if isinstance(peripheral_center, tuple):
+        # Determine the eccentricity of the patch using Pythagoras' theorem
+        patchloc_triangle_o = np.abs(peripheral_center[1])
+        patchloc_triangle_a = np.abs(peripheral_center[0])
+        patchloc_triangle_s = np.sqrt(patchloc_triangle_o**2 + patchloc_triangle_a**2) # Pythagoras triangle side s, patch center eccentricity
+        print(f'Patch localisation triangle with side lengths o: {round(patchloc_triangle_o, 2)}, a: {round(patchloc_triangle_a,2)}, s: {round(patchloc_triangle_s,2)}')
+        
+        # Determine the angle boundaries for the patch, also using Pythagoras
+        bound_triangle_a = patchloc_triangle_s
+        bound_triangle_o = patch_radius
+    
+        patch_bound_angle = np.degrees(np.arctan(bound_triangle_o / bound_triangle_a))
+        patch_center_angle = np.degrees(np.arctan(np.abs(peripheral_center[1] / peripheral_center[0])))
+        
+        if peripheral_center[0] > 0 and peripheral_center[1] > 0: # top right
+            patch_center_angle = patch_center_angle
+        elif peripheral_center[0] < 0 and peripheral_center[1] > 0: # top left
+            patch_center_angle = 180 - patch_center_angle
+        elif peripheral_center[0] > 0 and peripheral_center[1] < 0: # bottom left
+            patch_center_angle = 360 - patch_center_angle
+        elif peripheral_center[0] < 0 and peripheral_center[1] < 0: # bottom right
+            patch_center_angle = 180 + patch_center_angle
+            
+        angle_min = patch_center_angle - patch_bound_angle
+        angle_max = patch_center_angle + patch_bound_angle
+        ecc_min = patchloc_triangle_s - bound_triangle_o
+        ecc_max = patchloc_triangle_s + bound_triangle_o
+        print(f'ecc_min: {round(ecc_min,2)}, ecc_max: {round(ecc_max,2)}')
+        print(f'Peripheral patch at angle {round(patch_center_angle,2)} with boundary angles at min: {round(angle_min,2)}, max: {round(angle_max,2)}')
+    
     
     # Construct the variable name for binary mask using roi argument CHECK IF I USE THIS
     roi_flt = binary_masks[subject][f'{roi}_mask']
@@ -631,15 +665,29 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
             deg_radius < sigma_max,
             outer_bound < ecc_max,
             ecc_min < inner_bound,
-            prf_ecc > ecc_min            
+            prf_ecc > ecc_min,
+            angle_min < prf_angle < angle_max            
             )
+
+
+        middle_xy = (((dim + 1) / 2), ((dim + 1) / 2))
+        if peripheral_center == None:
+            center_x = center_y = middle_xy[0]
+        elif isinstance(peripheral_center, tuple):
+            center_x = middle_xy[0] + (peripheral_center[0] * dim/8.4)
+            center_y = middle_xy[1] - (peripheral_center[1] * dim/8.4) # This is reversed because that's how they do it
+            # in the NSD documentation. It has to do with where the y-axis starts, which is ('upper') in this case.
+            # To verify this I checked the angle coordinates
+            
 
         if all(valid_conditions):
             
             if ecc_strict == 'y' and min_overlap < 100:
-                central_patch = make_circle_mask(dim, ((dim+2)/2), ((dim+2)/2), ecc_max * (dim / 8.4), fill = 'y')
+                
+                # region_patch = make_circle_mask(dim, ((dim+2)/2), ((dim+2)/2), patch_radius * (dim / 8.4), fill = 'y')
+                region_patch = make_circle_mask(dim, center_x, center_y, patch_radius * dim/8.4, fill='y')
                 bin_prf = make_circle_mask(dim, x, y, pix_radius)
-                prop_in_patch = (np.sum(bin_prf * central_patch) / np.sum(bin_prf)) * 100
+                prop_in_patch = (np.sum(bin_prf * region_patch) / np.sum(bin_prf)) * 100
                 # print(f'Proportion inside the patch: {prop_in_patch}')
             else: 
                 min_overlap = 0
@@ -666,6 +714,8 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
                 print(f"   -  pRF outside of central {2 * ecc_max}° visual degrees")
             if not valid_conditions[5]:
                 print(f"   -  pRF does not overlap enough with central patch: {prop_in_patch}% of required {min_overlap}%")
+            if not valid_conditions[6]:
+                print(f"   -  pRF angle not within predetermined range of {angle_min}° to {angle_max}°")
             # if not valid_conditions[4]:
             #     print("   - expt_ar value too small")
 
@@ -695,7 +745,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
     
     central_patch = 0
     if add_central_patch:
-        central_patch = make_circle_mask(dim, ((dim+2)/2), ((dim+2)/2), ecc_max * (dim / 8.4), fill = 'n')
+        central_patch = make_circle_mask(dim, ((dim+2)/2), ((dim+2)/2), patch_radius * (dim / 8.4), fill = 'n')
 
     if plot == 'y':
         fig, ax = plt.subplots(figsize=(8, 8))
@@ -744,7 +794,8 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
 
 # Function to compare the different ways of reaching a pRF filter. Nonlinear (CSS) and linear
 def compare_masks(mask_dict = None, prf_dict = None, subject='subj01', roi='V1', sigma_min=0.1, 
-                  sigma_max=4.2, cmap = 'afmhot'):
+                  sigma_max=4.2, ecc_min = 0, ecc_max = 4.2, angle_min = 0, angle_max = 360, 
+                  peripheral_center = None, patch_radius = 1, cmap = 'afmhot'):
   
     def plot_mask(ax, mask, title):
         ax.imshow(mask, cmap = cmap)
@@ -756,7 +807,9 @@ def compare_masks(mask_dict = None, prf_dict = None, subject='subj01', roi='V1',
 
     circle_dict = get_mask(dim=425, subject=subject, binary_masks = mask_dict, 
                                        prf_proc_dict=prf_dict, type='circle', roi=roi,
-                                       plot='n', excl_reason='n', sigma_min=sigma_min, sigma_max=sigma_max, rand_seed=dobbel)
+                                       plot='n', excl_reason='n', sigma_min=sigma_min, sigma_max=sigma_max,
+                                       ecc_min = ecc_min, ecc_max = ecc_max, angle_min = angle_min, angle_max = angle_max,
+                                       peripheral_center = peripheral_center, rand_seed=dobbel, patch_radius = patch_radius)
 
     gaus = make_gaussian_2d(425, circle_dict['x'], circle_dict['y'], circle_dict['pix_radius'])
     full_gaus = make_gaussian_2d(425, circle_dict['x'], circle_dict['y'], (circle_dict['size'] * (425 / 8.4)))
@@ -782,12 +835,17 @@ def compare_masks(mask_dict = None, prf_dict = None, subject='subj01', roi='V1',
 class AllPRFConsidered(Exception):
     pass
 def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussian', cmap='gist_heat', 
-                roi='V2', sigma_min=1, sigma_max=25, ecc_min = 0, ecc_max = 4.2, print_prog='n', excl_reason = 'n', subjects='all',
-                outline_degs = None, filter_dict = None, fill_outline = 'n', plot_heat = 'y', ecc_strict = None, grid = 'n', min_overlap = 100):
+                roi='V2', sigma_min=1, sigma_max=25, ecc_min = 0, ecc_max = 4.2, angle_min = 0, angle_max = 360, 
+                peripheral_center = None, print_prog='n', excl_reason = 'n', subjects='all',
+                outline_degs = None, filter_dict = None, fill_outline = 'n', plot_heat = 'y', 
+                ecc_strict = None, grid = 'n', min_overlap = 100, patch_radius = 1):
     
     # Create new dictionary to store the filtered voxels that pass the pRF requirements imposed
     prfmask_dict = copy.deepcopy(binary_masks)
     
+    if outline_degs == None:
+        outline_degs = 0
+        
     outline_surface = np.pi * outline_degs**2
     prf_sumstack = []
     prf_sizes = []
@@ -824,7 +882,7 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
 
         # Create an empty array to fill with the masks
         prf_single = np.zeros([dim, dim, n_prfs_subject])
-
+        
         # Set the filtered dictionary values to zero
         prfmask_dict[subject][f'{roi}_mask'] = np.zeros(binary_masks[subject][f'{roi}_mask'].shape)
         
@@ -847,11 +905,15 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
                                     sigma_max=sigma_max,
                                     ecc_min = ecc_min,
                                     ecc_max = ecc_max,
+                                    angle_min = angle_min,
+                                    angle_max = angle_max,
                                     excl_reason=excl_reason,
                                     filter_dict = filter_dict,
                                     ecc_strict = ecc_strict,
                                     grid = grid,
-                                    min_overlap = min_overlap)
+                                    min_overlap = min_overlap,
+                                    peripheral_center = peripheral_center,
+                                    patch_radius = patch_radius)
                 
                 prf_single[:, :, prf] = prf_dict['mask']
                 iter = prf_dict['iterations']
@@ -875,21 +937,35 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
                 break  # Exit the loop immediately
         
         prf_sumstack.append(np.mean(prf_single, axis=2))
-        total_prfs_found += len(prf_sizes)
+        total_prfs_found = len(prf_sizes)
+        print(f'Currently {total_prfs_found} prfs found')
          
     avg_prf_surface = np.pi * np.mean(prf_sizes)**2
     relative_surface = round(((avg_prf_surface / outline_surface) * 100), 2)
     # Combine heatmaps of all subjects
     prf_sum_all_subjects = np.mean(np.array(prf_sumstack), axis=0)
-    outline = make_circle_mask(425, 213, 213, outline_degs * 425/8.4, fill=fill_outline)
+    
+    dim = prf_dict['mask'].shape[0]
+    
+    middle_xy = (((dim + 1) / 2), ((dim + 1) / 2))
+    if peripheral_center == None:
+        center_x = center_y = middle_xy[0]
+    else:
+        center_x = middle_xy[0] + (peripheral_center[0] * dim/8.4)
+        center_y = middle_xy[1] - (peripheral_center[1] * dim/8.4) # This is reversed because that's how they do it
+        # in the NSD documentation. It has to do with where the y-axis starts, which is ('upper') in this case.
+        # To verify this I checked the angle coordinates
+        
+    outline = make_circle_mask(dim, center_x, center_y, outline_degs * dim/8.4, fill=fill_outline)
+    
     # Create a circle outline if an array is provide in the outline argument (should be same dimensions, binary)
     prf_sum_all_subjects += (np.max(prf_sum_all_subjects) * outline) if outline_degs is not None else 1
 
     # Display the plot
     fig, ax = plt.subplots(figsize=(8, 8))
-    im = ax.imshow(prf_sum_all_subjects, cmap=cmap, origin='lower', extent=[-4.2, 4.2, -4.2, 4.2])
+    im = ax.imshow(prf_sum_all_subjects, cmap=cmap, origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
     ax.set_title(f'Region Of Interest: {roi}\n'
-                 f'Spatial restriction of central {2 * ecc_max}° visual angle\n'
+                 f'Spatial restriction of central {2 * patch_radius}° visual angle\n'
                  f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°, {relative_surface}% of outline surface\n'
                  f'Total amount of pRFs found: {total_prfs_found}\n'
                  f'Average pRF overlap with central patch: {round(np.mean(prf_overlaps), 2)}%')
@@ -914,7 +990,9 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
 
 def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=None, basis='roi',
                      mask_type='cut_gaussian', cmap='CMRmap', roi='V1', excl_reason='n', sigma_min=0,
-                     sigma_max=4.2, ecc_min = 0, ecc_max=2, print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid='n', min_overlap = 100):
+                     sigma_max=4.2, ecc_min = 0, ecc_max=2, angle_min = 0, angle_max = 360, peripheral_center = None,
+                     print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid='n', min_overlap = 100,
+                     patch_radius = 1):
     if basis == 'roi':
         rois = sorted(prf_proc_dict['subj01']['proc'].keys())
 
@@ -941,9 +1019,10 @@ def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=
                                     n_prfs, binary_masks=prfmask_dict_all, prf_proc_dict=prf_proc_dict,
                                     mask_type=mask_type, cmap=cmap, roi=roi[:2], excl_reason=excl_reason,
                                     sigma_min=sigma_min, sigma_max=sigma_max, ecc_min = ecc_min, ecc_max=ecc_max,
+                                    angle_min = angle_min, angle_max = angle_max, peripheral_center = peripheral_center,
                                     print_prog=print_prog, subjects='all', outline_degs=outline_degs,
                                     filter_dict=filter_dict, fill_outline=fill_outline, plot_heat='n',
-                                    ecc_strict=ecc_strict, grid=grid, min_overlap = min_overlap)
+                                    ecc_strict=ecc_strict, grid=grid, min_overlap = min_overlap, patch_radius = patch_radius)
 
         
 
@@ -960,7 +1039,8 @@ def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=
 # Function that does the same but it plots them differently and removes headers so it can be used in documents.
 def compare_heatmaps_clean(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=None, basis='roi',
                      mask_type='cut_gaussian', cmap='CMRmap', roi='V1', excl_reason='n', sigma_min=0,
-                     sigma_max=4.2, ecc_min = 0, ecc_max=2, print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid='n', min_overlap = 100):
+                     sigma_max=4.2, ecc_min = 0, ecc_max=2, angle_min = 0, angle_max = 360, peripheral_center = None,
+                     print_prog='n', outline_degs=None, fill_outline='n', ecc_strict=None, grid='n', min_overlap = 100, patch_radius = 1):
     if basis == 'roi':
         rois = sorted(prf_proc_dict['subj01']['proc'].keys())
 
@@ -987,9 +1067,10 @@ def compare_heatmaps_clean(n_prfs, binary_masks=None, prf_proc_dict=None, filter
                                     n_prfs, binary_masks=prfmask_dict_all, prf_proc_dict=prf_proc_dict,
                                     mask_type=mask_type, cmap=cmap, roi=roi[:2], excl_reason=excl_reason,
                                     sigma_min=sigma_min, sigma_max=sigma_max, ecc_min = ecc_min, ecc_max=ecc_max,
+                                    angle_min = 0, angle_max = 360, peripheral_center = peripheral_center,
                                     print_prog=print_prog, subjects='all', outline_degs=outline_degs,
                                     filter_dict=filter_dict, fill_outline=fill_outline, plot_heat='n',
-                                    ecc_strict=ecc_strict, grid=grid, min_overlap = min_overlap)
+                                    ecc_strict=ecc_strict, grid=grid, min_overlap = min_overlap, patch_radius = patch_radius)
 
         last_plot = 'y' if n == (len(rois) - 1) else 'n'
         plot_mask(axs[n//2, n%2], heatmap, f'{roi}\n\n\n', f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°,\n {rel_surf}% of outline surface\n total pRFs found: {len(prf_sizes)}', last=last_plot)
