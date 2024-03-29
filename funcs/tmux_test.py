@@ -75,6 +75,10 @@ nsd_rsq_dict = rsquare_selection(R2_dict, 1000, n_subjects = n_subjects, dataset
 #                  filter_dict = None, excl_reason = 'n', print_prog = 'y', ecc_strict = 'y', min_overlap = 100, 
 #                  plotname = 'extracentral_prf_topleft.png')
 
+# Determine distance so the RFs don't overlap
+side_length = 2
+median_length = (np.sqrt(3) / 2) * side_length
+print(median_length)
 
 plotnames = []
 plot_dict = {}
@@ -93,7 +97,7 @@ for extracentral_level in range(1,3):
         prf_heatmap_dict, heatmaps = compare_heatmaps_clean('all', binary_masks = vismask_dict, prf_proc_dict = prf_dict,
                  mask_type = 'cut_gaussian', cmap = 'CMRmap',
                  sigma_min = 0.2, sigma_max = 2, ecc_max = 1, outline_degs = 1,
-                 peripheral_center = None, patch_radius = 1, peri_angle_ecc = (angle, extracentral_level),
+                 peripheral_center = None, patch_radius = 1, peri_angle_ecc = (angle, extracentral_level * median_length),
                  filter_dict = None, excl_reason = 'n', print_prog = 'n', ecc_strict = 'y', min_overlap = 90,
                  plotname = plotname)
         

@@ -549,7 +549,6 @@ def rsq_to_size(prf_dict=None, vismask_dict=None, rsq_type = 'nsd'):
 
 
 
-from matplotlib.ticker import MultipleLocator
 class AllPRFConsidered(Exception):
     pass
 
