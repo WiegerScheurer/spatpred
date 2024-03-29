@@ -163,3 +163,11 @@ def find_common_rows(array1, array2):
     common_rows = np.array([list(x) for x in set1 & set2])
     return common_rows
 
+def ecc_angle_to_coords(ecc, angle, dim = 425):
+    
+    y = ((1 + dim) / 2) - (ecc * np.sin(np.radians(angle)) * (dim / 8.4)) #y in pix (c_index)
+    x = ((1 + dim) / 2) + (ecc * np.cos(np.radians(angle)) * (dim / 8.4)) #x in pix (r_index)
+    
+    x = ecc * np.cos(np.radians(angle))
+    y = ecc * np.sin(np.radians(angle))
+    return x, y

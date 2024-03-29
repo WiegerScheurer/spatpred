@@ -48,7 +48,7 @@ print(sys.path)
 from funcs.rf_tools import (get_dat, get_mask, calculate_sigma, calculate_pRF_location, prf_plots_new, prf_plots, make_visrois_dict, 
                             make_gaussian_2d, make_circle_mask, css_gaussian_cut, roi_filter, write_prf_dict, 
                             get_mask, compare_masks, compare_heatmaps, compare_heatmaps_clean, prf_heatmap, rsquare_selection, nsd_R2_dict)
-from funcs.utility import print_dict_structure, print_large
+from funcs.utility import print_dict_structure, print_large, ecc_angle_to_coords, get_zscore, mean_center, multiple_regression, generate_bell_vector
 from funcs.imgproc import show_stim, get_img_prf
 
 
@@ -76,7 +76,8 @@ nsd_rsq_dict = rsquare_selection(R2_dict, 1000, n_subjects = n_subjects, dataset
 #                  plotname = 'extracentral_prf_topleft.png')
 
 
-
+plotnames = []
+plot_dict = {}
 for extracentral_level in range(1,3):
     n_patches = 3 * extracentral_level
     for patch in range(1, n_patches + 1):
@@ -86,18 +87,29 @@ for extracentral_level in range(1,3):
             angle -= 360
         print(f'extracentral_level: {extracentral_level}, patch: {patch}')
         print(f'angle: {angle}')
+        plotname = f'prf_mask_ec_{extracentral_level}_{patch}_{angle}.png'
+        plotnames.append(plotname)
         
-        prf_dict = compare_heatmaps_clean(1, binary_masks = vismask_dict, prf_proc_dict = prf_dict,
-                 mask_type = 'cut_gaussian', cmap = 'gist_heat',
-                 sigma_min = 0.2, sigma_max = 2, ecc_max = 2, outline_degs = 3,
-                 peripheral_center = None, patch_radius = 3, peri_angle_ecc = (angle, extracentral_level),
-                 filter_dict = None, excl_reason = 'n', print_prog = 'n', ecc_strict = 'y', min_overlap = 99,
-                 plotname = f'prf_mask_ec_{extracentral_level}_{patch}_{angle}.png')
+        prf_heatmap_dict, heatmaps = compare_heatmaps_clean('all', binary_masks = vismask_dict, prf_proc_dict = prf_dict,
+                 mask_type = 'cut_gaussian', cmap = 'CMRmap',
+                 sigma_min = 0.2, sigma_max = 2, ecc_max = 1, outline_degs = 1,
+                 peripheral_center = None, patch_radius = 1, peri_angle_ecc = (angle, extracentral_level),
+                 filter_dict = None, excl_reason = 'n', print_prog = 'n', ecc_strict = 'y', min_overlap = 90,
+                 plotname = plotname)
+        
+        plot_dict[plotname] = heatmaps
+        
         # save dict:
         with open(f'./data/custom_files/subj01/extra_central_prfs/prf_mask_ec_{extracentral_level}_{patch}_{angle}.pkl', 'wb') as fp:
-            pickle.dump(prf_dict, fp)
-            print('dictionary saved successfully to file')
+            pickle.dump(prf_heatmap_dict, fp)
+            print('Prf heatmap dictionary saved successfully to file')
         
+            
+with open(f'./data/custom_files/subj01/extra_central_prfs/plot_dict_ec_total.pkl', 'wb') as fp:
+    pickle.dump(plot_dict, fp)
+    print('Plot dictionary saved successfully to file')
+
+
 
 
 print('sokjes')

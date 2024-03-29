@@ -25,6 +25,7 @@ import seaborn as sns
 import pprint as pprint
 from sklearn.linear_model import LinearRegression
 import copy
+from funcs.utility import print_dict_structure, print_large, ecc_angle_to_coords
 from scipy.ndimage import binary_dilation
 
 
@@ -565,16 +566,16 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         random.seed(rand_seed)
     
     degrees_per_pixel = 8.4 / dim
-
+    bin_prf = region_patch = None
+    
     # Determine the center of the peripheral patch, if center is not given, but angle and eccentricity are
     if peripheral_center == None and peri_angle_ecc != None:
-        
         patchloc_triangle_s = peri_angle_ecc[1]
         peri_y = round(peri_angle_ecc[1] * np.sin(np.radians(peri_angle_ecc[0])), 2)
         peri_x = round(peri_angle_ecc[1] * np.cos(np.radians(peri_angle_ecc[0])), 2)
         peripheral_center = (peri_x, peri_y)
-        
-        print(f'Peripheral center at {peripheral_center}')
+        if peri_info:
+            print(f'Peripheral center at {peripheral_center}')
     
     if isinstance(peripheral_center, tuple):
         # Determine the eccentricity of the patch using Pythagoras' theorem
@@ -591,19 +592,20 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         patch_bound_angle = np.degrees(np.arctan(bound_triangle_o / bound_triangle_a))
         patch_center_angle = np.degrees(np.arctan(np.abs(peripheral_center[1] / peripheral_center[0])))
         
-        if peripheral_center[0] > 0 and peripheral_center[1] > 0: # top right
+        if peripheral_center[0] >= 0 and peripheral_center[1] > 0: # top right
             patch_center_angle = patch_center_angle
         elif peripheral_center[0] < 0 and peripheral_center[1] > 0: # top left
             patch_center_angle = 180 - patch_center_angle
-        elif peripheral_center[0] > 0 and peripheral_center[1] < 0: # bottom left
+        elif peripheral_center[0] >= 0 and peripheral_center[1] < 0: # bottom right
             patch_center_angle = 360 - patch_center_angle
-        elif peripheral_center[0] < 0 and peripheral_center[1] < 0: # bottom right
+        elif peripheral_center[0] < 0 and peripheral_center[1] < 0: # bottom left
             patch_center_angle = 180 + patch_center_angle
             
         angle_min = patch_center_angle - patch_bound_angle
         angle_max = patch_center_angle + patch_bound_angle
         ecc_min = patchloc_triangle_s - bound_triangle_o
         ecc_max = patchloc_triangle_s + bound_triangle_o
+        
         if peri_info:
             print(f'ecc_min: {round(ecc_min,2)}, ecc_max: {round(ecc_max,2)}')
             print(f'Peripheral patch at angle {round(patch_center_angle,2)} with boundary angles at min: {round(angle_min,2)}, max: {round(angle_max,2)}')
@@ -693,7 +695,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
 
         if all(valid_conditions):
             
-            if ecc_strict == 'y' and min_overlap < 100:
+            if ecc_strict == 'y' and min_overlap < 100: # Fix this condiional
                 
                 # region_patch = make_circle_mask(dim, ((dim+2)/2), ((dim+2)/2), patch_radius * (dim / 8.4), fill = 'y')
                 region_patch = make_circle_mask(dim, center_x, center_y, patch_radius * dim/8.4, fill='y')
@@ -798,7 +800,9 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         'size': prf_size,
         'R2': prf_rsq,
         'central_overlap': prop_in_patch,
-        'peri_center': peripheral_center
+        'peri_center': peripheral_center,
+        'bin_prf': bin_prf,
+        'region_patch': region_patch
     }
 
         # Return the dictionary
@@ -1030,7 +1034,7 @@ def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=
         ax.yaxis.set_major_locator(MultipleLocator(2))
 
     fig, axs = plt.subplots(1, 4, figsize=(18, 5))
-
+    heatmaps = []
     for n, roi in enumerate(rois):
                 
         heatmap, iter, end_premat, roi, prf_sizes, rel_surf, total_prfs_found, prfmask_dict_all, prf_overlaps = prf_heatmap(
@@ -1043,7 +1047,7 @@ def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=
                                     ecc_strict=ecc_strict, grid=grid, min_overlap = min_overlap, patch_radius = patch_radius, 
                                     peri_info = peri_info, peri_angle_ecc = peri_angle_ecc)
 
-        
+        heatmaps.append(heatmap)
 
         last_plot = 'y' if n == (len(rois) - 1) else 'n'
         plot_mask(axs[n], heatmap, f'{roi}\n\n\n\n', subtitle = (f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°,\n'
@@ -1056,7 +1060,7 @@ def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=
     plt.show()
     plt.savefig(plotname)
     
-    return prfmask_dict_all
+    return prfmask_dict_all, heatmaps
 
 # Function that does the same but it plots them differently and removes headers so it can be used in documents.
 def compare_heatmaps_clean(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=None, basis='roi',
@@ -1084,7 +1088,7 @@ def compare_heatmaps_clean(n_prfs, binary_masks=None, prf_proc_dict=None, filter
         ax.yaxis.set_major_locator(MultipleLocator(2))
 
     fig, axs = plt.subplots(2, 2, figsize=(11, 11))
-
+    heatmaps = []
     for n, roi in enumerate(rois):
         heatmap, iter, end_premat, roi, prf_sizes, rel_surf, total_prfs_found, prfmask_dict_all, prf_overlaps = prf_heatmap(
                                     n_prfs, binary_masks=prfmask_dict_all, prf_proc_dict=prf_proc_dict,
@@ -1096,6 +1100,8 @@ def compare_heatmaps_clean(n_prfs, binary_masks=None, prf_proc_dict=None, filter
                                     ecc_strict=ecc_strict, grid=grid, min_overlap = min_overlap, 
                                     patch_radius = patch_radius, peri_info = peri_info, peri_angle_ecc = peri_angle_ecc)
 
+        heatmaps.append(heatmap)
+        
         last_plot = 'y' if n == (len(rois) - 1) else 'n'
         plot_mask(axs[n//2, n%2], heatmap, f'{roi}\n\n\n\n', f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°,\n {rel_surf}% of outline surface\n total pRFs found: {len(prf_sizes)}\n', last=last_plot)
         # plot_mask(axs[n], heatmap, f'{roi}\n\n\n', f'Average pRF radius: {round(np.mean(prf_sizes), 2)}°,\n {rel_surf}% of outline surface\n total pRFs found: {len(prf_sizes)}', last=last_plot)
@@ -1105,4 +1111,4 @@ def compare_heatmaps_clean(n_prfs, binary_masks=None, prf_proc_dict=None, filter
     plt.show()
     plt.savefig(plotname)
     
-    return prfmask_dict_all
+    return prfmask_dict_all, heatmaps
