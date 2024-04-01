@@ -82,7 +82,7 @@ print(median_length)
 
 plotnames = []
 plot_dict = {}
-for extracentral_level in range(1,3):
+for extracentral_level in range(1,2):
     n_patches = 3 * extracentral_level
     for patch in range(1, n_patches + 1):
         angle_step = 360 / n_patches
@@ -104,12 +104,12 @@ for extracentral_level in range(1,3):
         plot_dict[plotname] = heatmaps
         
         # save dict:
-        with open(f'./data/custom_files/subj01/extra_central_prfs/prf_mask_ec_{extracentral_level}_{patch}_{angle}.pkl', 'wb') as fp:
+        with open(f'./data/custom_files/subj01/extra_central_prfs/prf_mask_ecsmall_{extracentral_level}_{patch}_{angle}.pkl', 'wb') as fp:
             pickle.dump(prf_heatmap_dict, fp)
             print('Prf heatmap dictionary saved successfully to file')
         
             
-with open(f'./data/custom_files/subj01/extra_central_prfs/plot_dict_ec_total.pkl', 'wb') as fp:
+with open(f'./data/custom_files/subj01/extra_central_prfs/plot_dict_ecsmall_total.pkl', 'wb') as fp:
     pickle.dump(plot_dict, fp)
     print('Plot dictionary saved successfully to file')
 
