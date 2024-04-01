@@ -77,6 +77,20 @@ def get_imgs_designmx():
     
     return stims_design_mx
 
+# Get random design matrix to test other fuctions
+def get_random_designmx(idx_min = 0, idx_max = 40, n_img = 20):
+    
+    subjects = os.listdir('/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata')
+    
+    # Create design matrix for the subject-specific stimulus presentation order
+    stims_design_mx = {}
+    for subject in sorted(subjects):
+        # Generate 20 random integer values between 0 and 40
+        stim_list = np.random.randint(idx_min, idx_max, n_img)
+        stims_design_mx[subject] = stim_list
+    
+    return stims_design_mx
+
 # Function get the min and max x,y values in order to acquire a perfect square crop of the RF mask.
 def get_bounding_box(mask):
     # Get the indices where the mask is True
@@ -140,10 +154,9 @@ def rms_all(start, n, ecc_max = 1, plot = 'n', loc = 'center', crop_prior:bool =
 # This function creates a dataframe containing the rms contrast values for each image in the design matrix
 # This way you can chronologically map the feature values per subject based on the design matrix image order
 def feature_df(subject, feature, feat_per_img, designmx):
-
+    ices = list(designmx[subject])
+    
     if feature == 'rms': 
-        
-        ices = list(designmx[subject])
         rms_all = feat_per_img['rms'][ices]
         rms_z = get_zscore(rms_all)
         rms_mc = mean_center(rms_all)
@@ -152,6 +165,27 @@ def feature_df(subject, feature, feat_per_img, designmx):
                            'rms':rms_all,
                            'rms_z': rms_z,
                            'rms_mc': rms_mc})
+        
+        
+    
+    if feature == 'scce':
+        # Apply the get_zscore function to each column of the DataFrames
+        feat_per_img_z = feat_per_img.apply(get_zscore, print_ars='n')
+        
+        ices = list(designmx[subject])
+        scce_all = feat_per_img['scce'][ices]
+        scce_all_z = feat_per_img_z['scce'][ices]
+        
+        df = pd.DataFrame({'img_no': ices,
+                            'sc':scce_all['sc'],
+                            'sc_z': scce_all_z['sc'],
+                            'ce':scce_all['ce'],
+                            'ce_z': scce_all_z['ce'],
+                            'beta': scce_all['beta'],
+                            'beta_z': scce_all_z['beta'],
+                            'gamma': scce_all['gamma'],
+                            'gamma_z': scce_all_z['gamma']})
+        
         
     df = df.set_index(np.array(range(0, len(df))))
         
@@ -162,25 +196,47 @@ def feature_df(subject, feature, feat_per_img, designmx):
 
 
 # Function to create a dictionary that includes (so far only RMS) contrast values for each subject
-def get_visfeature_dict(subjects, all_rms, all_irrelevant_rms, dmx):
+def get_visfeature_dict(subjects, all_rms, all_irrelevant_rms, dmx, feature = None):
     results = {}
-    for subject in subjects:
-        # Subject specific object with the correct sequence of RMS contrast values per image.
-        rms = feature_df(subject=subject, feature='rms', feat_per_img=all_rms, designmx=dmx)
-        rms_irrelevant = feature_df(subject=subject, feature='rms', feat_per_img=all_irrelevant_rms, designmx=dmx)
+    
+    if feature == 'scce':
+        for subject in subjects:
+            # Subject specific object with the correct sequence of RMS contrast values per image.
+            scce = feature_df(subject=subject, feature='scce', feat_per_img=all_rms, designmx=dmx)
+            scce_irrelevant = feature_df(subject=subject, feature='scce', feat_per_img=all_irrelevant_rms, designmx=dmx)
 
-        # Standardize the root mean square values by turning them into z-scores
-        rms_z = get_zscore(rms['rms'], print_ars='n')
-        rms_irrelevant_z = get_zscore(rms_irrelevant['rms'], print_ars='n')
+            # # Standardize the root mean square values by turning them into z-scores
+            # rms_z = get_zscore(rms['rms'], print_ars='n')
+            # rms_irrelevant_z = get_zscore(rms_irrelevant['rms'], print_ars='n')
 
-        # Add the z-scored RMS contrast values to the dataframe
-        if rms.shape[1] == 2:
-            rms.insert(2, 'rms_z', rms_z)
-        if rms_irrelevant.shape[1] == 2:
-            rms_irrelevant.insert(2, 'rms_z', rms_irrelevant_z)
+            # # Add the z-scored RMS contrast values to the dataframe
+            # if rms.shape[1] == 2:
+            #     rms.insert(2, 'rms_z', rms_z)
+            # if rms_irrelevant.shape[1] == 2:
+            #     rms_irrelevant.insert(2, 'rms_z', rms_irrelevant_z)
 
-        # Store the dataframes in the results dictionary
-        results[subject] = {'rms': rms, 'rms_irrelevant': rms_irrelevant}
+            # Store the dataframes in the results dictionary
+            results[subject] = {'scce': rms, 'scce_irrelevant': rms_irrelevant}
+
+    
+    if feature == 'rms':
+        for subject in subjects:
+            # Subject specific object with the correct sequence of RMS contrast values per image.
+            rms = feature_df(subject=subject, feature='rms', feat_per_img=all_rms, designmx=dmx)
+            rms_irrelevant = feature_df(subject=subject, feature='rms', feat_per_img=all_irrelevant_rms, designmx=dmx)
+
+            # Standardize the root mean square values by turning them into z-scores
+            rms_z = get_zscore(rms['rms'], print_ars='n')
+            rms_irrelevant_z = get_zscore(rms_irrelevant['rms'], print_ars='n')
+
+            # Add the z-scored RMS contrast values to the dataframe
+            if rms.shape[1] == 2:
+                rms.insert(2, 'rms_z', rms_z)
+            if rms_irrelevant.shape[1] == 2:
+                rms_irrelevant.insert(2, 'rms_z', rms_irrelevant_z)
+
+            # Store the dataframes in the results dictionary
+            results[subject] = {'rms': rms, 'rms_irrelevant': rms_irrelevant}
 
     return results
 
@@ -263,7 +319,8 @@ def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, full_array, normalise
 
 
 # Function to get contrast features based on the design matrix of a subject. 
-# Extend the function so it does so by mapping the precomputed rms values with the function below.  
+# Extend the function so it does so by mapping the precomputed rms values with the function below. 
+# DEPRECATED 
 def get_contrast_df(n_images = None, start_img_no = 0 ,roi = 'V1', subject = 'subj01', ecc_max = 1, ecc_strict = 'y', 
                      prf_proc_dict = None, binary_masks = None, rf_type = 'prf', contrast_type = 'rms_lab'):
     

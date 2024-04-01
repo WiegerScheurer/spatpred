@@ -1,3 +1,4 @@
+
 import sys
 import glob
 from PIL import Image
@@ -25,6 +26,7 @@ from scipy import io
 from scipy.ndimage import binary_dilation
 from multiprocessing import Pool
 import random
+import pickle
 
 # Change working directory
 os.chdir('/home/rfpred/notebooks/alien_nbs')
@@ -143,8 +145,31 @@ def scce_single(args, ecc_max = 1, loc = 'center', plot = 'n', cmap = 'gist_gray
     return get_scce_contrast(ar_in, mask_w_in, rf_mask_in, full_ar_in, plot = plot, cmap = cmap, 
                              crop_prior = crop_prior, crop_post = crop_post, save_plot = save_plot)
 
+# def scce_all(start, n, ecc_max = 1, plot = 'n', loc = 'center', crop_prior:bool = False, crop_post:bool = True, save_plot:bool = False):
+#     img_vec = list(range(start, start + n))
+
+#     # Create a pool of worker processes
+#     with Pool() as p:
+#         scce_vec = p.map(scce_single, [(i, start, n, plot, loc, crop_prior, crop_post, save_plot) for i in img_vec])
+
+#     # Unpack scce_vec into separate lists
+#     ce, sc, beta, gamma = zip(*scce_vec)
+
+#     scce_dict = pd.DataFrame({
+#         'ce': ce,
+#         'sc': sc,
+#         'beta': beta,
+#         'gamma': gamma
+#     })
+
+#     scce_dict = scce_dict.set_index(np.array(img_vec))
+#     return scce_dict
+
+
 def scce_all(start, n, ecc_max = 1, plot = 'n', loc = 'center', crop_prior:bool = False, crop_post:bool = True, save_plot:bool = False):
     img_vec = list(range(start, start + n))
+    
+    print(f'img_vec: {img_vec}')
 
     # Create a pool of worker processes
     with Pool() as p:
@@ -201,6 +226,150 @@ def get_scce_contrast(rgb_image, mask_w_in, rf_mask_in, full_array, plot = 'n', 
             
     return ce, sc, beta, gamma
 
+def get_zscore(data, print_ars = 'y'):
+    mean_value = np.mean(data)
+    std_dev = np.std(data)
+
+    # Calculate z-scores
+    z_scores = (data - mean_value) / std_dev
+
+    if print_ars == 'y':
+        print("Original array:", data)
+        print("Z-scores:", z_scores)
+        
+    return z_scores
+
+# This function creates a dataframe containing the rms contrast values for each image in the design matrix
+# This way you can chronologically map the feature values per subject based on the design matrix image order
+def feature_df(subject, feature, feat_per_img, designmx):
+    ices = list(designmx[subject])
+    
+    if feature == 'rms': 
+        rms_all = feat_per_img['rms'][ices]
+        rms_z = get_zscore(rms_all)
+        rms_mc = mean_center(rms_all)
+        
+        df = pd.DataFrame({'img_no': ices,
+                           'rms':rms_all,
+                           'rms_z': rms_z,
+                           'rms_mc': rms_mc})
+        
+        
+    
+    if feature == 'scce':
+        # Apply the get_zscore function to each column of the DataFrames
+        scce_all = feat_per_img
+        scce_all_z = feat_per_img.apply(get_zscore, print_ars='n')
+        
+        ices = list(designmx[subject])
+        # scce_all = feat_per_img[ices]
+        # scce_all_z = feat_per_img_z[ices]
+        
+        df = pd.DataFrame({'img_no': ices,
+                            'sc':scce_all['sc'][ices],
+                            'sc_z': scce_all_z['sc'][ices],
+                            'ce':scce_all['ce'][ices],
+                            'ce_z': scce_all_z['ce'][ices],
+                            'beta': scce_all['beta'][ices],
+                            'beta_z': scce_all_z['beta'][ices],
+                            'gamma': scce_all['gamma'][ices],
+                            'gamma_z': scce_all_z['gamma'][ices]})
+        
+        
+    df = df.set_index(np.array(range(0, len(df))))
+        
+    return df
+
+# Create design matrix containing ordered indices of stimulus presentation per subject
+def get_imgs_designmx():
+    
+    subjects = os.listdir('/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata')
+    exp_design = '/home/rfpred/data/natural-scenes-dataset/nsddata/experiments/nsd/nsd_expdesign.mat'
+    
+    # Load MATLAB file
+    mat_data = loadmat(exp_design)
+
+    # Order of the presented 30000 stimuli, first 1000 are shared between subjects, rest is randomized (1, 30000)
+    # The values take on values betweeon 0 and 1000
+    img_order = mat_data['masterordering']-1
+
+    # The sequence of indices from the img_order list in which the images were presented to each subject (8, 10000)
+    # The first 1000 are identical, the other 9000 are randomly selected from the 73k image set. 
+    img_index_seq = (mat_data['subjectim'] - 1) # Change from matlab to python's 0-indexing
+    
+    # Create design matrix for the subject-specific stimulus presentation order
+    stims_design_mx = {}
+    stim_list = np.zeros((img_order.shape[1]))
+    for n_sub, subject in enumerate(sorted(subjects)):
+    
+        for stim in range(0, img_order.shape[1]):
+            
+            idx = img_order[0,stim]
+            stim_list[stim] = img_index_seq[n_sub, idx]
+            
+        stims_design_mx[subject] = stim_list.astype(int)
+    
+    return stims_design_mx
+
+# Function to create a dictionary that includes (so far only RMS) contrast values for each subject
+def get_visfeature_dict(subjects, all_rms, all_irrelevant_rms, dmx, feature = None):
+    results = {}
+    
+    if feature == 'scce':
+        for subject in subjects:
+            # Subject specific object with the correct sequence of RMS contrast values per image.
+            scce = feature_df(subject=subject, feature='scce', feat_per_img=all_rms, designmx=dmx)
+            scce_irrelevant = feature_df(subject=subject, feature='scce', feat_per_img=all_irrelevant_rms, designmx=dmx)
+
+            # # Standardize the root mean square values by turning them into z-scores
+            # rms_z = get_zscore(rms['rms'], print_ars='n')
+            # rms_irrelevant_z = get_zscore(rms_irrelevant['rms'], print_ars='n')
+
+            # # Add the z-scored RMS contrast values to the dataframe
+            # if rms.shape[1] == 2:
+            #     rms.insert(2, 'rms_z', rms_z)
+            # if rms_irrelevant.shape[1] == 2:
+            #     rms_irrelevant.insert(2, 'rms_z', rms_irrelevant_z)
+
+            # Store the dataframes in the results dictionary
+            results[subject] = {'scce': scce, 'scce_irrelevant': scce_irrelevant}
+
+    
+    if feature == 'rms':
+        for subject in subjects:
+            # Subject specific object with the correct sequence of RMS contrast values per image.
+            rms = feature_df(subject=subject, feature='rms', feat_per_img=all_rms, designmx=dmx)
+            rms_irrelevant = feature_df(subject=subject, feature='rms', feat_per_img=all_irrelevant_rms, designmx=dmx)
+
+            # Standardize the root mean square values by turning them into z-scores
+            rms_z = get_zscore(rms['rms'], print_ars='n')
+            rms_irrelevant_z = get_zscore(rms_irrelevant['rms'], print_ars='n')
+
+            # Add the z-scored RMS contrast values to the dataframe
+            if rms.shape[1] == 2:
+                rms.insert(2, 'rms_z', rms_z)
+            if rms_irrelevant.shape[1] == 2:
+                rms_irrelevant.insert(2, 'rms_z', rms_irrelevant_z)
+
+            # Store the dataframes in the results dictionary
+            results[subject] = {'rms': rms, 'rms_irrelevant': rms_irrelevant}
+
+    return results
+
+# Get random design matrix to test other fuctions
+def get_random_designmx(idx_min = 0, idx_max = 40, n_img = 20):
+    
+    subjects = os.listdir('/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata')
+    
+    # Create design matrix for the subject-specific stimulus presentation order
+    stims_design_mx = {}
+    for subject in sorted(subjects):
+        # Generate 20 random integer values between 0 and 40
+        stim_list = np.random.randint(idx_min, idx_max, n_img)
+        stims_design_mx[subject] = stim_list
+    
+    return stims_design_mx
+
 
 config_path = 'lgnpy/lgnpy/CEandSC/default_config.yml'
 
@@ -211,52 +380,82 @@ lgn = LGN(config=config, default_config_path=f'./lgnpy/lgnpy/CEandSC/default_con
 
 threshold_lgn = loadmat(filepath='./lgnpy/ThresholdLGN.mat')['ThresholdLGN']
 
+dmx
 
 # Define the steps
-steps = [20000, 20000, 20000, 13000]
-start = [0, 20000, 40000, 60000]
+# steps = [30000, 20000, 10000, 10000, 3000]
+# start = [0, 30000, 50000, 60000, 70000]
+
+# steps = [5000, 5000, 5000, 5000, 5000, 5000, 5000, 5000, 5000, 5000, 5000, 5000]
+# start = [0, 5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000, 55000]
+
+
+
+start = list(range(0, 70000, 1000))
+steps = [1000] * 70
 
 # steps = [10, 10, 10, 10]
 # start = [0, 10, 20, 30]
+scce_dict_center_all = []
+scce_dict_irrelpatch_all = []
 
-# Print the steps
-for i in range(4):
+for i in range(len(steps)):
     scce_dict_center = scce_all(start[i], steps[i], plot = 'n' , loc = 'center', crop_prior = True, crop_post = False)
     scce_dict_center.to_pickle(f'scce_dict_center_{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
-    
+    scce_dict_center_all.append(scce_dict_center)
+
     print(f'last center save was{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
+
     scce_dict_irrelpatch = scce_all(start[i], steps[i], plot = 'n' , loc = 'irrelevant_patch', crop_prior = True, crop_post = False)
-    scce_dict_irrelpatch.to_pickle(f'scce_dict_irrelpatch_{str(start[i])}k_{str(steps[i] + start[i])[:2]}k.pkl')
+    scce_dict_irrelpatch.to_pickle(f'scce_dict_irrelpatch_{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
+    scce_dict_irrelpatch_all.append(scce_dict_irrelpatch)
+
     print(f'last irrelevant patch save was{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
+
+
+# steps = [5000, 5000, 1000, 1000, 500, 400]
+# start = [60000, 65000, 70000, 71000, 72000, 72500]
+
+# for i in range(len(steps)):
+#     scce_dict_center = scce_all(start[i], steps[i], plot = 'n' , loc = 'center', crop_prior = True, crop_post = False)
+#     scce_dict_center.to_pickle(f'scce_dict_center_{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
+#     scce_dict_center_all.append(scce_dict_center)
+
+#     print(f'last center save was{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
+
+#     scce_dict_irrelpatch = scce_all(start[i], steps[i], plot = 'n' , loc = 'irrelevant_patch', crop_prior = True, crop_post = False)
+#     scce_dict_irrelpatch.to_pickle(f'scce_dict_irrelpatch_{str(start[i])}k_{str(steps[i] + start[i])[:2]}k.pkl')
+#     scce_dict_irrelpatch_all.append(scce_dict_irrelpatch)
+
+#     print(f'last irrelevant patch save was{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
+
+
+# Combine all the DataFrames into one for each of scce_dict_center_all and scce_dict_irrelpatch_all
+# scce_dict_center_all = pd.concat(scce_dict_center_all).replace([np.nan, np.NINF], 0)
+# scce_dict_irrelpatch_all = pd.concat(scce_dict_irrelpatch_all).replace([np.nan, np.NINF], 0)
+
+# subjects = ['subj01', 'subj02', 'subj03', 'subj04', 'subj05', 'subj06', 'subj07', 'subj08']
+
+# dmx = get_imgs_designmx()
+# # dmx = get_random_designmx()
+
+# # anus = feature_df(subjects[0], feature = 'scce', feat_per_img = scce_dict_center_all, designmx = dmx)
+
+# aars = get_visfeature_dict(subjects, scce_dict_center_all, scce_dict_irrelpatch_all, dmx, feature = 'scce')
+
+# with open('/home/rfpred/data/custom_files/all_visfeats_scce', 'wb') as fp:
+#     pickle.dump(aars, fp)
+#     print('SCCE dictionary saved successfully to file')
     
+# # with open('/home/rfpred/data/custom_files/all_visfeats_scce', 'rb') as fp:
+# #     aars = pickle.load(fp)
+# #     print('SCCE dictionary loaded successfully from file')
+
+# scce_dict_center_all
+
+
+
+
+
+
 print('succeeded')
-
-# scce_dict = {}
-# ces = []
-# scs = []
-
-# (ce, sc, beta, gamma, edge_dict)
-# for current_img in range(10):
-
-#     picca = show_stim(img_no = current_img, hide='y')[0]
-
-#     # This is the circle that corresponds to the middle 2 degs
-#     zirkel = make_circle_mask(425, 213, 213, 1 * 425/8.4, fill='y', margin_width = 1)
-
-#     box_1deg = get_bounding_box(zirkel)
-
-#     picca_crop = picca[box_1deg[0]:box_1deg[1], box_1deg[2]:box_1deg[3]]
-
-#     lgn_out = lgn_statistics(im=picca_crop, file_name='noname.tiff',
-#                                             config=config, force_recompute=True, cache=False,
-#                                             home_path='./', verbose = False, verbose_filename=False,
-#                                             threshold_lgn=threshold_lgn, compute_extra_statistics=False,
-#                                             crop_prior = True)
-
-#     ces = np.append(ces, round(np.mean(lgn_out[0][:, :, 0]), 10))
-#     scs = np.append(scs, round(np.mean(lgn_out[1][:, :, 0]), 10))
-
-#     scce_dict['ce'] = ces
-#     scce_dict['sc'] = scs
-
-# print(scce_dict)

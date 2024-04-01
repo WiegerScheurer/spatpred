@@ -50,7 +50,6 @@ def multiple_regression(X, y):
 
     return beta
 
-
 # Function to generate a bell-shaped vector
 def generate_bell_vector(n, width, location, kurtosis=0, plot = 'y'):
     x = np.linspace(0, 1, n)
@@ -154,7 +153,6 @@ def coords2numpy(coordinates, shape):
 def filter_array_by_size(array, size_min, size_max):
     filtered_array = array[(array[:, 3] >= size_min) & (array[:, 3] <= size_max)]
     return filtered_array
-
 
 # give new array that only contains the common rows, used for post hoc voxel selection.
 def find_common_rows(array1, array2):
