@@ -14,7 +14,7 @@ from multiprocessing import Pool
 import nibabel as nib
 import pickle
 from funcs.rf_tools import get_mask, make_circle_mask, css_gaussian_cut, make_gaussian_2d
-from funcs.utility import get_zscore, mean_center
+from funcs.utility import get_zscore, mean_center, cap_values
 
 
 # Function to show a randomly selected image of the nsd dataset
@@ -170,27 +170,33 @@ def feature_df(subject, feature, feat_per_img, designmx):
     
     if feature == 'scce':
         # Apply the get_zscore function to each column of the DataFrames
-        feat_per_img_z = feat_per_img.apply(get_zscore, print_ars='n')
+        scce_all = feat_per_img
+        
+        # Cap the values so the extreme outliers (SC > 100) are set to the highest value below the threshold
+        # These outliers can occur when the input is almost completely fully unicolored, causing division by near-zero values
+        # and thus exploding SC values disproportionately. 
+        scce_all_cap = scce_all.apply(cap_values, threshold=100)
+        
+        scce_all_z = scce_all_cap.apply(get_zscore, print_ars='n')
         
         ices = list(designmx[subject])
-        scce_all = feat_per_img['scce'][ices]
-        scce_all_z = feat_per_img_z['scce'][ices]
+        # scce_all = feat_per_img[ices]
+        # scce_all_z = feat_per_img_z[ices]
         
         df = pd.DataFrame({'img_no': ices,
-                            'sc':scce_all['sc'],
-                            'sc_z': scce_all_z['sc'],
-                            'ce':scce_all['ce'],
-                            'ce_z': scce_all_z['ce'],
-                            'beta': scce_all['beta'],
-                            'beta_z': scce_all_z['beta'],
-                            'gamma': scce_all['gamma'],
-                            'gamma_z': scce_all_z['gamma']})
+                            'sc':scce_all_cap['sc'][ices],
+                            'sc_z': scce_all_z['sc'][ices],
+                            'ce':scce_all_cap['ce'][ices],
+                            'ce_z': scce_all_z['ce'][ices],
+                            'beta': scce_all_cap['beta'][ices],
+                            'beta_z': scce_all_z['beta'][ices],
+                            'gamma': scce_all_cap['gamma'][ices],
+                            'gamma_z': scce_all_z['gamma'][ices]})
         
         
     df = df.set_index(np.array(range(0, len(df))))
         
-    return df
-    
+    return df #, scce_all, scce_all_z
 # call it like this:
 # feature_df_s1 = feature_df('subject', 'rms', all_feats, designmx = dmx)
 
@@ -553,7 +559,7 @@ def get_betas(subjects, voxels, start_session, end_session, prf_region = 'center
                     
         beta_dict[subject] = hrf_betas               
         
-    with open(f'./data/custom_files/subj01/beta_dict{start_session}_{end_session}_{prf_region}.pkl', 'wb') as fp:
+    with open(f'./data/custom_files/{subject}/beta_dict{start_session}_{end_session}_{prf_region}.pkl', 'wb') as fp:
         pickle.dump(beta_dict, fp)
         print('     - Back-up saved to beta_dict{start_session}_{end_session}.pkl\n')        
                 

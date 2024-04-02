@@ -1,7 +1,8 @@
 #!/bin/bash
 
-for session in {07..40}; do
-    aws s3 cp s3://natural-scenes-dataset/nsddata_betas/ppdata/subj01/func1mm/betas_fithrf_GLMdenoise_RR/betas_session${session}.nii.gz /home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/subj01/func1mm/
+for session in {04..40}; do
+    aws s3 cp s3://natural-scenes-dataset/nsddata_betas/ppdata/subj02/func1mm/betas_fithrf_GLMdenoise_RR/betas_session${session}.nii.gz /home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/subj02/func1mm/betas_fithrf_GLMdenoise_RR/
+    echo "Processing session $session"
 done
 
 # to run, first run this line in the terminal to give the file permissions:

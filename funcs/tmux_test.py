@@ -1,3 +1,5 @@
+###### This is exploratory work on the idea to look at peripheral pRFs 
+
 import os
 import sys
 from tkinter import Y

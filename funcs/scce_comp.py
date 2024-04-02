@@ -14,7 +14,6 @@ import pandas as pd
 import os
 import h5py
 import cv2
-import numpy as np
 from scipy.interpolate import interp1d
 from copy import deepcopy
 import yaml
@@ -27,6 +26,8 @@ from scipy.ndimage import binary_dilation
 from multiprocessing import Pool
 import random
 import pickle
+from scipy.stats import zscore
+from multiprocessing import Pool
 
 # Change working directory
 os.chdir('/home/rfpred/notebooks/alien_nbs')
@@ -106,7 +107,6 @@ def get_bounding_box(mask):
 
     return x_min, x_max, y_min, y_max
 
-from multiprocessing import Pool
 
 # These two functions are coupled to run the feature computations in parallel.
 # This saves a lot of time. Should be combined with the feature_df function to assign
@@ -169,7 +169,7 @@ def scce_single(args, ecc_max = 1, loc = 'center', plot = 'n', cmap = 'gist_gray
 def scce_all(start, n, ecc_max = 1, plot = 'n', loc = 'center', crop_prior:bool = False, crop_post:bool = True, save_plot:bool = False):
     img_vec = list(range(start, start + n))
     
-    print(f'img_vec: {img_vec}')
+    # print(f'img_vec: {img_vec}')
 
     # Create a pool of worker processes
     with Pool() as p:
@@ -192,8 +192,6 @@ def scce_all(start, n, ecc_max = 1, plot = 'n', loc = 'center', crop_prior:bool 
 # This aligns best with the way humans perceive visual input. 
 def get_scce_contrast(rgb_image, mask_w_in, rf_mask_in, full_array, plot = 'n', cmap = 'gist_gray', 
                       crop_prior:bool = False, crop_post:bool = False, save_plot:bool = False):
-
-
 
     lgn_out = lgn_statistics(im=rgb_image, file_name='noname.tiff',
                                         config=config, force_recompute=True, cache=False,
@@ -239,6 +237,18 @@ def get_zscore(data, print_ars = 'y'):
         
     return z_scores
 
+def cap_values(array, threshold):
+    # Identify values above the threshold
+    above_threshold = array > threshold
+
+    # Identify the highest value below the threshold
+    highest_below_threshold = array[array <= threshold].max()
+
+    # Replace values above the threshold with the highest value below the threshold
+    array[above_threshold] = highest_below_threshold
+
+    return array
+
 # This function creates a dataframe containing the rms contrast values for each image in the design matrix
 # This way you can chronologically map the feature values per subject based on the design matrix image order
 def feature_df(subject, feature, feat_per_img, designmx):
@@ -259,26 +269,32 @@ def feature_df(subject, feature, feat_per_img, designmx):
     if feature == 'scce':
         # Apply the get_zscore function to each column of the DataFrames
         scce_all = feat_per_img
-        scce_all_z = feat_per_img.apply(get_zscore, print_ars='n')
+        
+        # Cap the values so the extreme outliers (SC > 100) are set to the highest value below the threshold
+        # These outliers can occur when the input is almost completely fully unicolored, causing division by near-zero values
+        # and thus exploding SC values disproportionately. 
+        scce_all_cap = scce_all.apply(cap_values, threshold=100)
+        
+        scce_all_z = scce_all_cap.apply(get_zscore, print_ars='n')
         
         ices = list(designmx[subject])
         # scce_all = feat_per_img[ices]
         # scce_all_z = feat_per_img_z[ices]
         
         df = pd.DataFrame({'img_no': ices,
-                            'sc':scce_all['sc'][ices],
+                            'sc':scce_all_cap['sc'][ices],
                             'sc_z': scce_all_z['sc'][ices],
-                            'ce':scce_all['ce'][ices],
+                            'ce':scce_all_cap['ce'][ices],
                             'ce_z': scce_all_z['ce'][ices],
-                            'beta': scce_all['beta'][ices],
+                            'beta': scce_all_cap['beta'][ices],
                             'beta_z': scce_all_z['beta'][ices],
-                            'gamma': scce_all['gamma'][ices],
+                            'gamma': scce_all_cap['gamma'][ices],
                             'gamma_z': scce_all_z['gamma'][ices]})
         
         
     df = df.set_index(np.array(range(0, len(df))))
         
-    return df
+    return df #, scce_all, scce_all_z
 
 # Create design matrix containing ordered indices of stimulus presentation per subject
 def get_imgs_designmx():
@@ -317,6 +333,7 @@ def get_visfeature_dict(subjects, all_rms, all_irrelevant_rms, dmx, feature = No
     
     if feature == 'scce':
         for subject in subjects:
+            
             # Subject specific object with the correct sequence of RMS contrast values per image.
             scce = feature_df(subject=subject, feature='scce', feat_per_img=all_rms, designmx=dmx)
             scce_irrelevant = feature_df(subject=subject, feature='scce', feat_per_img=all_irrelevant_rms, designmx=dmx)
@@ -370,7 +387,14 @@ def get_random_designmx(idx_min = 0, idx_max = 40, n_img = 20):
     
     return stims_design_mx
 
-
+# Utility function to visualize dictionary structures
+def print_dict_structure(d, indent=0):
+    for key, value in d.items():
+        print(' ' * indent + str(key))
+        if isinstance(value, dict):
+            print_dict_structure(value, indent + 4)
+            
+            
 config_path = 'lgnpy/lgnpy/CEandSC/default_config.yml'
 
 with open(config_path, 'r') as f:
@@ -380,7 +404,6 @@ lgn = LGN(config=config, default_config_path=f'./lgnpy/lgnpy/CEandSC/default_con
 
 threshold_lgn = loadmat(filepath='./lgnpy/ThresholdLGN.mat')['ThresholdLGN']
 
-dmx
 
 # Define the steps
 # steps = [30000, 20000, 10000, 10000, 3000]
@@ -391,26 +414,26 @@ dmx
 
 
 
-start = list(range(0, 70000, 1000))
-steps = [1000] * 70
+# start = list(range(70000, 73000, 1000))
+# steps = [1000] * len(start)
 
-# steps = [10, 10, 10, 10]
-# start = [0, 10, 20, 30]
-scce_dict_center_all = []
-scce_dict_irrelpatch_all = []
+# # steps = [10, 10, 10, 10]
+# # start = [0, 10, 20, 30]
+# scce_dict_center_all = []
+# scce_dict_irrelpatch_all = []
 
-for i in range(len(steps)):
-    scce_dict_center = scce_all(start[i], steps[i], plot = 'n' , loc = 'center', crop_prior = True, crop_post = False)
-    scce_dict_center.to_pickle(f'scce_dict_center_{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
-    scce_dict_center_all.append(scce_dict_center)
+# for i in range(len(steps)):
+#     scce_dict_center = scce_all(start[i], steps[i], plot = 'n' , loc = 'center', crop_prior = True, crop_post = False)
+#     scce_dict_center.to_pickle(f'scce_dict_center_{str(start[i])[:5]}k_{str(steps[i] + start[i])[:5]}k.pkl')
+#     scce_dict_center_all.append(scce_dict_center)
 
-    print(f'last center save was{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
+#     print(f'last center save was{str(start[i])[:5]}k_{str(steps[i] + start[i])[:5]}k.pkl')
 
-    scce_dict_irrelpatch = scce_all(start[i], steps[i], plot = 'n' , loc = 'irrelevant_patch', crop_prior = True, crop_post = False)
-    scce_dict_irrelpatch.to_pickle(f'scce_dict_irrelpatch_{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
-    scce_dict_irrelpatch_all.append(scce_dict_irrelpatch)
+#     scce_dict_irrelpatch = scce_all(start[i], steps[i], plot = 'n' , loc = 'irrelevant_patch', crop_prior = True, crop_post = False)
+#     scce_dict_irrelpatch.to_pickle(f'scce_dict_irrelpatch_{str(start[i])[:5]}k_{str(steps[i] + start[i])[:5]}k.pkl')
+#     scce_dict_irrelpatch_all.append(scce_dict_irrelpatch)
 
-    print(f'last irrelevant patch save was{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
+#     print(f'last irrelevant patch save was{str(start[i])[:5]}k_{str(steps[i] + start[i])[:5]}k.pkl')
 
 
 # steps = [5000, 5000, 1000, 1000, 500, 400]
@@ -429,33 +452,53 @@ for i in range(len(steps)):
 
 #     print(f'last irrelevant patch save was{str(start[i])[:2]}k_{str(steps[i] + start[i])[:2]}k.pkl')
 
+# Retrieve all files:
+center_files = sorted(glob.glob('scce_dict_center_*.pkl'))
+irrelpatch_files = sorted(glob.glob('scce_dict_irrelpatch_*.pkl'))
+
+# Initialize empty lists to store DataFrames
+scce_dict_center_all = []
+scce_dict_irrelpatch_all = []
+
+# Load each file and append the DataFrame to the list
+for file in center_files:
+    df = pd.read_pickle(file)
+    scce_dict_center_all.append(df)
+
+for file in irrelpatch_files:
+    df = pd.read_pickle(file)
+    scce_dict_irrelpatch_all.append(df)
+# ^ new
 
 # Combine all the DataFrames into one for each of scce_dict_center_all and scce_dict_irrelpatch_all
-# scce_dict_center_all = pd.concat(scce_dict_center_all).replace([np.nan, np.NINF], 0)
-# scce_dict_irrelpatch_all = pd.concat(scce_dict_irrelpatch_all).replace([np.nan, np.NINF], 0)
+scce_dict_center_all = pd.concat(scce_dict_center_all).replace([np.nan, np.NINF], 0.0000001)
+scce_dict_irrelpatch_all = pd.concat(scce_dict_irrelpatch_all).replace([np.nan, np.NINF], 0.0000001)
 
-# subjects = ['subj01', 'subj02', 'subj03', 'subj04', 'subj05', 'subj06', 'subj07', 'subj08']
+subjects = ['subj01', 'subj02', 'subj03', 'subj04', 'subj05', 'subj06', 'subj07', 'subj08']
 
-# dmx = get_imgs_designmx()
-# # dmx = get_random_designmx()
+dmx = get_imgs_designmx()
 
-# # anus = feature_df(subjects[0], feature = 'scce', feat_per_img = scce_dict_center_all, designmx = dmx)
+aars = get_visfeature_dict(subjects, scce_dict_center_all, scce_dict_irrelpatch_all, dmx, feature = 'scce')
 
-# aars = get_visfeature_dict(subjects, scce_dict_center_all, scce_dict_irrelpatch_all, dmx, feature = 'scce')
-
-# with open('/home/rfpred/data/custom_files/all_visfeats_scce', 'wb') as fp:
-#     pickle.dump(aars, fp)
-#     print('SCCE dictionary saved successfully to file')
+with open('/home/rfpred/data/custom_files/all_visfeats_scce.pkl', 'wb') as fp:
+    pickle.dump(aars, fp)
+    print('SCCE dictionary saved successfully to file')
     
-# # with open('/home/rfpred/data/custom_files/all_visfeats_scce', 'rb') as fp:
-# #     aars = pickle.load(fp)
-# #     print('SCCE dictionary loaded successfully from file')
+# with open('/home/rfpred/data/custom_files/all_visfeats_scce', 'rb') as fp:
+#     aars = pickle.load(fp)
+#     print('SCCE dictionary loaded successfully from file')
+
+
+with open('/home/rfpred/data/custom_files/all_visfeats_rms.pkl', 'rb') as fp:
+    rms = pickle.load(fp)
+    print('RMS dictionary loaded successfully from file')
 
 # scce_dict_center_all
 
+aars['subj02']['scce']
 
-
-
-
+# aars
+print_dict_structure(aars)
+print_dict_structure(rms)
 
 print('succeeded')
