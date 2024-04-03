@@ -405,6 +405,10 @@ lgn = LGN(config=config, default_config_path=f'./lgnpy/lgnpy/CEandSC/default_con
 threshold_lgn = loadmat(filepath='./lgnpy/ThresholdLGN.mat')['ThresholdLGN']
 
 
+
+
+# Here I do the big computations::::::::
+
 # Define the steps
 # steps = [30000, 20000, 10000, 10000, 3000]
 # start = [0, 30000, 50000, 60000, 70000]

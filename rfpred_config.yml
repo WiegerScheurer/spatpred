@@ -1,3 +1,11 @@
+Data acquisition details NSD:
+  - Distance from screen: 1.765m
+  - Screen resolution: 1920x1080
+  - Screen size: 69.84x39.29cm
+  - Stimuli presentation extent: 8.4x8.4 degrees visual angle
+  - Pixel pitch/ dot pitch: 0.36375mm
+
+
 pRF selection criteria:
   - Central patch has radius of 1 degrees visual angle
   - pRFs fall strictly inside the central patch
@@ -16,5 +24,12 @@ Standardisation:
 Visual contrast:
 - RMS is computed for the patch-specific visual input
   - Image is cropped prior to computing RMS
-
-
+- Spatial Coherence (SC) and Contrast Energy (CE) computation is done the same way as is done in Groen et al. (2013)
+  - Local contrast detection and scale selection is identical.
+  - Pooling is slightly adapted to the dimensions of the NSD natural images. In the original paper,
+    the pooling radius for SC was 5 degrees and for CE 1.5 degrees of visual angle. However, as the NSD images
+    are smaller, the pooling radius is adapted to 3.3 and 1 degrees of visual angle, respectively. These values
+    maintain the same ratio between the two pooling radii as in the original paper, thus CE still encapsulates only
+    information from the central patch and SC also encapsulates information from the surrounding context.
+    This adaptation is done to ensure the computed visual contrast feature is still informative about the
+    central patch, 
