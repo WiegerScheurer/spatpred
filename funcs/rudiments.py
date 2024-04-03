@@ -491,14 +491,16 @@ def multivariate_regression(X, y_matrix):
     rsquared_values = 1 - ss_res / ss_tot
 
     return beta_values, intercept_values, rsquared_values
-
-def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', z_scorey:bool = False, meancentery:bool = False):
+def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', 
+                                 z_scorey:bool = False, z_scorex:bool = False, meancentery:bool = False,
+                                 fit_intercept:bool = False):
     reg_dict = {}
     
     # Set the amount of images to regress over in case all images are available.
     if n_imgs == 'all':
         n_imgs = len(feat_vals)
     
+    # CHECK THIS SIZE, SOMETHING MIGHT BE WRONG HEREERERERRER!!!!!!!!!!!
     X = np.array(feat_vals[feat_type][:n_imgs]).reshape(n_imgs, 1)  # Set the input matrix for the regression analysis
 
     # This function will run the multiple regression analysis for each voxel, roi, image, for a subject.
@@ -511,22 +513,39 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         vox_indices = np.column_stack(np.where(voxel_mask == 1))  # Get voxel indices for the current ROI
         
         # Extract y_matrix for all voxels within the ROI
-            
-
-            
         y_matrix = np.array([hrfs[subject][roi][f'voxel{voxel + 1}']['hrf_betas'] for voxel, xyz in enumerate(vox_indices)]).T #/ 300
 
         if z_scorey:
-            
-            
-            y_matrix = get_zscore(y_matrix, print_ars = 'n')
-            
+            # Reshape y_matrix into 40 batches of 750 values
+            y_matrix_reshaped = y_matrix.reshape(-1, 750, y_matrix.shape[1])
+
+            # Initialize an empty array to store the z-scores
+            z_scores = np.empty_like(y_matrix_reshaped)
+
+            # Calculate the z-scores for each batch
+            for i in range(y_matrix_reshaped.shape[0]):
+                z_scores[i] = get_zscore(y_matrix_reshaped[i], print_ars='n')
+
+            # Flatten z_scores back into original shape
+            y_matrix = z_scores.reshape(y_matrix.shape)
+                        
         if meancentery:
-            y_matrix = mean_center(y_matrix, print_ars = 'n')
+            # Idem dito
+            y_matrix_reshaped = y_matrix.reshape(-1, 750, y_matrix.shape[1])
+            mc_scores = np.empty_like(y_matrix_reshaped)
+            for i in range(y_matrix_reshaped.shape[0]):
+                mc_scores[i] = mean_center(y_matrix_reshaped[i], print_ars='n')
+            y_matrix = mc_scores.reshape(y_matrix.shape)
             
         # Perform multivariate regression
-        beta_values, intercept_values, rsquared_value, reg_model = multivariate_regression(X, y_matrix, z_scorey = z_scorey, meancentery = meancentery)
+        beta_values, intercept_values, rsquared_value, reg_model, X_used, y_used = multivariate_regression(X, y_matrix, z_scorey = z_scorey, meancentery = meancentery, fit_intercept = fit_intercept)
         
+        # If no intercept values are fit, set the output to all zeros.
+        # N.B. in reality these values are not exactly 0, so don't make the mistake of interpreting them as such.
+        # We just don't fit the intercept because we z-score both X and y, thus we theoretically shouldn't need an icept.
+        if fit_intercept == False:
+            intercept_values = np.zeros_like(beta_values)
+            
         
         reg_dict[roi]['voxels'] = {}
         
@@ -538,6 +557,7 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
             }
             
         reg_dict[roi]['y_matrix'] = y_matrix
+        reg_dict[roi]['X_matrix'] = X_used
         reg_dict[roi]['all_reg_betas'] = beta_values
         reg_dict[roi]['all_intercepts'] = intercept_values
         reg_dict[roi]['rsquared'] = rsquared_value

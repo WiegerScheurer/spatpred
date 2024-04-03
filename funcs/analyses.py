@@ -11,7 +11,8 @@ from sklearn.linear_model import LinearRegression
 from funcs.utility import numpy2coords, coords2numpy, filter_array_by_size, find_common_rows, get_zscore, mean_center
 
 # Function to create a dictionary containing all the relevant HRF signal info for the relevant voxels.
-def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, max_size = 1, prf_proc_dict = None, vox_n_cutoff = None, plot_sizes = 'n'):
+def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, max_size = 1, 
+                 prf_proc_dict = None, vox_n_cutoff = None, plot_sizes = 'n'):
     
     hrf_dict = {}
     voxdict_select = {}
@@ -178,15 +179,48 @@ def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool
 
 def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', 
                                  z_scorey:bool = False, z_scorex:bool = False, meancentery:bool = False,
-                                 fit_intercept:bool = False):
+                                 fit_intercept:bool = False, non_patch:bool = False,
+                                 multi_feats:bool = False, rms:bool = False, sc:bool = False, ce:bool = False):
+    
+        # Load in the new RMS dict (where RMS is calculated after cropping, thus cropping prior to RMS)
+    with open('./data/custom_files/all_visfeats_rms_crop_prior.pkl', 'rb') as fp:
+        visfeats_rms_crop_prior = pickle.load(fp)
+    
+    with open('/home/rfpred/data/custom_files/all_visfeats_scce.pkl', 'rb') as fp:
+        visfeats_scce = pickle.load(fp)
+    
     reg_dict = {}
     
     # Set the amount of images to regress over in case all images are available.
     if n_imgs == 'all':
         n_imgs = len(feat_vals)
     
-    # CHECK THIS SIZE, SOMETHING MIGHT BE WRONG HEREERERERRER!!!!!!!!!!!
-    X = np.array(feat_vals[feat_type][:n_imgs]).reshape(n_imgs, 1)  # Set the input matrix for the regression analysis
+    if non_patch:
+        irrel = '_irrelevant'
+    else:
+        irrel = ''
+    
+    if multi_feats:
+        # Set empty array
+        feats = []
+
+        # Conditionally add arrays based on the values of rms, sc, and ce
+        if rms:
+            rms_X = visfeats_rms_crop_prior[subject][f'rms{irrel}']['rms_z']
+            feats.append(rms_X)
+        if sc:
+            sc_X = visfeats_scce[subject][f'scce{irrel}']['sc_z']
+            feats.append(sc_X)
+        if ce:
+            ce_X = visfeats_scce[subject][f'scce{irrel}']['ce_z']
+            feats.append(ce_X)
+
+        # Stack the arrays vertically and then transpose
+        X = np.vstack(feats).T
+        
+    else:
+    # Set the input matrix for the regression analysis
+        X = np.array(feat_vals[feat_type][:n_imgs])  # Now X can have multiple columns
 
     # This function will run the multiple regression analysis for each voxel, roi, image, for a subject.
     rois = list(voxels[subject].keys())
@@ -198,8 +232,8 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         vox_indices = np.column_stack(np.where(voxel_mask == 1))  # Get voxel indices for the current ROI
         
         # Extract y_matrix for all voxels within the ROI
-        y_matrix = np.array([hrfs[subject][roi][f'voxel{voxel + 1}']['hrf_betas'] for voxel, xyz in enumerate(vox_indices)]).T #/ 300
-
+        y_matrix = np.array([hrfs[subject][roi][f'voxel{voxel + 1}']['hrf_betas'] for voxel, xyz in enumerate(vox_indices)]).T
+        
         if z_scorey:
             # Reshape y_matrix into 40 batches of 750 values
             y_matrix_reshaped = y_matrix.reshape(-1, 750, y_matrix.shape[1])
@@ -248,6 +282,8 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
         reg_dict[roi]['rsquared'] = rsquared_value
     
     return reg_dict, X
+
+
 
 def plot_roi_beta_distribution(reg_dict, dictdescrip1 = '', icept_correct = None, feat_type = '', comparison_reg_dict = None, dictdescrip2 = '', comptype = ''):
     plt.style.use('dark_background')  # Apply dark background theme
