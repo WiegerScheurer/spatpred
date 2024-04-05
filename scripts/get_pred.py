@@ -148,7 +148,6 @@ def _make_img_3d(mask_in,):
 
 
 
-
 welke_plaat = 1354
 plaatje = show_stim(img_no = welke_plaat, small = 'y')
 ecc_max = 1
