@@ -1,0 +1,11 @@
+UNetPconv implementation, built on / derived from the model of Liu et al. (2018, ECCV):
+
+https://github.com/tanimutomo/partialconv 
+
+That is in turn based on the official implementation: 
+- https://github.com/NVIDIA/partialconv
+
+And takes some elements from the following unofficial implementations: 
+
+- https://github.com/MathiasGruber/PConv-Keras
+- https://github.com/naoto0804/pytorch-inpainting-with-partial-conv/

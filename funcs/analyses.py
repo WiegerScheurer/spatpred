@@ -180,7 +180,8 @@ def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool
 def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_imgs='all', 
                                  z_scorey:bool = False, z_scorex:bool = False, meancentery:bool = False,
                                  fit_intercept:bool = False, non_patch:bool = False,
-                                 multi_feats:bool = False, rms:bool = False, sc:bool = False, ce:bool = False):
+                                 multi_feats:bool = False, rms:bool = False, sc:bool = False, ce:bool = False,
+                                 sc_large:bool = False):
     
         # Load in the new RMS dict (where RMS is calculated after cropping, thus cropping prior to RMS)
     with open('./data/custom_files/all_visfeats_rms_crop_prior.pkl', 'rb') as fp:
@@ -188,6 +189,9 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
     
     with open('/home/rfpred/data/custom_files/all_visfeats_scce.pkl', 'rb') as fp:
         visfeats_scce = pickle.load(fp)
+    
+    with open('/home/rfpred/data/custom_files/all_visfeats_scce_large.pkl', 'rb') as fp:
+        visfeats_scce_large = pickle.load(fp)
     
     reg_dict = {}
     
@@ -210,6 +214,8 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
             feats.append(rms_X)
         if sc:
             sc_X = visfeats_scce[subject][f'scce{irrel}']['sc_z']
+            if sc_large:
+                sc_X = visfeats_scce_large[subject][f'scce{irrel}']['sc_z']
             feats.append(sc_X)
         if ce:
             ce_X = visfeats_scce[subject][f'scce{irrel}']['ce_z']
