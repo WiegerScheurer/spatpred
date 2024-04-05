@@ -113,7 +113,7 @@ class UNet():
                                             recon_pld['out_raw'],recon_pld['input_gt'])
 
             ssims=np.array([ssim(to_np(recon_pld['input_gt'][img_ix]),
-                         to_np(recon_pld['out_composite'][img_ix]),multichannel=True)
+                         to_np(recon_pld['out_composite'][img_ix]),multichannel=True, channel_axis=2)
                     for img_ix in range(recon_pld['out_composite'].shape[0])])
 
             eval_pld={
