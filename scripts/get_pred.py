@@ -4,7 +4,8 @@ os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
-
+print(sys.path)
+import torch
 import torchvision
 import skimage
 import os
@@ -13,13 +14,26 @@ import requests
 import shutil
 import torch
 import random
+import pickle
 import time
+import argparse
+import h5py
+
+predparser = argparse.ArgumentParser(description='Get the predictability estimates for a range of images of a subject')
+
+predparser.add_argument('start', type=int, help='The starting index of the images to get the predictability estimates for')
+predparser.add_argument('end', type=int, help='The ending index of the images to get the predictability estimates for')
+predparser.add_argument('subject', type=str, help='The subject to get the predictability estimates for')
+
+args = predparser.parse_args()
+
+print(args,'\n')
 
 from funcs.rf_tools import (get_dat, calculate_sigma, calculate_pRF_location, prf_plots_new, prf_plots, make_visrois_dict, 
                             make_gaussian_2d, make_circle_mask, css_gaussian_cut, roi_filter, write_prf_dict, compare_radius, 
                             get_mask, compare_masks, prf_heatmap, nsd_R2_dict, rsq_to_size, rsquare_selection)
 from funcs.utility import print_dict_structure, print_large
-from funcs.imgproc import show_stim, get_img_prf, get_contrast_df, get_rms_contrast, get_imgs_designmx
+from funcs.imgproc import show_stim, get_img_prf, get_contrast_df, get_rms_contrast, get_imgs_designmx, get_bounding_box
 
 # /Users/wiegerscheurer/miniconda3/envs/wieg_env_nsd
 
@@ -29,6 +43,8 @@ from PIL import Image
 import glob,copy
 import matplotlib.pyplot as plt
 import numpy as np
+
+# os.chdir('/home/rfpred/notebooks/alien_nbs/pred_comp')
 
 # imgs=glob.glob('unet_recon/examples/img*.jpg')
 
@@ -146,37 +162,20 @@ def _make_img_3d(mask_in,):
     """for 2d array, copy to make 3-dimensional"""
     return(np.repeat(mask_in[:,:,np.newaxis],3,axis=2))
 
-
-
-welke_plaat = 1354
-plaatje = show_stim(img_no = welke_plaat, small = 'y')
-ecc_max = 1
-dim = plaatje[0].shape[0]
-radius = ecc_max * (dim / 8.4)
-loc = 'center'
-
-if loc == 'center':
-    x = y = (dim + 1)/2
-elif loc == 'irrelevant_patch':
-    x = y = radius + 10
-
-# The in stands for inverse in this case. For the inpainting we need the np.bool_ non-inverse images
-mask_w_in = css_gaussian_cut(dim, x, y, radius)
-rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
-full_ar_in = ar_in = show_stim(img_no = welke_plaat, hide = 'y')[0] 
-# Get the boolean version of the non-inverse mask
-rf_mask_nsd = rf_mask_in == 0
-
-# Load in the U-Net model
 unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
 
+# NSD adapted:
+mask_radius=100
+rf_mask=draw_circmask((425,425),mask_radius)
 
-
-def rand_img_list(n_imgs, asPIL:bool = True, add_masks:bool = True, mask_loc = 'center', ecc_max = 1):
+import random
+def rand_img_list(n_imgs, asPIL:bool = True, add_masks:bool = True, mask_loc = 'center', ecc_max = 1, select_ices = None, in_3d:bool = False):
     imgs = []
     img_nos = []
     for i in range(n_imgs):
         img_no = random.randint(0, 27999)
+        if select_ices is not None:
+            img_no = select_ices[i]
         img = show_stim(img_no = img_no, hide = 'y')[0]
 
         if i == 0:
@@ -195,27 +194,84 @@ def rand_img_list(n_imgs, asPIL:bool = True, add_masks:bool = True, mask_loc = '
         # img_nos.append(Image.fromarray(img_no))
         img_nos.append(img_no)
     mask = (make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0) == 0)
-
+    
+    if in_3d:
+        mask = _make_img_3d(mask)
     if asPIL:
         mask = Image.fromarray(mask)
+
 
     masks = [mask] * n_imgs
 
     return imgs, masks, img_nos
 
-
 # Retrieve a number of random images, masks
-n_imgs = 5
-imgs, masks, img_nos = rand_img_list(n_imgs, asPIL = True, add_masks = True, mask_loc = 'center', ecc_max = 1)
+
+specific_imgs = [26282, 22273, 12338, 475, 18591, 22664, 27038, 11549, 27931, 26183, 26435, 2685, 8749, 3712, 20457, 7464, 6057]
+# specific_imgs = list(range(0, 10, 1))
+dmx = get_imgs_designmx()
+subj01_imgs = list(dmx[args.subject])[args.start:args.end]
+
+n_imgs = len(subj01_imgs)
+imgs, masks, img_nos = rand_img_list(n_imgs, asPIL = True, add_masks = True, mask_loc = 'center', ecc_max = 1, select_ices = subj01_imgs, in_3d = False)
+
+welke_plaat = random.randint(0, 73000)
+plaatje = show_stim(img_no = welke_plaat, small = 'y', hide = 'y')
+ecc_max = 1
+dim = plaatje[0].shape[0]
+radius = ecc_max * (dim / 8.4)
+loc = 'center'
+
+
+if loc == 'center':
+    x = y = (dim + 1)/2
+elif loc == 'irrelevant_patch':
+    x = y = radius + 10
+
+# The in stands for inverse in this case. For the inpainting we need the np.bool_ non-inverse images
+mask_w_in = css_gaussian_cut(dim, x, y, radius)
+rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
+full_ar_in = ar_in = show_stim(img_no = welke_plaat, hide = 'y')[0] 
+# Get the boolean version of the non-inverse mask
+rf_mask_nsd = rf_mask_in == 0
+xmin,xmax,ymin,ymax = list(get_bounding_box(rf_mask_in))
+crop_mask = rf_mask_in[ymin:ymax, xmin:xmax] == 1
+
+eval_fact=np.sqrt(1.2) # This needs to be in correspondence with the min_size (original eval_fact = 1.5, min_size = 100)
+eval_mask=scale_square_mask(~np.array(masks[0]), min_size=80, scale_fact= eval_fact)
+
 
 start_time = time.time()
-
+ 
 # Run them through the U-Net
-payload_nsd=unet.analyse_images(imgs, masks, return_recons=True)
+# payload_nsd = unet.analyse_images(imgs, masks, return_recons=True, eval_mask = None)
+payload_nsd_crop = unet.analyse_images(imgs, masks, return_recons=True, eval_mask = eval_mask)
 
 end_time = time.time()
 
 total_time = end_time - start_time
-average_time_per_image = total_time / n_imgs
+average_time_per_image = (total_time / n_imgs) #/ 2
+print(f'\nThis took {total_time} seconds, or {total_time / 60} minutes, or {total_time / 3600} hours')
+print(f"Average time per image: {average_time_per_image} seconds\n")
 
-print(f"Average time per image: {average_time_per_image} seconds")
+# Add the specific image indices to the dictionaries. 
+# payload_nsd['img_ices'] = payload_nsd_crop['img_ices'] = img_nos
+payload_nsd_crop['img_ices'] = img_nos
+
+excl = ['recon_dict']
+payload_light = {k: v for k, v in payload_nsd_crop.items() if k not in excl}
+
+
+# payloads = {'full': payload_nsd, 'crop': payload_nsd_crop}
+
+
+
+with h5py.File(f'/home/rfpred/data/custom_files/subj01/pred/light_payloads{args.start}_{args.end}.h5', 'w') as hf:
+    for key, value in payload_light.items():
+        hf.create_dataset(key, data=value)
+        print('Light payload saved succesfully')
+
+# with open(f'/home/rfpred/data/custom_files/{args.subject}/pred/pred_payloads{args.start}_{args.end}.pkl', 'wb') as fp:
+#     pickle.dump(payloads, fp)
+#     print('payloads dictionary saved successfully to file')
+    

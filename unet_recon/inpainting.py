@@ -36,7 +36,7 @@ class UNet():
     --------------
     
     """
-    def __init__(self, checkpoint_name='pconv_circ-places60k-fine.pth',device='auto',im_size=(3,425,425),
+    def __init__(self, checkpoint_name='pconv_circ-places60k-fine.pth',device='auto',im_size=(3,256,256),
                  resize_method='zero_padd',feature_model='alex',loss='L1',add_loss_suff=True):
         
         # Define the used device
@@ -113,7 +113,7 @@ class UNet():
                                             recon_pld['out_raw'],recon_pld['input_gt'])
 
             ssims=np.array([ssim(to_np(recon_pld['input_gt'][img_ix]),
-                         to_np(recon_pld['out_composite'][img_ix]),multichannel=True, channel_axis=0)
+                         to_np(recon_pld['out_composite'][img_ix]),multichannel=True, channel_axis = 2)
                     for img_ix in range(recon_pld['out_composite'].shape[0])])
 
             eval_pld={
@@ -225,8 +225,7 @@ class UNet():
         trg_size=tuple(np.round(resize_fact*np.array(pil_imgs_in[0].size)).astype(int))
         return([this_img.resize(trg_size,resample=interp) for this_img in pil_imgs_in])
     
-    # def _padd_tensor_img(self,tens_in,desired_shape=(3,256,256),padd_val=0):
-    def _padd_tensor_img(self,tens_in,desired_shape=(3,425,425),padd_val=0):
+    def _padd_tensor_img(self,tens_in,desired_shape=(3,256,256),padd_val=0):
         """padd incoming tensor with zero-padding
         in: 
         -tens_in: Tensor
