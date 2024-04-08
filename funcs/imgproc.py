@@ -12,6 +12,9 @@ from matplotlib.ticker import MultipleLocator
 from skimage import color
 from multiprocessing import Pool
 import nibabel as nib
+from PIL import Image
+from unet_recon.inpainting import UNet
+
 import pickle
 from funcs.rf_tools import get_mask, make_circle_mask, css_gaussian_cut, make_gaussian_2d
 from funcs.utility import get_zscore, mean_center, cap_values
@@ -564,3 +567,207 @@ def get_betas(subjects, voxels, start_session, end_session, prf_region = 'center
         print('     - Back-up saved to beta_dict{start_session}_{end_session}.pkl\n')        
                 
     return beta_dict
+
+# Function to load in a list of images and masks given a list of indices. Used to provide the right input
+# to the U-Net model. Option to give the mask location, the eccentricity of the mask, and the output format.
+# The alternative mask_loc is 'irrelevant_patch', which places the mask at a fixed location in the image.
+# However, this is not yet working, because the final evaluation is done based on a 'eval_mask' object.
+# Perhaps also add this to the function.
+# Could also add the option to select a subject so it automatically gets a specified amount of their images.
+def rand_img_list(n_imgs, asPIL:bool = True, add_masks:bool = True, mask_loc = 'center', ecc_max = 1, select_ices = None):
+    imgs = []
+    img_nos = []
+    for i in range(n_imgs):
+        img_no = random.randint(0, 27999)
+        if select_ices is not None:
+            img_no = select_ices[i]
+        img = show_stim(img_no = img_no, hide = 'y')[0]
+
+        if i == 0:
+            dim = img.shape[0]
+            radius = ecc_max * (dim / 8.4)
+
+            if mask_loc == 'center':
+                x = y = (dim + 1)/2
+            elif mask_loc == 'irrelevant_patch':
+                x = y = radius + 10
+
+        if asPIL:
+            img = Image.fromarray(img)
+
+        imgs.append(img)
+        # img_nos.append(Image.fromarray(img_no))
+        img_nos.append(img_no)
+    mask = (make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0) == 0)
+
+    if asPIL:
+        mask = Image.fromarray(mask)
+
+    masks = [mask] * n_imgs
+
+    return imgs, masks, img_nos
+
+# Function to load in all the computed predictability estimates, created using the get_pred.py and pred_stack.sh scripts.
+def load_pred_estims(subject = None, start = None, n_files = None, verbose:bool = False):
+    dict_list = []
+
+    # Get a list of files in the directory
+    files = os.listdir(f'/home/rfpred/data/custom_files/{subject}/pred/')
+
+    # Filter files that start with "beta_dict" and end with ".pkl"
+    filtered_files = [file for file in files if file.startswith('light_payloads') and file.endswith(".h5")]
+    
+    # Sort files based on the first number after 'beta_dict'
+    sorted_files = sorted(filtered_files, key=lambda x: int(''.join(filter(str.isdigit, x.split('light_payloads')[1]))))
+
+    # Load in the .h5 files
+    for file_no, file in enumerate(sorted_files):
+        if verbose:
+            print(f'Now loading file {file_no + 1} of {len(sorted_files)}')
+        # load in back dictionary
+        with h5py.File(f'/home/rfpred/data/custom_files/subj01/pred/{file}', 'r') as hf:
+            data = hf.keys()
+                
+            dict = {key: np.array(hf[key]) for key in data}
+        
+        dict_list.append(dict)
+            
+    return dict_list
+
+# Allround function to run the U-Net and create intuitive plots of the resulting predictability estimates.
+def predplot(subject:str = None, start_img:int = 0, n_imgs:int = 5, mask_loc:str = 'center', ecc_max:float = 1, select_ices = 'subject_based', 
+            cnn_type:str = 'alex', pretrain_version:str = 'places20k', eval_mask_factor:float = 1.2, log_y_MSE:str = 'y'):
+    
+    # Load in the U-Net
+    if pretrain_version == 'places20k':
+        pretrain = 'pconv_circ-places20k.pth'
+    elif pretrain_version == 'places60k':
+        pretrain = 'pconv_circ-places60k-fine.pth'
+    elif pretrain_version == 'original':
+        pretrain = 'pretrained_pconv.pth'
+    else:
+        raise TypeError('Please select a valid pretrain version: places20k, places60k or original')
+        
+    unet=UNet(checkpoint_name = pretrain,feature_model = cnn_type)
+
+    # What images will be processed:
+    if select_ices == 'random': # A random set of images
+        specific_imgs = [random.randint(0,72999) for _ in range(n_imgs)]
+    # If it is a list, set specific_imgs to that list
+    elif type(select_ices) == list:
+        specific_imgs = select_ices
+    elif select_ices == 'subject_based':
+        dmx = get_imgs_designmx() # A range of images based on the subject-specific design matrix
+        subj_imgs = list(dmx[subject])
+        specific_imgs = subj_imgs[start_img:start_img + n_imgs]
+    else: 
+        raise TypeError('Please select a valid image selection method: random, subject_based or a list of specific image indices')
+        
+        
+    # Get the images, masks and image numbers based on the specific image selection
+    imgs, masks, img_nos = rand_img_list(n_imgs, asPIL = True, add_masks = True, mask_loc = mask_loc, ecc_max = ecc_max, select_ices = specific_imgs)
+        
+    # Get the evaluation mask based on the evaluation mask size factor argument.
+    eval_mask = scale_square_mask(~np.array(masks[0]), min_size=((eval_mask_factor/1.5)*100), scale_fact= eval_mask_factor)
+
+
+    # Run the images through the U-Net and time how long it takes.
+    start_time = time.time()
+ 
+    # Run them through the U-Net
+    payload_full = unet.analyse_images(imgs, masks, return_recons=True, eval_mask = None)
+    payload_crop = unet.analyse_images(imgs, masks, return_recons=True, eval_mask = eval_mask)
+
+    end_time = time.time()
+
+    total_time = end_time - start_time
+    average_time_per_image = (total_time / n_imgs) / 2
+
+    print(f"Average time per image: {average_time_per_image} seconds")
+        
+    plt.style.use('dark_background')  # Apply dark background theme
+
+    for img_idx in range(len(imgs)):
+        scene_no = img_nos[img_idx]
+        titles = ['Ground Truth', 'Input Masked', 'Output Composite', '', 'Content loss values', '', 'Style loss values']
+        # fig, axes = plt.subplots(2, 5, figsize=(14, 7), gridspec_kw={'width_ratios': [1, 1, 1, 2, 2]})  # Create 4 subplots
+        fig, axes = plt.subplots(2, 7, figsize=(16, 8), gridspec_kw={'width_ratios': [2, 2, 2, .4, 2.5, 1.3, 2.5]})  # Create 4 subplots
+        for ax in axes[:,3]:
+            ax.axis('off')
+        for ax in axes[:,5]:
+            ax.axis('off')
+
+        for eval_size in range(2):
+            this_payload = payload_full if eval_size == 0 else payload_crop
+
+            for loss_type in ['content', 'style']:
+                ntype = 6 if loss_type == 'style' else 4
+                yrange = [0, 5] if loss_type == 'content' else [0, .05]
+                ylogrange = [0.1, 100] if loss_type == 'content' else [0.00001, .1]
+                n_layers = 5
+                losses = {}
+                MSE = []
+                L1 = []
+
+                for i in range(n_layers):
+                    MSE.append(round(this_payload[f"{loss_type}_loss_{i}_MSE"][img_idx], 3))  # Get the loss for each layer
+                    L1.append(round(this_payload[f"{loss_type}_loss_{i}_L1"][img_idx], 3))  # Get the loss for each layer
+                    losses['MSE'] = MSE
+                    losses['L1'] = L1
+                
+                # Plot the loss values
+                axes[eval_size, ntype].plot(range(1, n_layers + 1), L1, marker='o', color='crimson', linewidth=3)  # L1 loss
+                if eval_size == 0:
+                    axes[eval_size, ntype].set_title(titles[ntype])
+                if eval_size == 1:
+                    axes[eval_size, ntype].set_xlabel('Feature space (Alexnet layer)')
+                            
+                if loss_type == 'content':
+                    # Create a secondary y-axis for MSE
+                    ax_mse = axes[eval_size, ntype].twinx()
+                else: 
+                    ax_mse = axes[eval_size, ntype]
+                ax_mse.plot(range(1, n_layers + 1), MSE, marker='o', color='cornflowerblue', linewidth=3)  # MSE loss
+                if loss_type == 'content':
+                    ax_mse.tick_params(axis='y', labelcolor='cornflowerblue', labelsize = 12)
+                
+                
+                if log_y_MSE == 'y' and loss_type == 'content':
+                    ax_mse.set_yscale('log')  # Set y-axis to logarithmic scale for MSE
+                    ax_mse.set_ylabel('MSE Loss (log)', color='cornflowerblue', fontsize = 14)
+                    ax_mse.set_ylim(ylogrange[0], ylogrange[1])
+                    ax_mse.grid(False)
+                    axes[eval_size, ntype].set_ylabel('L1 Loss (linear)', color='crimson', fontsize = 14)
+                    axes[eval_size, ntype].set_ylim([yrange[0], yrange[1]])  # Set the range of the y-axis for L1
+                else:
+                    axes[eval_size, ntype].set_ylabel('Loss value', color='white', fontsize = 14)
+                    axes[eval_size, ntype].set_ylim([yrange[0], yrange[1]])
+                    
+            
+                axes[eval_size, ntype].xaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Ensure x-axis ticks are integers
+                if loss_type == 'content':
+                    axes[eval_size, ntype].tick_params(axis='y', labelcolor='crimson', labelsize = 12)
+                axes[eval_size, ntype].grid(False)
+                
+                if loss_type == 'style':
+                    ax_mse.legend(['L1 (MAE)', 'MSE'], loc='upper right')
+                
+            fig.suptitle(f"Image Number: {scene_no}\n\n"
+                        f"Cropped eval dissimilarity stats:\n"
+                        f"Structural Similarity: {round(this_payload['ssim'][img_idx],4)}\n"
+                        f"Pixel loss L1 (MAE): {round((this_payload['pixel_loss_L1'][img_idx]).astype('float'), 4)}\n"
+                        f"Pixel loss MSE: {round((this_payload['pixel_loss_MSE'][img_idx]).astype('float'), 4)}", fontsize=14)
+
+            # Loop through each key in the recon_dict to plot
+            for i, key in enumerate(['input_gt', 'input_masked', 'out_composite']):
+                img = this_payload['recon_dict'][key][img_idx].permute(1, 2, 0)
+                axes[eval_size, i].imshow(img)
+                if eval_size == 0:
+                    axes[eval_size, i].set_title(titles[i], fontsize = 12)
+                axes[eval_size, i].axis('off')  # To keep images square and hide the axes
+        
+        plt.tight_layout()
+        plt.subplots_adjust(wspace=0.05)  # Adjust the spacing between subplots
+        plt.show()
+        
+    return imgs, masks, img_nos, payload_full, payload_crop
