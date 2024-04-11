@@ -14,6 +14,8 @@ from multiprocessing import Pool
 import nibabel as nib
 from PIL import Image
 from unet_recon.inpainting import UNet
+import copy
+import time
 
 import pickle
 from funcs.rf_tools import get_mask, make_circle_mask, css_gaussian_cut, make_gaussian_2d
@@ -49,8 +51,12 @@ def show_stim(hide = 'n', img_no = 'random', small = 'n'):
         
     return test_image, image_no
 
-# Create design matrix containing ordered indices of stimulus presentation per subject
+   # Create design matrix containing ordered indices of stimulus presentation per subject
+
 def get_imgs_designmx():
+    import os
+    import numpy as np
+    from scipy.io import loadmat
     
     subjects = os.listdir('/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata')
     exp_design = '/home/rfpred/data/natural-scenes-dataset/nsddata/experiments/nsd/nsd_expdesign.mat'
@@ -58,27 +64,29 @@ def get_imgs_designmx():
     # Load MATLAB file
     mat_data = loadmat(exp_design)
 
-    # Order of the presented 30000 stimuli, first 1000 are shared between subjects, rest is randomized (1, 30000)
-    # The values take on values betweeon 0 and 1000
-    img_order = mat_data['masterordering']-1
-
+    # Extract data from the loaded MATLAB file
     # The sequence of indices from the img_order list in which the images were presented to each subject (8, 10000)
-    # The first 1000 are identical, the other 9000 are randomly selected from the 73k image set. 
-    img_index_seq = (mat_data['subjectim'] - 1) # Change from matlab to python's 0-indexing
+    # The first 1000 are identical, the other 9000 are randomly selected from the 73k image set.
     
+    # Order of the presented 30000 stimuli, first 1000 are shared between subjects, rest is randomized (1, 30000)
+    # The values take on values betweeon 0 and 1000 
+    img_order = mat_data['masterordering'] - 1
+    img_index_seq = mat_data['subjectim'] - 1  # Change from MATLAB to Python's 0-indexing
+
     # Create design matrix for the subject-specific stimulus presentation order
     stims_design_mx = {}
-    stim_list = np.zeros((img_order.shape[1]))
-    for n_sub, subject in enumerate(sorted(subjects)):
     
-        for stim in range(0, img_order.shape[1]):
-            
-            idx = img_order[0,stim]
+    for n_sub, subject in enumerate(sorted(subjects)):
+        stim_list = np.zeros((img_order.shape[1]), dtype=int)  # Initialize a new stim_list for each subject
+        
+        for stim in range(img_order.shape[1]):
+            idx = img_order[0, stim]
             stim_list[stim] = img_index_seq[n_sub, idx]
             
-        stims_design_mx[subject] = stim_list.astype(int)
+        stims_design_mx[subject] = stim_list
     
-    return stims_design_mx
+    return stims_design_mx, mat_data
+
 
 # Get random design matrix to test other fuctions
 def get_random_designmx(idx_min = 0, idx_max = 40, n_img = 20):
@@ -292,7 +300,9 @@ def get_rms_contrast(ar_in,mask_w_in,rf_mask_in,normalise=True, plot = 'n'):
 
 # Function that calculates rms but based on a RGB to LAB conversion, which follows the CIELAB colour space
 # This aligns best with the way humans perceive visual input. 
-def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, full_array, normalise = True, plot = 'n', cmap = 'gist_gray', crop_prior:bool = False, crop_post:bool = False, save_plot:bool = False):
+def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, full_array, normalise = True, plot = 'n', 
+                         cmap = 'gist_gray', crop_prior:bool = False, crop_post:bool = False, 
+                         save_plot:bool = False):
     # Convert RGB image to LAB colour space
     lab_image = color.rgb2lab(rgb_image)
     
@@ -427,7 +437,6 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
                                 type = type, sigma_min=sigma_min, sigma_max=sigma_max, ecc_max = ecc_max,
                                 rand_seed = rand_seed, filter_dict = filter_dict, grid = grid)
 
-        
         x, y, sigma = prf_info['x'], prf_info['y'], prf_info['pix_radius']
         masked_arr = np.zeros(image.shape) # Create empty array for masked image
 
@@ -437,7 +446,6 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
             x = y = ((dim + 1) / 2)
             pix_radius = (ecc_max * (dim / 8.4))
 
-            
         if type == 'gaussian':
             prf_mask = make_gaussian_2d(dim, x, y, pix_radius)
         elif type == 'circle':
@@ -567,6 +575,67 @@ def get_betas(subjects, voxels, start_session, end_session, prf_region = 'center
         print('     - Back-up saved to beta_dict{start_session}_{end_session}.pkl\n')        
                 
     return beta_dict
+
+# This function is from the unet notebook, it is used to create the eval_mask
+def scale_square_mask(mask_in:np.ndarray, scale_fact=np.sqrt(1.5), mask_val=1, min_size=50):
+    """given a square mask, scale width and height with a given factor
+
+    in:
+    - mask_in: ndarray, (2d or 3d)
+        boolean-type mask image
+    - mask_val: float/int/bool (default:1)
+        the value to look for as the definition of in the circle of the mask.
+    - min_size: int
+        minimum size of the square mask.
+
+    out:
+    -scaled_mask: ndarray
+        like the square input mask, but now with a square outline around the mask
+    """
+
+
+    def _do_scaling(_mask_in:np.ndarray, scale_fact=np.sqrt(2), mask_val=1, min_size=50):
+        """inner function doing the actual scaling"""
+        mask_out=copy.deepcopy(_mask_in)
+        nz_rows,nz_cols=np.nonzero(_mask_in==mask_val)
+        nz_r,nz_c=np.unique(nz_rows),np.unique(nz_cols)
+        # determine square masks that spans the circle
+        width, height = nz_r[-1]-nz_r[0], nz_c[-1]-nz_c[0]
+
+        # make actual spanning mask a bit larger (delta determined by scale_fact or min_size)
+        ideal_delta_w = max(np.round(((width*scale_fact) - width)*.5), (min_size - width) // 2)
+        ideal_delta_h = max(np.round(((height*scale_fact) - height)*.5), (min_size - height) // 2)
+
+        # Adjust deltas based on mask's proximity to image borders
+        delta_w_left = min(ideal_delta_w, nz_c[0])
+        delta_w_right = min(ideal_delta_w, mask_out.shape[1] - nz_c[-1] - 1)
+        delta_h_top = min(ideal_delta_h, nz_r[0])
+        delta_h_bottom = min(ideal_delta_h, mask_out.shape[0] - nz_r[-1] - 1)
+
+        # If mask is near the border, expand on the other side
+        if delta_w_left < ideal_delta_w:
+            delta_w_right = max(ideal_delta_w * 2 - delta_w_left, delta_w_right)
+        if delta_w_right < ideal_delta_w:
+            delta_w_left = max(ideal_delta_w * 2 - delta_w_right, delta_w_left)
+        if delta_h_top < ideal_delta_h:
+            delta_h_bottom = max(ideal_delta_h * 2 - delta_h_top, delta_h_bottom)
+        if delta_h_bottom < ideal_delta_h:
+            delta_h_top = max(ideal_delta_h * 2 - delta_h_bottom, delta_h_top)
+
+        mask_out[int(nz_r[0]-delta_h_top):int(nz_r[-1]+delta_h_bottom),
+                 int(nz_c[0]-delta_w_left):int(nz_c[-1]+delta_w_right)] = mask_val
+        # set values to 1, square mask
+        return(mask_out)
+
+    # switch dealing with RGB [colmns,rows,colours] vs grayscale images [columns,rows]
+    if mask_in.ndim==3:
+        mask_scaled=_do_scaling(mask_in[:,:,0],scale_fact=scale_fact, mask_val=mask_val, min_size=min_size)
+        return(_make_img_3d(mask_scaled))
+    elif mask_in.ndim==2:
+        return(_do_scaling(mask_in, scale_fact=scale_fact, mask_val=mask_val, min_size=min_size))
+    else:
+        raise ValueError('can only understand 3d (RGB) or 2d array images!')
+
 
 # Function to load in a list of images and masks given a list of indices. Used to provide the right input
 # to the U-Net model. Option to give the mask location, the eccentricity of the mask, and the output format.

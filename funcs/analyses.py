@@ -125,6 +125,7 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
             
     return hrf_dict, voxdict_select, joint_voxels, size_selected_voxels
 
+
 def univariate_regression(X, y, z_scorey:bool = False, meancentery:bool = False):
     # Reshape X to (n_imgs, 1) if it's not already
     if X.ndim == 1:
@@ -151,6 +152,26 @@ def univariate_regression(X, y, z_scorey:bool = False, meancentery:bool = False)
     rsquared_value = model.score(X, y)
 
     return beta_value, intercept_value, rsquared_value, model, X, y
+
+
+
+def _get_coefs(X,y,model):
+    pass
+
+def _score_model(X,y,model):
+    
+    #
+    for cv_loop in cv():
+        x_train,x_test,y_train,y_test=this_cv 
+        
+        model.fit(x_train,y_train)
+        this_score=model.score(x_test,y_test)
+        scores.append(this_score)
+        pass
+    
+            
+    
+        
 
 def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool = False, fit_intercept:bool = False):
     # Reshape X to (n_imgs, 1) if it's not already

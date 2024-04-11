@@ -553,7 +553,7 @@ class AllPRFConsidered(Exception):
     pass
 
 def get_mask(dim = 200, subject = 'subj01', binary_masks = None, 
-             prf_proc_dict = None, type = 'full_gaussian', roi = 'V2', 
+             prf_proc_dict = None, type = 'full_gaussian', roi = 'V1', 
              plot = 'y', heatmap = 'n', prf_vec = None, iter = None, excl_reason = 'n', peri_info:bool = False,
              sigma_min = 0, sigma_max = 4.2, ecc_min = 0, ecc_max = 4.2, rand_seed = None, filter_dict = None, 
              ecc_strict = None, grid = 'n', fill_outline = 'n', min_overlap = 0, add_central_patch:bool = False,
