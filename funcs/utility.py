@@ -148,30 +148,45 @@ def hypotheses_plot():
     plt.show()
     
     
-# Turn a boolean nifti mask  or 3d
-def numpy2coords(boolean_array):
+def numpy2coords(boolean_array, keep_vals:bool = False):
     # Get the coordinates of the True values in the boolean array
-    coordinates = np.array(np.where(boolean_array)).T
+    coordinates = np.array(np.where(boolean_array))
+    
+    if keep_vals:
+        # Get the values at the coordinates
+        values = boolean_array[coordinates[0], coordinates[1], coordinates[2]]
+        
+        # Add the values as a fourth row to the coordinates
+        coordinates = np.vstack([coordinates, values])
+    
+    # Transpose the coordinates to get them in the correct shape
+    coordinates = coordinates.T
+    
     return coordinates
 
-def coords2numpy(coordinates, shape):
-    # Create a boolean array with the same shape as the original array
-    boolean_array = np.zeros(shape, dtype=bool)
-    # Set the coordinates to True
-    boolean_array[tuple(coordinates.T)] = True
-    return boolean_array
+def coords2numpy(coordinates, shape, keep_vals:bool = False):
+    # Create an array with the same shape as the original array
+    array = np.zeros(shape, dtype=float if keep_vals else bool)
+    
+    if keep_vals:
+        # Set the cells at the coordinates to their corresponding values
+        array[tuple(coordinates[:,:3].astype('int').T)] = coordinates[:,3]
+    else:
+        # Set the cells at the coordinates to True
+        array[tuple(coordinates.T)] = True
+    
+    return array
+
+def find_common_rows(values_array, mask_array, keep_vals:bool = False):
+    set1 = {tuple(row[:3]): row[3] for row in values_array}
+    set2 = set(map(tuple, mask_array[:,:3]))
+    common_rows = np.array([list(x) + ([set1[x]] if keep_vals else []) for x in set1.keys() & set2])
+    return common_rows    
 
 # Function to return the voxel coordinates based on the parameter represented in the 4th column
 def filter_array_by_size(array, size_min, size_max):
     filtered_array = array[(array[:, 3] >= size_min) & (array[:, 3] <= size_max)]
     return filtered_array
-
-# give new array that only contains the common rows, used for post hoc voxel selection.
-def find_common_rows(array1, array2):
-    set1 = set(map(tuple, array1[:,:3]))
-    set2 = set(map(tuple, array2[:,:3]))
-    common_rows = np.array([list(x) for x in set1 & set2])
-    return common_rows
 
 def ecc_angle_to_coords(ecc, angle, dim = 425):
     

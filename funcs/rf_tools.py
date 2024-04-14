@@ -326,12 +326,16 @@ def css_gaussian_cut(size, center_row, center_col, sigma):
     return gaussian
 
 # Function to create a list solely containing roi-based voxels
-def roi_filter(roi_mask, input_array):
+def roi_filter(roi_mask, input_array, nan2null:bool = False):
     roi_ices = np.argwhere(roi_mask != 0)
 
     # Create list that only contains the voxels of the specific roi
     roi_ar = np.column_stack((roi_ices, input_array[roi_ices[:, 0], roi_ices[:, 1], roi_ices[:, 2]]))
 
+
+    # Turn the nan values into zeros for the angle parameter
+    if nan2null:
+        output_roi = np.nan_to_num(roi_ar, nan=0)
     # Filter away the nan values
     output_roi = roi_ar[~np.isnan(roi_ar).any(axis=1)]
 
