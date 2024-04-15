@@ -29,18 +29,6 @@ def get_zscore(data, print_ars = 'y'):
         
     return z_scores
 
-def cap_values(array, threshold):
-    # Identify values above the threshold
-    above_threshold = array > threshold
-
-    # Identify the highest value below the threshold
-    highest_below_threshold = array[array <= threshold].max()
-
-    # Replace values above the threshold with the highest value below the threshold
-    array[above_threshold] = highest_below_threshold
-
-    return array
-
 def cap_values(array = None, lower_threshold = None, upper_threshold = None):
     
     if upper_threshold is None:

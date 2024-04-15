@@ -561,12 +561,17 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
              plot = 'y', heatmap = 'n', prf_vec = None, iter = None, excl_reason = 'n', peri_info:bool = False,
              sigma_min = 0, sigma_max = 4.2, ecc_min = 0, ecc_max = 4.2, rand_seed = None, filter_dict = None, 
              ecc_strict = None, grid = 'n', fill_outline = 'n', min_overlap = 0, add_central_patch:bool = False,
-             peripheral_center = None, peri_angle_ecc = None, angle_min = 0, angle_max = 360, patch_radius = 1):
+             peripheral_center = None, peri_angle_ecc = None, angle_min = 0, angle_max = 360, patch_radius = 1,
+             prfR2_min = 0, nsdR2_min = 0):
 
     if rand_seed == None:
         random.seed(random.randint(1, 1000000))
     else:
         random.seed(rand_seed)
+    
+    # Get the nsd R-squared values, in addition to the prf R-squareds
+    R2_dict = nsd_R2_dict(binary_masks)
+
     
     degrees_per_pixel = 8.4 / dim
     bin_prf = region_patch = None
@@ -619,7 +624,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
     
     # Create objects for all the required pRF data
     roi_mask_data = prf_proc_dict[subject]['proc'][f'{roi}_mask']
-    angle_roi, ecc_roi, expt_roi, size_roi, rsq_roi= roi_mask_data['angle'], roi_mask_data['eccentricity'], roi_mask_data['exponent'], roi_mask_data['size'], roi_mask_data['R2']
+    angle_roi, ecc_roi, expt_roi, size_roi, rsq_roi, gain_roi, meanvol_roi = roi_mask_data['angle'], roi_mask_data['eccentricity'], roi_mask_data['exponent'], roi_mask_data['size'], roi_mask_data['R2'], roi_mask_data['gain'], roi_mask_data['meanvol']
 
     # Define a mask to filter away data rows based on the filter_dict, which is supposed to be
     # a dictionary that includes a subset of filtered values for every subject, roi, based on
@@ -644,9 +649,9 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         n = prf_vec[iter]
         iter += 1
 
-        prf_angle, prf_ecc, prf_expt, prf_size, prf_rsq = angle_roi[mask][n][3], ecc_roi[mask][n][3], expt_roi[mask][n][3], size_roi[mask][n][3], rsq_roi[mask][n][3]
+        prf_angle, prf_ecc, prf_expt, prf_size, prf_rsq, prf_gain, prf_meanvol = angle_roi[mask][n][3], ecc_roi[mask][n][3], expt_roi[mask][n][3], size_roi[mask][n][3], rsq_roi[mask][n][3], gain_roi[mask][n][3], meanvol_roi[mask][n][3]
         x_vox, y_vox, z_vox = int(angle_roi[mask][n][0]), int(angle_roi[mask][n][1]), int(angle_roi[mask][n][2])
-
+        nsdR2 = R2_dict[subject]['full_R2']['R2_ar'][x_vox,y_vox,z_vox]
         sigma = prf_size * np.sqrt(prf_expt)
         sigma_pure = sigma * (dim / 8.4)
         outer_bound = inner_bound = prf_ecc
@@ -682,7 +687,9 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
             outer_bound < ecc_max,
             ecc_min < inner_bound,
             prf_ecc > ecc_min,
-            angle_min < prf_angle < angle_max            
+            angle_min < prf_angle < angle_max,
+            nsdR2 > nsdR2_min,
+            prf_rsq > prfR2_min            
             )
 
 
@@ -732,6 +739,10 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
                 print(f"   -  pRF does not overlap enough with central patch: {prop_in_patch}% of required {min_overlap}%")
             if not valid_conditions[6]:
                 print(f"   -  pRF angle not within predetermined range of {angle_min}° to {angle_max}°")
+            if not valid_conditions[7]:
+                print(f"   -  This voxel's NSD R-squared does not explain more than {nsdR2_min}% of the fMRI signal variance")
+            if not valid_conditions[7]:
+                print(f"   -  This voxel's pRF R-squared does not explain more than {nsdR2_min}% of the fMRI signal variance")
             # if not valid_conditions[4]:
             #     print("   - expt_ar value too small")
 
@@ -772,7 +783,10 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
                     f'Angle: {round(prf_angle, 2)}°\nEccentricity: {round(prf_ecc, 2)}°\n'
                     f'Exponent: {round(prf_expt, 2)}\nSize: {round(prf_size, 2)}°\n'
                     f'Explained pRF variance (R2): {round(prf_rsq, 2)}%\n'
-                    f'pRF proportion inside central {2 * ecc_max}° patch: {round(prop_in_patch, 2)}%')
+                    f'pRF proportion inside central {2 * ecc_max}° patch: {round(prop_in_patch, 2)}%\n'
+                    f'NSD R-squared: {round(nsdR2, 2)}%\n'
+                    f'pRF R-squared: {round(prf_rsq, 2)}%\n'
+                    f'pRF Gain: {round((prf_gain / prf_meanvol) *100, 2)}% BOLD\n')
         ax.set_xlabel('Horizontal Degrees of Visual Angle')
         ax.set_ylabel('Vertical Degrees of Visual Angle')
 
