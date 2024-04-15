@@ -458,8 +458,6 @@ def get_hrf_dict(subjects, voxels):
             
     return hrf_dict
 
-
-
 def regression_dict(subject, feat_type, voxels, hrfs, feat_vals, n_imgs = 'all'):
     reg_dict = {}
     # Set the amount of images to regress over in case all images are available.

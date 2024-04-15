@@ -41,6 +41,34 @@ def cap_values(array, threshold):
 
     return array
 
+def cap_values(array = None, lower_threshold = None, upper_threshold = None):
+    
+    if upper_threshold is None:
+        upper_threshold = np.max(array)
+    else:
+        # Identify values above the upper threshold
+        above_upper_threshold = array > upper_threshold
+        
+        # Identify the highest value below the upper threshold
+        highest_below_upper_threshold = array[array <= upper_threshold].max()
+
+        # Replace values above the upper threshold with the highest value below the upper threshold
+        array[above_upper_threshold] = highest_below_upper_threshold
+
+    if lower_threshold is None:
+        lower_threshold = np.min(array)
+    else:
+        # Identify values below the lower threshold
+        below_lower_threshold = array < lower_threshold
+
+        # Identify the lowest value above the lower threshold
+        lowest_above_lower_threshold = array[array >= lower_threshold].min()
+
+        # Replace values below the lower threshold with the lowest value above the lower threshold
+        array[below_lower_threshold] = lowest_above_lower_threshold
+
+    return array
+
 def mean_center(data, print_ars = 'y'):
     mean_value = np.mean(data)
 
