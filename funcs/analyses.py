@@ -48,20 +48,27 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
                 voxel_mask = voxels[subject][roi] # These is the boolean mask for the specific subject, roi
                 if vox_n_cutoff == None:
                     vox_n_cutoff = numpy2coords(voxel_mask).shape[0]
+                    print(f'vox_n_cutoff: {vox_n_cutoff}')
                 if min_size != None and max_size != None:
-                    preselect_voxels = numpy2coords(voxel_mask)
+                    preselect_voxels = numpy2coords(voxel_mask, keep_vals = True)
+                    print(f'Shape of preselected voxels : {preselect_voxels.shape}')
                     size_selected_voxels = filter_array_by_size(prf_proc_dict[subject]['proc'][roi]['size'], min_size, max_size)
-
-                    joint_voxels = find_common_rows(preselect_voxels, size_selected_voxels)[:vox_n_cutoff,:] # This cutoff is to allow for checking whether the amount of voxels per category matters (peripher/central)
+                    print(f'Shape of size selected voxels: {size_selected_voxels.shape}')
+                    # joint_ar = find_common_rows(preselect_voxels, size_selected_voxels, keep_vals = True)
+                    joint_ar = find_common_rows(size_selected_voxels, preselect_voxels, keep_vals = True)
                     
-                    voxel_mask = coords2numpy(joint_voxels, voxels['subj01']['V1_mask'].shape) * 1
+                    joint_voxels = joint_ar[:vox_n_cutoff,:3] # This cutoff is to allow for checking whether the amount of voxels per category matters (peripher/central)
+                    print(f'shape of joint_voxels : {joint_voxels.shape}')
+                    voxel_mask = coords2numpy(joint_voxels, voxels['subj01']['V1_mask'].shape, keep_vals = False) * 1
                     
-                    # Acquire the specific RF sizes for inspection, plots.
-                    vox_slct = joint_voxels.reshape(-1, 1, joint_voxels.shape[1])
-                    sizes_reshape = size_selected_voxels[:, :3].reshape(1, -1, size_selected_voxels.shape[1]-1)
-                    equal_rows = np.all(vox_slct == sizes_reshape, axis = 2)
-                    matching_rows = np.any(equal_rows, axis=0)
-                    size_slct = size_selected_voxels[matching_rows]
+                    size_slct = joint_ar[:,3]
+                    print(f'this is the size _slct thing:{size_slct}')
+                    # # Acquire the specific RF sizes for inspection, plots.
+                    # vox_slct = joint_voxels.reshape(-1, 1, joint_voxels.shape[1])
+                    # sizes_reshape = size_selected_voxels[:, :3].reshape(1, -1, size_selected_voxels.shape[1]-1)
+                    # equal_rows = np.all(vox_slct == sizes_reshape, axis = 2)
+                    # matching_rows = np.any(equal_rows, axis=0)
+                    # size_slct = size_selected_voxels[matching_rows]
                     
                 voxdict_select[subject][roi] = voxel_mask
                 n_voxels = numpy2coords(voxel_mask).shape[0]
@@ -80,7 +87,8 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
                         total_betas = hrf_betas_ses
                         hrf_dict[subject][roi][f'voxel{voxel+1}'] = {
                             'xyz': list(vox_indices[voxel]),
-                            'size': size_slct[voxel][3],
+                            # 'size': size_slct[voxel][3],
+                            'size': size_slct[voxel],
                             'hrf_betas': total_betas,
                             'hrf_betas_z': 0,
                             'hrf_rsquared': 0,
@@ -94,7 +102,8 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
                              
                     hrf_dict[subject][roi][f'voxel{voxel+1}'] = {
                         'xyz': list(vox_indices[voxel]),
-                        'size': size_slct[voxel][3],
+                        # 'size': size_slct[voxel][3],
+                        'size': size_slct[voxel],
                         'hrf_betas': total_betas,
                         'hrf_betas_z': 0,
                         'hrf_rsquared': 0,
@@ -110,7 +119,8 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
         axs = axs.flatten()  # Flatten the 2D array of axes to 1D for easier indexing
         cmap = plt.get_cmap('ocean')  # Get the 'viridis' color map
         for i, roi in enumerate(rois):
-            sizes = hrf_dict[subject][roi]['roi_sizes'][:, 3]
+            # sizes = hrf_dict[subject][roi]['roi_sizes'][:, 3]
+            sizes = hrf_dict[subject][roi]['roi_sizes']
             color = cmap(i / len(rois))  # Get a color from the color map
             sns.histplot(sizes, kde=True, ax=axs[i], color=color, bins = 100)  # Plot on the i-th subplot
             axs[i].set_title(f'RF sizes for {roi[:2]} (n={sizes.shape[0]})')  # Include the number of voxels in the title

@@ -189,13 +189,16 @@ def coords2numpy(coordinates, shape, keep_vals:bool = False):
         array[tuple(coordinates[:,:3].astype('int').T)] = coordinates[:,3]
     else:
         # Set the cells at the coordinates to True
-        array[tuple(coordinates.T)] = True
+        # array[tuple(coordinates.T)] = True
+                array[tuple(coordinates[:,:3].astype('int').T)] = True
     
     return array
 
 def find_common_rows(values_array, mask_array, keep_vals:bool = False):
-    set1 = {tuple(row[:3]): row[3] for row in values_array}
-    set2 = set(map(tuple, mask_array[:,:3]))
+    cols_vals = values_array.shape[1] - 1
+    cols_mask = mask_array.shape[1] - 1
+    set1 = {tuple(row[:cols_vals]): row[cols_vals] for row in values_array}
+    set2 = set(map(tuple, mask_array[:,:cols_mask]))
     common_rows = np.array([list(x) + ([set1[x]] if keep_vals else []) for x in set1.keys() & set2])
     return common_rows    
 
