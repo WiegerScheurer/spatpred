@@ -189,8 +189,9 @@ def coords2numpy(coordinates, shape, keep_vals:bool = False):
         array[tuple(coordinates[:,:3].astype('int').T)] = coordinates[:,3]
     else:
         # Set the cells at the coordinates to True
+        # if coordinates
         # array[tuple(coordinates.T)] = True
-                array[tuple(coordinates[:,:3].astype('int').T)] = True
+            array[tuple(coordinates[:,:3].astype('int').T)] = True
     
     return array
 
@@ -199,8 +200,24 @@ def find_common_rows(values_array, mask_array, keep_vals:bool = False):
     cols_mask = mask_array.shape[1] - 1
     set1 = {tuple(row[:cols_vals]): row[cols_vals] for row in values_array}
     set2 = set(map(tuple, mask_array[:,:cols_mask]))
+    
     common_rows = np.array([list(x) + ([set1[x]] if keep_vals else []) for x in set1.keys() & set2])
     return common_rows    
+
+def _sort_by_column(array, column_index, top_n):
+    # Get the column
+    column = array[:, column_index]
+
+    # Get the indices that would sort the column
+    sorted_indices = np.argsort(column)
+
+    # Reverse the indices to sort in descending order and get the top_n indices
+    top_indices = sorted_indices[::-1][:top_n]
+
+    # Sort the entire array by these indices
+    sorted_array = array[top_indices]
+
+    return sorted_array
 
 # Function to return the voxel coordinates based on the parameter represented in the 4th column
 def filter_array_by_size(array, size_min, size_max):

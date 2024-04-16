@@ -48,21 +48,22 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
                 voxel_mask = voxels[subject][roi] # These is the boolean mask for the specific subject, roi
                 if vox_n_cutoff == None:
                     vox_n_cutoff = numpy2coords(voxel_mask).shape[0]
-                    print(f'vox_n_cutoff: {vox_n_cutoff}')
+                    
                 if min_size != None and max_size != None:
                     preselect_voxels = numpy2coords(voxel_mask, keep_vals = True)
-                    print(f'Shape of preselected voxels : {preselect_voxels.shape}')
+                    
                     size_selected_voxels = filter_array_by_size(prf_proc_dict[subject]['proc'][roi]['size'], min_size, max_size)
-                    print(f'Shape of size selected voxels: {size_selected_voxels.shape}')
+                    
                     # joint_ar = find_common_rows(preselect_voxels, size_selected_voxels, keep_vals = True)
                     joint_ar = find_common_rows(size_selected_voxels, preselect_voxels, keep_vals = True)
                     
                     joint_voxels = joint_ar[:vox_n_cutoff,:3] # This cutoff is to allow for checking whether the amount of voxels per category matters (peripher/central)
-                    print(f'shape of joint_voxels : {joint_voxels.shape}')
+                    
                     voxel_mask = coords2numpy(joint_voxels, voxels['subj01']['V1_mask'].shape, keep_vals = False) * 1
                     
                     size_slct = joint_ar[:,3]
-                    print(f'this is the size _slct thing:{size_slct}')
+                    
+                    # Delete this:::
                     # # Acquire the specific RF sizes for inspection, plots.
                     # vox_slct = joint_voxels.reshape(-1, 1, joint_voxels.shape[1])
                     # sizes_reshape = size_selected_voxels[:, :3].reshape(1, -1, size_selected_voxels.shape[1]-1)
@@ -72,7 +73,7 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
                     
                 voxdict_select[subject][roi] = voxel_mask
                 n_voxels = numpy2coords(voxel_mask).shape[0]
-                print(f'\tAmount of voxels: {n_voxels}')
+                print(f'\tAmount of voxels in {roi[:2]}: {n_voxels}')
 
                 vox_indices = np.zeros([n_voxels, 3], dtype = int) # Initiate an empty array to store vox indices
                 hrf_dict[subject][roi]['roi_sizes'] = size_slct
@@ -163,8 +164,8 @@ def univariate_regression(X, y, z_scorey:bool = False, meancentery:bool = False)
 
     return beta_value, intercept_value, rsquared_value, model, X, y
 
-
-
+##############################
+# This is what Micha wrote for the example pseudocode:
 def _get_coefs(X,y,model):
     pass
 
@@ -180,7 +181,7 @@ def _score_model(X,y,model):
         pass
     
             
-    
+    #################################
         
 
 def multivariate_regression(X, y_matrix, z_scorey:bool = False, meancentery:bool = False, fit_intercept:bool = False):
