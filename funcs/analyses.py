@@ -38,6 +38,8 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
             with open(f'/home/rfpred/data/custom_files/{subject}/{prf_region}/{file_name}', 'rb') as fp:
                 beta_session = pickle.load(fp)
             
+            
+            
             rois = list(beta_session[subject].keys())
 
             if n_file == 0:
@@ -83,6 +85,7 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
                 # for voxel in range(len(beta_session[subject][roi])):
                 for voxel in range(n_voxels):
                     hrf_betas_ses = copy.deepcopy(beta_session[subject][roi][f'voxel{voxel + 1}'])
+                    # hrf_betas_ses = (beta_session[subject][roi][f'voxel{voxel + 1}'])
                     
                     if n_file == 0:
                         total_betas = hrf_betas_ses
@@ -97,8 +100,8 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
                         }
                              
                     else: 
-                        old_betas = hrf_dict[subject][roi][f'voxel{voxel + 1}']['hrf_betas']
-                        hrf_dict[subject][roi][f'voxel{voxel + 1}']['hrf_betas']
+                        old_betas = copy.deepcopy(hrf_dict[subject][roi][f'voxel{voxel + 1}']['hrf_betas'])
+                        # hrf_dict[subject][roi][f'voxel{voxel + 1}']['hrf_betas']
                         total_betas = np.append(old_betas, hrf_betas_ses)   
                              
                     hrf_dict[subject][roi][f'voxel{voxel+1}'] = {
@@ -134,9 +137,8 @@ def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, 
         pickle.dump(hrf_dict, fp)
     
             
-    return hrf_dict, voxdict_select, joint_voxels, size_selected_voxels
-
-
+    return hrf_dict, voxdict_select, joint_voxels, size_selected_voxels, beta_session
+   
 def univariate_regression(X, y, z_scorey:bool = False, meancentery:bool = False):
     # Reshape X to (n_imgs, 1) if it's not already
     if X.ndim == 1:

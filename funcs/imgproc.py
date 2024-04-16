@@ -509,57 +509,112 @@ def get_img_prf(image, x = None, y = None, sigma = None, type = 'gaussian', heat
 # Importantly, it allows working with the data without crashing (though only for max 3 sessions at a time). 
 # It loads in the nifti files, extracts the required data, overwrites it.
 
-def get_betas(subjects, voxels, start_session, end_session, prf_region = 'center'):
+# def get_betas(subjects, voxels, start_session, end_session, prf_region = 'center'):
+#     beta_dict = {}
+    
+#     if subjects == 'all':
+#         subjects = [f'subj{i:02d}' for i in range(1, 9)]
+#     else:
+#         subjects = [subjects]
+#     for subject in subjects:
+#         beta_dict[subject] = {}
+        
+#         rois = list(voxels[subject].keys())
+
+#         hrf_betas = {}
+        
+#         for session in range(start_session, end_session + 1):
+#             session += 1
+#             if session < 10:
+#                 session_str = f'0{session}'
+#             else: session_str = f'{session}'
+            
+#             # session_nifti = betas_ses1 # Uncomment to check functionality of the code, if betas_ses1 has been loaded before.
+#             session_nifti = (nib.load(f'/home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/betas_session{session_str}.nii.gz')).get_fdata(caching = 'unchanged')
+#             n_imgs = session_nifti.shape[3]
+        
+#             print(f'Working on session: {session} of subject: {subject}')
+#             for roi in rois: 
+                
+#                 if session == (start_session + 1):
+#                     hrf_betas[roi] = {}
+#                     # beta_dict[subject][roi] = {}
+        
+#                 voxel_mask = voxels[subject][roi] # These is the boolean mask for the specific subject, roi
+#                 n_voxels = np.sum(voxel_mask).astype('int') # This is the amount of voxels in this roi
+#                 vox_indices = np.zeros([n_voxels, voxel_mask.ndim], dtype = int) # Initiate an empty array to store vox indices                
+                
+#                 for coordinate in range(vox_indices.shape[1]): # Fill the array with the voxel coordinates as indices
+#                     vox_indices[:, coordinate] = np.where(voxel_mask == 1)[coordinate]
+                    
+#                 for voxel in range(n_voxels):
+#                     vox_idx = vox_indices[voxel] # Get the voxel indices for the current voxel
+                
+#                     hrf_betas_ses = (np.array(session_nifti[tuple(vox_idx)]).reshape(n_imgs, 1))/300
+                    
+#                     if session == (start_session + 1):
+#                         hrf_betas[roi][f'voxel{voxel + 1}'] = hrf_betas_ses
+#                     else:    
+#                         total_betas = np.append(hrf_betas[roi][f'voxel{voxel + 1}'], hrf_betas_ses)
+                        
+#                         hrf_betas[roi][f'voxel{voxel + 1}'] = total_betas
+                    
+#             with open('./data/custom_files/subj01/intermediate_hrf_save.pkl', 'wb') as fp:
+#                 pickle.dump(hrf_betas, fp)
+#                 print('     - Back-up saved to intermediate_hrf_save.pkl\n')
+                    
+#         beta_dict[subject] = hrf_betas               
+        
+#     with open(f'./data/custom_files/{subject}/beta_dict{start_session}_{end_session}_{prf_region}.pkl', 'wb') as fp:
+#         pickle.dump(beta_dict, fp)
+#         print('     - Back-up saved to beta_dict{start_session}_{end_session}.pkl\n')        
+                
+#     return beta_dict
+
+
+def get_betas(subjects, voxels, start_session, end_session, prf_region='center'):
     beta_dict = {}
     
     if subjects == 'all':
         subjects = [f'subj{i:02d}' for i in range(1, 9)]
     else:
         subjects = [subjects]
+    
     for subject in subjects:
         beta_dict[subject] = {}
-        
         rois = list(voxels[subject].keys())
-
         hrf_betas = {}
         
         for session in range(start_session, end_session + 1):
-            session += 1
-            if session < 10:
-                session_str = f'0{session}'
-            else: session_str = f'{session}'
-            
-            # session_nifti = betas_ses1 # Uncomment to check functionality of the code, if betas_ses1 has been loaded before.
-            session_nifti = (nib.load(f'/home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/betas_session{session_str}.nii.gz')).get_fdata(caching = 'unchanged')
+            session_str = f'{session:02d}'
+            session_nifti = nib.load(f'/home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/betas_session{session_str}.nii.gz').get_fdata(caching='unchanged')
             n_imgs = session_nifti.shape[3]
         
             print(f'Working on session: {session} of subject: {subject}')
-            for roi in rois: 
-                
-                if session == (start_session + 1):
+            for roi in rois:
+                if session == start_session:
                     hrf_betas[roi] = {}
-                    # beta_dict[subject][roi] = {}
-        
-                voxel_mask = voxels[subject][roi] # These is the boolean mask for the specific subject, roi
-                n_voxels = np.sum(voxel_mask).astype('int') # This is the amount of voxels in this roi
-                vox_indices = np.zeros([n_voxels, voxel_mask.ndim], dtype = int) # Initiate an empty array to store vox indices                
                 
-                for coordinate in range(vox_indices.shape[1]): # Fill the array with the voxel coordinates as indices
+                voxel_mask = voxels[subject][roi]
+                n_voxels = np.sum(voxel_mask).astype('int')
+                vox_indices = np.zeros([n_voxels, voxel_mask.ndim], dtype=int)
+                
+                for coordinate in range(vox_indices.shape[1]):
                     vox_indices[:, coordinate] = np.where(voxel_mask == 1)[coordinate]
-                    
-                for voxel in range(n_voxels):
-                    vox_idx = vox_indices[voxel] # Get the voxel indices for the current voxel
                 
-                    hrf_betas_ses = (np.array(session_nifti[tuple(vox_idx)]).reshape(n_imgs, 1))/300
+                for voxel in range(n_voxels):
+                    vox_idx = tuple(vox_indices[voxel])
+                    hrf_betas_ses = (np.array(session_nifti[vox_idx]).reshape(n_imgs, 1)) / 300
                     
-                    if session == (start_session + 1):
-                        hrf_betas[roi][f'voxel{voxel + 1}'] = hrf_betas_ses
-                    else:    
-                        total_betas = np.append(hrf_betas[roi][f'voxel{voxel + 1}'], hrf_betas_ses)
-                        
-                        hrf_betas[roi][f'voxel{voxel + 1}'] = total_betas
+                    if session == start_session:
+                        hrf_betas[roi][f'voxel{voxel + 1}'] = {
+                            'vox_idx': vox_idx,
+                            'beta_values': hrf_betas_ses
+                        }
+                    else:
+                        hrf_betas[roi][f'voxel{voxel + 1}']['beta_values'] = np.append(hrf_betas[roi][f'voxel{voxel + 1}']['beta_values'], hrf_betas_ses)
                     
-            with open('./data/custom_files/subj01/intermediate_hrf_save.pkl', 'wb') as fp:
+            with open(f'./data/custom_files/{subject}/intermediate_hrf_save.pkl', 'wb') as fp:
                 pickle.dump(hrf_betas, fp)
                 print('     - Back-up saved to intermediate_hrf_save.pkl\n')
                     
@@ -567,9 +622,11 @@ def get_betas(subjects, voxels, start_session, end_session, prf_region = 'center
         
     with open(f'./data/custom_files/{subject}/beta_dict{start_session}_{end_session}_{prf_region}.pkl', 'wb') as fp:
         pickle.dump(beta_dict, fp)
-        print('     - Back-up saved to beta_dict{start_session}_{end_session}.pkl\n')        
-                
+        print(f'     - Back-up saved to beta_dict{start_session}_{end_session}_{prf_region}.pkl\n')        
+        
     return beta_dict
+
+
 
 # This function is from the unet notebook, it is used to create the eval_mask
 def scale_square_mask(mask_in:np.ndarray, scale_fact=np.sqrt(1.5), mask_val=1, min_size=50):
