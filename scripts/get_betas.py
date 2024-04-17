@@ -48,7 +48,7 @@ with open('./data/custom_files/subj01/prf_mask_periphery_strict.pkl', 'rb') as f
 
 
 
-central_betas_halfloose3 = get_betas('subj01', prf_mask_center_strict, 1, 2, prf_region = 'center_strict')
+central_betas_halfloose3 = get_betas('subj01', prf_mask_center_strict, 40, 40, prf_region = 'center_strict')
 
 print('soepje')
 
