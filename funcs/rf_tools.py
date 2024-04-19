@@ -25,7 +25,7 @@ import seaborn as sns
 import pprint as pprint
 from sklearn.linear_model import LinearRegression
 import copy
-from funcs.utility import print_dict_structure, print_large, ecc_angle_to_coords
+from funcs.utility import print_dict_structure, print_large, ecc_angle_to_coords, numpy2coords, coords2numpy, filter_array_by_size, find_common_rows
 from scipy.ndimage import binary_dilation
 
 
@@ -75,6 +75,118 @@ def calculate_pRF_location(prf_size, prf_ecc, prf_angle, image_size=(200, 200), 
     c_index = (image_size[1] + 1) / 2 + (prf_ecc * np.cos(np.radians(prf_angle)) * (image_size[0] / visual_angle_extent))
     
     return sigma_px, r_index, c_index
+
+ # This is basically what is also present inside the get_mask function, but now it just gives you a list of voxels       
+def find_top_vox(subject = 'subj01', roi = 'V1', n_voxels = None, prf_dict = None, vismask_dict = None, 
+                 min_size = 0, max_size = 4.2, min_prf_R2 = 0, min_hrf_R2 = 0, min_ecc = 0, max_ecc = 1):
+    roi_voxels = numpy2coords(vismask_dict[subject][f'{roi}_mask'], keep_vals = False)
+    prf_pars = (list(prf_dict['subj01']['proc']['V1_mask'].keys())[:-1])
+    R2_dict = nsd_R2_dict(vismask_dict, glm_type = 'hrf')
+    brain_shape = vismask_dict[subject][f'{roi}_mask'].shape
+
+    if n_voxels == None or n_voxels == 'all':
+        max_voxels = np.sum(vismask_dict[subject][f'{roi}_mask'])
+    else: max_voxels = n_voxels
+
+    top_vox_dict = {}
+    voxel_count = 0
+    for n_vox, these_coords in enumerate(roi_voxels):
+        these_coords = list(these_coords)
+        voxel_pars = {}
+        voxel_pars['xyz'] = these_coords
+        voxel_pars['roi'] = roi
+        for prf_par in prf_pars:
+            prf_par_vals = prf_dict[subject]['nsd_dat'][prf_par]['prf_ar'][these_coords[0], these_coords[1], these_coords[2]]
+            voxel_pars[prf_par] = prf_par_vals
+        # Also add the NSD Rsquared value to the dict.
+        voxel_pars['nsdR2'] = R2_dict[subject]['full_R2']['R2_ar'][these_coords[0], these_coords[1], these_coords[2]]
+        
+        # Check if the voxel parameters meet the conditions
+        if (min_ecc <= voxel_pars['eccentricity']+(voxel_pars['size']/2) <= max_ecc and
+            min_size <= voxel_pars['size'] <= max_size and
+            min_prf_R2 <= voxel_pars['R2'] and
+            min_hrf_R2 <= voxel_pars['nsdR2']):
+            top_vox_dict[f'voxel{voxel_count}'] = voxel_pars
+            voxel_count += 1
+            if voxel_count >= max_voxels:  # Stop after finding 10 voxels
+                break
+
+
+    print(f'Found {voxel_count} voxels in {roi}')
+    return top_vox_dict
+
+# Simple function to plot a specific voxel from the top_vox_dict, vox_dict_item ought to be the same
+# type of dict object returned by the find_top_vox() function.
+def plot_top_vox(dim = 425, vox_dict_item = None, type:str = None, add_central_patch:bool = False, 
+                  outline_rad = 1):
+    
+    # Get the coordinate indices of the voxel
+    x_vox, y_vox, z_vox = [vox_dict_item['xyz'][i] for i in range(3)]
+    prf_size = vox_dict_item['size']
+    prf_angle = vox_dict_item['angle']
+    prf_ecc = vox_dict_item['eccentricity']
+    prf_expt = vox_dict_item['exponent']
+    prf_gain = vox_dict_item['gain']
+    prf_rsq = vox_dict_item['R2']
+    nsdR2 = vox_dict_item['nsdR2']
+    prf_meanvol = vox_dict_item['meanvol']
+    roi = vox_dict_item['roi']
+    
+    # Calculate the radius
+    sigma = prf_size * np.sqrt(prf_expt)
+    sigma_pure = sigma * (dim / 8.4)
+    
+    # Get the 2d coordinates of the pRF
+    y = ((1 + dim) / 2) - (prf_ecc * np.sin(np.radians(prf_angle)) * (dim / 8.4)) #y in pix (c_index)
+    x = ((1 + dim) / 2) + (prf_ecc * np.cos(np.radians(prf_angle)) * (dim / 8.4)) #x in pix (r_index)
+
+    if type == 'circle' or type == 'gaussian':
+        deg_radius = sigma
+        pix_radius = sigma_pure
+    elif type == 'cut_gaussian' or type == 'full_gaussian' or type == 'outline':
+        deg_radius = prf_size
+        pix_radius = prf_size * (dim / 8.4)
+
+
+    # Note: all the masks are made using pixel values for x, y, and sigma
+    # Check whether the same is done later on, in the heatmaps and get_img_prf.
+    if type == 'gaussian':
+        prf_mask = make_gaussian_2d(dim, x, y, sigma_pure)
+    elif type == 'circle':
+        prf_mask = make_circle_mask(dim, x, y, sigma_pure)
+    elif type == 'full_gaussian':
+        prf_mask = make_gaussian_2d(dim, x, y, prf_size * (dim / 8.4))
+    elif type == 'cut_gaussian':
+        prf_mask = css_gaussian_cut(dim, x, y, prf_size * (dim / 8.4))
+    else:
+        raise ValueError(f"Invalid type: {type}. Available mask types are 'gaussian','circle','full_gaussian','cut_gaussian'.")
+    
+    central_patch = 0
+    if add_central_patch:
+        central_patch = make_circle_mask(dim, ((dim+2)/2), ((dim+2)/2), outline_rad * (dim / 8.4), fill = 'n')
+
+    # Convert pixel indices to degrees of visual angle
+    degrees_per_pixel = 8.4 / dim
+    x_deg = (x - ((dim + 2) / 2)) * degrees_per_pixel
+    y_deg = (((dim + 2) / 2) - y) * degrees_per_pixel
+    
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.imshow((prf_mask + central_patch), cmap='bone', origin='upper', extent=[-4.2, 4.2, -4.2, 4.2])
+    ax.set_title(f'Region Of Interest: {roi}\n'
+                f'Voxel: [{x_vox}, {y_vox}, {z_vox}]\n'
+                f'pRF x,y,σ: {round(x_deg, 1), round(y_deg, 1), round(deg_radius, 1)}\n'
+                f'Angle: {round(prf_angle, 2)}°\nEccentricity: {round(prf_ecc, 2)}°\n'
+                f'Exponent: {round(prf_expt, 2)}\nSize: {round(prf_size, 2)}°\n'
+                f'Explained pRF variance (R2): {round(prf_rsq, 2)}%\n'
+                f'NSD R-squared: {round(nsdR2, 2)}%\n'
+                f'pRF R-squared: {round(prf_rsq, 2)}%\n'
+                f'pRF Gain: {round((prf_gain / prf_meanvol) *100, 2)}% BOLD\n')
+    ax.set_xlabel('Horizontal Degrees of Visual Angle')
+    ax.set_ylabel('Vertical Degrees of Visual Angle')
+
+    # Set ticks at every 0.1 step
+    ax.xaxis.set_major_locator(MultipleLocator(0.5))
+    ax.yaxis.set_major_locator(MultipleLocator(0.5))
 
 def prf_plots_new(subj_no, bottom_percent=95):
     prf_info = ['angle', 'eccentricity', 'size']
@@ -224,7 +336,15 @@ def make_visrois_dict(vox_count = 'n', bin_check = 'n', n_subjects = None):
     return binary_masks
 
 # Function to create a dictionary containing all the R2 explained variance data of the NSD experiment, could also be turned into a general dict-making func
-def nsd_R2_dict(binary_masks = None):
+def nsd_R2_dict(binary_masks = None, glm_type = 'hrf'):
+    
+    """
+    Function to get voxel specific R squared values of the NSD.
+    The binary masks argument takes the binary masks of the visual rois as input.
+    The glm_type argument specifies the type of glm used, either 'hrf' or 'onoff'.
+    
+    """
+    
     n_subjects = len(os.listdir('/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata'))
     subject_list = [f'subj{i:02d}' for i in range(1, n_subjects + 1)] 
 
@@ -238,8 +358,10 @@ def nsd_R2_dict(binary_masks = None):
         
         # Create list for all visual rois
         roi_list = list(binary_masks[subject].keys())
-
-        nsd_R2_path = f'/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata/{subject}/func1mm/R2.nii.gz'
+        if glm_type == 'onoff':
+            nsd_R2_path = f'/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata/{subject}/func1mm/R2.nii.gz'
+        elif glm_type == 'hrf':
+            nsd_R2_path = f'/home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/R2.nii.gz'
         nsd_R2_dat, nsd_R2_ar, nsd_R2_dim, nsd_R2_range = get_dat(nsd_R2_path)
         nsd_R2_dict[subject]['full_R2'] = {
                 'R2_dat': nsd_R2_dat,
