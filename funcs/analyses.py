@@ -6,9 +6,30 @@ import pandas as pd
 import copy
 import os
 import pickle
+import nibabel as nib
 from matplotlib.colors import LinearSegmentedColormap
 from sklearn.linear_model import LinearRegression
 from funcs.utility import numpy2coords, coords2numpy, filter_array_by_size, find_common_rows, get_zscore, mean_center, print_dict_structure
+
+# This function is dangerous, it should not be applied to the full dataset, but a subset of it.
+# is not yet adapted to the right input
+def _scale_betas(session_betas=None):
+    # check if session_betas is a nifti file
+    if type(session_betas) == str:
+        session_np = nib.load(session_betas).get_fdata(caching='unchanged')
+    else:
+        session_np = session_betas
+
+    # scale the beta values
+    session_np = session_np / 300
+
+    # Divide every voxel over their grand mean across all sessions for that specific voxel
+    voxel_means = np.mean(session_np, axis=3, keepdims=True)
+    session_np = session_np / voxel_means
+
+    return session_np
+
+
 # Function to create a dictionary containing all the relevant HRF signal info for the relevant voxels.
 def get_hrf_dict(subjects, voxels, prf_region = 'center_strict', min_size = .1, max_size = 1, 
                  prf_proc_dict = None, vox_n_cutoff = None, plot_sizes = 'n'):
