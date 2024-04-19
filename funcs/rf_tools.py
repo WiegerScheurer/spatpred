@@ -421,6 +421,21 @@ def rsquare_selection(input_dict = None, top_n = 1000, n_subjects = None, datase
         rsq_dict[f'subj0{subj_no}'] = subj_rsq
     return rsq_dict
         
+# This function is capable of figuring out what the best top R2 selection is for a specific roi   
+def _optimize_rsquare(R2_dict_hrf, subject, dataset, this_roi, R2_threshold, stepsize):
+    top_n = 1000
+    while True:
+        top_n += stepsize
+        print(f'The top{top_n} R2 values are now included')
+        highR2 = rsquare_selection(R2_dict_hrf, top_n, n_subjects=n_subjects, dataset=dataset)
+        lowest_val = highR2[subject][this_roi][0,3]
+        print(lowest_val)
+        if lowest_val < R2_threshold:
+            break
+    # Return the optimal top_n value, which is one less than the value that caused lowest_val to fall below R2_threshold
+    return top_n - 1
+
+
 
 # Function to create the Gaussian image
 def make_gaussian_2d(size, center_row, center_col, sigma):
@@ -466,6 +481,8 @@ def css_gaussian_cut(size, center_row, center_col, sigma):
     gaussian = np.exp(exponent)
     gaussian *= mask
     return gaussian
+
+
 
 # Function to create a list solely containing roi-based voxels
 def roi_filter(roi_mask, input_array, nan2null:bool = False):
