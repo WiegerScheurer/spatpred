@@ -42,9 +42,36 @@ def get_dat(path):
 
     return full_dat, dat_array, dat_dim, {'min': round(np.nanmin(flat_arr),7), 'max': np.nanmax(flat_arr), 'mean': round(np.nanmean(flat_arr),5)}
   
-# Function to binarize a list of non binary masks, by providing both the directory
-# in which theses masks are located, and the mask names in the form of a list. 
-# Need to make sure the file loading works the same as it did in colab.
+def make_visrois_dict(vox_count = 'n', bin_check = 'n', n_subjects = None):
+    binary_masks = {}
+
+    for subj_no in range(1, n_subjects + 1):
+        print(f'Subject {subj_no}')
+        mask_dir = f'/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata/subj0{subj_no}/func1mm/roi'
+
+        # read in and sort all the filenames in the mapped masks folder for each subject
+        
+        non_binary_masks = sorted([file for file in os.listdir(mask_dir) if '_mask.nii' in file])
+        subj_binary_masks = {}
+
+        for idx, mask_file in enumerate(non_binary_masks):
+            # Load the mask file
+            subj_binary_masks[non_binary_masks[idx][:-7]] = (nib.load(os.path.join(mask_dir, mask_file)).get_fdata()).astype(int)
+
+        if vox_count == 'y':
+            for key, subj_binary_mask in subj_binary_masks.items():
+                print(key)
+                print(f"Non-zero voxels in {key}: {np.sum(subj_binary_mask)}")
+
+        # Print the maximum value of each binary mask for verification
+        if bin_check == 'y':
+            for key, subj_binary_mask in subj_binary_masks.items():
+                print(f"{key}: {np.max(subj_binary_mask)}")
+
+        binary_masks[f'subj0{subj_no}'] = subj_binary_masks
+
+
+    return binary_masks
 
 
 def calculate_sigma(eccentricity, angle, visual_stimulus_size=8.4):
@@ -118,19 +145,35 @@ def find_top_vox(subject = 'subj01', roi = 'V1', n_voxels = None, prf_dict = Non
 # Simple function to plot a specific voxel from the top_vox_dict, vox_dict_item ought to be the same
 # type of dict object returned by the find_top_vox() function.
 def plot_top_vox(dim = 425, vox_dict_item = None, type:str = None, add_central_patch:bool = False, 
-                  outline_rad = 1):
+                  outline_rad = 1, xyz_only = None, subject = None, prf_dict = None, vismask_dict = None):
     
-    # Get the coordinate indices of the voxel
-    x_vox, y_vox, z_vox = [vox_dict_item['xyz'][i] for i in range(3)]
-    prf_size = vox_dict_item['size']
-    prf_angle = vox_dict_item['angle']
-    prf_ecc = vox_dict_item['eccentricity']
-    prf_expt = vox_dict_item['exponent']
-    prf_gain = vox_dict_item['gain']
-    prf_rsq = vox_dict_item['R2']
-    nsdR2 = vox_dict_item['nsdR2']
-    prf_meanvol = vox_dict_item['meanvol']
-    roi = vox_dict_item['roi']
+    if xyz_only is not None:
+        xyz_only = tuple(xyz_only)
+        R2_dict = nsd_R2_dict(vismask_dict, glm_type = 'hrf')
+
+        x_vox, y_vox, z_vox = [xyz_only[i] for i in range(3)]
+        prf_size = prf_dict[subject]['nsd_dat']['size']['prf_ar'][xyz_only]
+        prf_angle = prf_dict[subject]['nsd_dat']['angle']['prf_ar'][xyz_only]
+        prf_ecc = prf_dict[subject]['nsd_dat']['eccentricity']['prf_ar'][xyz_only]
+        prf_expt = prf_dict[subject]['nsd_dat']['exponent']['prf_ar'][xyz_only]
+        prf_gain = prf_dict[subject]['nsd_dat']['gain']['prf_ar'][xyz_only]
+        prf_rsq = prf_dict[subject]['nsd_dat']['R2']['prf_ar'][xyz_only]
+        nsdR2 = R2_dict[subject]['full_R2']['R2_ar'][xyz_only]
+        prf_meanvol = prf_dict[subject]['nsd_dat']['meanvol']['prf_ar'][xyz_only]
+        roi = find_roi(vismask_dict, subject, xyz_only)
+    else:
+                
+        # Get the coordinate indices of the voxel
+        x_vox, y_vox, z_vox = [vox_dict_item['xyz'][i] for i in range(3)]
+        prf_size = vox_dict_item['size']
+        prf_angle = vox_dict_item['angle']
+        prf_ecc = vox_dict_item['eccentricity']
+        prf_expt = vox_dict_item['exponent']
+        prf_gain = vox_dict_item['gain']
+        prf_rsq = vox_dict_item['R2']
+        nsdR2 = vox_dict_item['nsdR2']
+        prf_meanvol = vox_dict_item['meanvol']
+        roi = vox_dict_item['roi']
     
     # Calculate the radius
     sigma = prf_size * np.sqrt(prf_expt)
@@ -304,36 +347,13 @@ def prf_plots(subj_no, bottom_percent=95):
     
     return prf_dict
 
-def make_visrois_dict(vox_count = 'n', bin_check = 'n', n_subjects = None):
-    binary_masks = {}
 
-    for subj_no in range(1, n_subjects + 1):
-        print(f'Subject {subj_no}')
-        mask_dir = f'/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata/subj0{subj_no}/func1mm/roi'
-
-        # read in and sort all the filenames in the mapped masks folder for each subject
-        
-        non_binary_masks = sorted([file for file in os.listdir(mask_dir) if '_mask.nii' in file])
-        subj_binary_masks = {}
-
-        for idx, mask_file in enumerate(non_binary_masks):
-            # Load the mask file
-            subj_binary_masks[non_binary_masks[idx][:-7]] = (nib.load(os.path.join(mask_dir, mask_file)).get_fdata()).astype(int)
-
-        if vox_count == 'y':
-            for key, subj_binary_mask in subj_binary_masks.items():
-                print(key)
-                print(f"Non-zero voxels in {key}: {np.sum(subj_binary_mask)}")
-
-        # Print the maximum value of each binary mask for verification
-        if bin_check == 'y':
-            for key, subj_binary_mask in subj_binary_masks.items():
-                print(f"{key}: {np.max(subj_binary_mask)}")
-
-        binary_masks[f'subj0{subj_no}'] = subj_binary_masks
-
-
-    return binary_masks
+# Simple function to get the roi of a specific voxel, given its coordinates, a subject, and the binary vismask_dict
+def find_roi(vismask_dict, subj, voxel_coords):
+    for roi in vismask_dict[subj].keys():
+        if vismask_dict[subj][roi][voxel_coords] != 0:
+            return roi
+    return None
 
 # Function to create a dictionary containing all the R2 explained variance data of the NSD experiment, could also be turned into a general dict-making func
 def nsd_R2_dict(binary_masks = None, glm_type = 'hrf'):

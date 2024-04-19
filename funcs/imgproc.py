@@ -587,6 +587,7 @@ def get_betas(subjects, voxels, start_session, end_session, prf_region='center')
         
         for session in range(start_session, end_session + 1):
             session_str = f'{session:02d}'
+            # This is actually not a nifti, because I do get_fdata
             session_nifti = nib.load(f'/home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/betas_session{session_str}.nii.gz').get_fdata(caching='unchanged')
             n_imgs = session_nifti.shape[3]
         
