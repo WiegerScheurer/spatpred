@@ -427,7 +427,7 @@ def _optimize_rsquare(R2_dict_hrf, subject, dataset, this_roi, R2_threshold, ste
     while True:
         top_n += stepsize
         print(f'The top{top_n} R2 values are now included')
-        highR2 = rsquare_selection(R2_dict_hrf, top_n, n_subjects=n_subjects, dataset=dataset)
+        highR2 = rsquare_selection(R2_dict_hrf, top_n, n_subjects=8, dataset=dataset)
         lowest_val = highR2[subject][this_roi][0,3]
         print(lowest_val)
         if lowest_val < R2_threshold:
