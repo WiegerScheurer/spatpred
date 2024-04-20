@@ -232,3 +232,18 @@ def ecc_angle_to_coords(ecc, angle, dim = 425):
     x = ecc * np.cos(np.radians(angle))
     y = ecc * np.sin(np.radians(angle))
     return x, y
+
+
+def _get_voxname_for_xyz(xyz_to_voxname, x, y, z):
+    # Create a boolean mask that is True for rows where the first three columns match val1, val2, val3
+    mask = (xyz_to_voxname[:, 0] == x) & (xyz_to_voxname[:, 1] == y) & (xyz_to_voxname[:, 2] == z)
+
+    # Use the mask to select the matching row(s) and the fourth column
+    voxname = xyz_to_voxname[mask, 3]
+
+    # If there is only one matching row, voxname will be a one-element array
+    # You can get the element itself with:
+    if voxname.size == 1:
+        voxname = voxname[0]
+
+    return voxname

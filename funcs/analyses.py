@@ -30,7 +30,7 @@ def _scale_betas(session_betas=None):
 
     return session_np
 
-
+# This function figures out how many of the voxels in an roi are worth looking at, given a R2 value threshold
 def _optimize_rsquare(R2_dict_hrf, subject, dataset, this_roi, R2_threshold, verbose:int, stepsize):
     top_n = 1
     while True:
@@ -146,6 +146,11 @@ def get_hrf_dict(subjects, voxels, prf_region='center_strict', min_size=0.1, max
 
             mean_betas = np.zeros((final_R2_vals.shape))
             
+            xyz_to_name_roi = np.hstack((find_vox_ar[:,:3].astype('int'), find_vox_ar[:,4].reshape(-1,1)))
+            if n_roi == 0:
+                xyz_to_name = xyz_to_name_roi
+            else: xyz_to_name = np.vstack((xyz_to_name, xyz_to_name_roi))
+            
             # Check whether the entire fourth column is now non-zero:
             if verbose:
                 print(f'\tChecking if all selected voxels are present in beta session file: {np.all(find_vox_ar[:, 4] != 0)}\n')
@@ -153,7 +158,7 @@ def get_hrf_dict(subjects, voxels, prf_region='center_strict', min_size=0.1, max
                 # Get the xyz coordinates of the voxel
                 vox_xyz = find_vox_ar[vox_no, :3]
                 vox_name = find_vox_ar[vox_no, 4]
-                xyz_to_name = np.hstack((vox_xyz.astype('int'), vox_name))
+                
                 if verbose:
                     print(f'This is voxel numero: {vox_no}')
                     print(f'The voxel xyz are {vox_xyz}')
@@ -211,26 +216,9 @@ def get_hrf_dict(subjects, voxels, prf_region='center_strict', min_size=0.1, max
             sns.histplot(sizes, kde=True, ax=axs[i], color=color, bins = 10)  # Plot on the i-th subplot
             axs[i].set_title(f'RF sizes for {roi[:2]} (n={sizes.shape[0]})')  # Include the number of voxels in the title
             axs[i].set_xlim([min_size-.1, max_size+.1])  # Set the x-axis limit from 0 to 2
-        fig.suptitle(f'{prf_region}', fontsize=18)
-        plt.tight_layout()
-        plt.show()
-        
-    import re
-    xyz_to_voxname = {tuple(vox['xyz']): name for name, vox in hrf_dict[subject][rois[0]].items()}
-    # Example string
-    s = 'voxel130'
 
-    # Use regex to find the numerical values after 'voxel'
-    match = re.search('voxel(\d+)', s)
-
-    if match:
-        # If a match is found, group(1) will return the first group in the match, which is the numerical value
-        num = int(match.group(1))
-        print(num)    
-            
-    
-                
-    return hrf_dict, find_vox_ar
+                            
+    return hrf_dict, xyz_to_name
 
 
 def univariate_regression(X, y, z_scorey:bool = False, meancentery:bool = False):

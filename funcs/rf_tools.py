@@ -25,7 +25,9 @@ import seaborn as sns
 import pprint as pprint
 from sklearn.linear_model import LinearRegression
 import copy
-from funcs.utility import print_dict_structure, print_large, ecc_angle_to_coords, numpy2coords, coords2numpy, filter_array_by_size, find_common_rows, _sort_by_column
+from funcs.utility import (print_dict_structure, print_large, ecc_angle_to_coords, 
+                           numpy2coords, coords2numpy, filter_array_by_size, find_common_rows, 
+                           _sort_by_column, _get_voxname_for_xyz)
 from scipy.ndimage import binary_dilation
 
 
@@ -232,8 +234,8 @@ def plot_top_vox(dim = 425, vox_dict_item = None, type:str = None, add_central_p
     ax.yaxis.set_major_locator(MultipleLocator(0.5))
 
 # Get some good voxels that tick all the boxes of the selection procedure (location, size, R2)
-def get_good_voxel(subject=None, roi:str=None, hrf_dict=None, pick_manually=None, 
-                   plot:bool=True, prf_dict=None, vismask_dict=None,
+def get_good_voxel(subject=None, roi:str=None, hrf_dict=None, xyz_to_voxname=None,
+                   pick_manually=None, plot:bool=True, prf_dict=None, vismask_dict=None,
                    selection_basis:str='R2'):
     """
     Description:
@@ -242,6 +244,7 @@ def get_good_voxel(subject=None, roi:str=None, hrf_dict=None, pick_manually=None
         subject = the subject to use
         roi = the region of interest for which to find a good voxel
         hrf_dict = the corresponding hrf dictionary created using get_hrf_dict()
+        xyz_to_voxname = the corresponding xyz to voxname array given by get_hrf_dict()
         pick_manually = optional argument to manually select one of the top voxels regarding R2 value, takes None or integer value
                         which then selects a specific voxel from high to low (so 0 selects the optimal R2/prfsize/meanbeta voxel)
         plot = option to plot
@@ -262,12 +265,14 @@ def get_good_voxel(subject=None, roi:str=None, hrf_dict=None, pick_manually=None
     else: which = random.randint(1, hrf_dict[subject][f'{roi}_mask'][select_values].shape[0])
     indices = tuple(_sort_by_column(hrf_dict[subject][f'{roi}_mask'][select_values], 3, top_n = 100000)[which,:3].astype('int')) 
     
+    voxelname = _get_voxname_for_xyz(xyz_to_voxname, indices[0], indices[1], indices[2])
+    
     if plot:
         plot_top_vox(dim = 425, vox_dict_item = None, type = 'cut_gaussian', 
                     add_central_patch = True, outline_rad = 1, xyz_only = indices, 
                     subject = subject, prf_dict = prf_dict, vismask_dict = vismask_dict)
         
-    return indices
+    return indices, voxelname
 
 
 def prf_plots_new(subj_no, bottom_percent=95):
@@ -461,20 +466,20 @@ def rsquare_selection(input_dict = None, top_n = 1000, n_subjects = None, datase
     return rsq_dict
         
 # This function is capable of figuring out what the best top R2 selection is for a specific roi   
-def _optimize_rsquare(R2_dict_hrf, subject, dataset, this_roi, R2_threshold, stepsize):
-    top_n = 1000
+def _optimize_rsquare(R2_dict_hrf, subject, dataset, this_roi, R2_threshold, verbose:int, stepsize):
+    top_n = 1
     while True:
         top_n += stepsize
-        print(f'The top{top_n} R2 values are now included')
+        if verbose:
+            print(f'The top{top_n} R2 values are now included')
         highR2 = rsquare_selection(R2_dict_hrf, top_n, n_subjects=8, dataset=dataset)
         lowest_val = highR2[subject][this_roi][0,3]
-        print(lowest_val)
+        if verbose:
+            print(lowest_val)
         if lowest_val < R2_threshold:
             break
     # Return the optimal top_n value, which is one less than the value that caused lowest_val to fall below R2_threshold
     return top_n - 1
-
-
 
 # Function to create the Gaussian image
 def make_gaussian_2d(size, center_row, center_col, sigma):
