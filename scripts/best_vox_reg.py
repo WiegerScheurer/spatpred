@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 
@@ -101,16 +103,113 @@ with open('./data/custom_files/subj01/prf_mask_periphery_strict.pkl', 'rb') as f
 # prf_rsq_dict_mapped = coords2numpy(prf_rsq_dict['subj01']['V1_mask'], shape = vismask_dict['subj01']['V1_mask'].shape, keep_vals = True)
 # nsd_rsq_dict_hrf = rsquare_selection(R2_dict_hrf, 1000, n_subjects = n_subjects, dataset = 'nsd')
 # nsd_rsq_dict_onoff = rsquare_selection(R2_dict_onoff, 1000, n_subjects = n_subjects, dataset = 'nsd')
+
     
+    
+# Get the betas
 hrf_dict_tight, xyz_to_name  = get_hrf_dict('subj01', voxels = prf_mask_center_strict, prf_region = 'center_strict', 
                                              min_size = .2, max_size = 1, prf_proc_dict = prf_dict, max_voxels = 100 ,plot_sizes = 'y',
                                              vismask_dict = vismask_dict, minimumR2 =50)
 
-vox_xyz, voxname = get_good_voxel(subject='subj01', roi='V2', hrf_dict=hrf_dict_tight, xyz_to_voxname=xyz_to_name, 
-                                  pick_manually=0, plot=True, prf_dict=prf_dict, vismask_dict=vismask_dict,selection_basis='R2')
 
-print(f'This is the voxel name: {voxname}')  
+# Define the X matrices
 
+# Get some visual feat values for these specific trials
+Xrms = visfeats_rms_crop_prior['subj01']['rms']['rms_z']
+Xce = visfeats_scce['subj01']['scce']['ce_z']
+Xce_l = visfeats_scce_large['subj01']['scce']['ce_z']
+Xsc = visfeats_scce['subj01']['scce']['sc_z']
+Xsc_l = visfeats_scce_large['subj01']['scce']['sc_z']
+Xvisfeats = np.vstack((Xrms, Xce, Xsc, Xsc_l))
+# Define the feature names
+feature_names = [
+    'content_loss_0_MSE', 'content_loss_1_MSE', 'content_loss_2_MSE', 'content_loss_3_MSE', 'content_loss_4_MSE',
+    'content_loss_0_L1', 'content_loss_1_L1', 'content_loss_2_L1', 'content_loss_3_L1', 'content_loss_4_L1',
+    'pixel_loss_MSE', 'pixel_loss_L1', 'ssim'
+]
+
+# Initialize a dictionary to store the z scores
+Xpred_dict = {}
+
+# Calculate the z score for each feature
+for feature in feature_names:
+    Xpred_dict[feature] = get_zscore(predfeats[feature], print_ars = 'n')
+
+# Convert the dictionary to a numpy array
+Xpred = np.array(list(Xpred_dict.values()))
+
+# for i in range(Xpred.shape[0]):
+#     plt.plot(get_zscore(predfeats[f'content_loss_{i}_{loss}'][:n_trials], print_ars = 'n'), label=f'content_loss_{i}_MSE')
+# 
+# plt.legend()  # Display the legend
+# plt.show()  # Display the plot    
+# Initialize a dictionary to store the R^2 values
+r2_values = {}
+for this_roi in hrf_dict_tight['subj01'].keys():
+    r2_values[this_roi] = {}
+    print(f'Now running regressions for {this_roi[:2]}')
+    for this_voxel in range(hrf_dict_tight['subj01'][this_roi]['R2_vals'].shape[0]):
+        print(f'Now running regressions for {this_voxel}')
+
+        vox_xyz, voxname = get_good_voxel(subject='subj01', roi=this_roi[:2], hrf_dict=hrf_dict_tight, xyz_to_voxname=xyz_to_name, 
+                                        pick_manually=this_voxel, plot=True, prf_dict=prf_dict, vismask_dict=vismask_dict,selection_basis='R2')
+        # good ones for V1: 2,3,6 (0.14)
+
+        y = hrf_dict_tight['subj01'][f'{this_roi[:2]}_mask'][voxname]['hrf_betas_z']
+
+
+        # Assuming Xpred and y are already defined in your workspace
+
+        # Reshape X and y to 2D arrays because sklearn expects 2D inputs
+        X = Xpred.T
+        # X = Xvisfeats.T
+
+        # Create a PLSRegression and LinearRegression objects
+        PLSmodel = PLSRegression(n_components=X.shape[1])
+        OLSmodel = LinearRegression()
+
+        # Fit the models to the data
+        PLSmodel.fit(X, y)
+        OLSmodel.fit(X, y)
+
+        # Use the models to predict y values
+        y_hat_PLS = PLSmodel.predict(X)
+        y_hat_OLS = OLSmodel.predict(X)
+
+        # Perform 5-fold cross-validation and get predicted y values
+        kf = KFold(n_splits=2)
+        y_hat_cv_PLS = cross_val_predict(PLSmodel, X, y, cv=kf)
+        y_hat_cv_OLS = cross_val_predict(OLSmodel, X, y, cv=kf)
+
+        # Calculate and print the R-squared values for PLS and OLS models
+        r2_PLS = r2_score(y, y_hat_PLS)
+        r2_OLS = r2_score(y, y_hat_OLS)
+        print(f"PLS R-squared: {r2_PLS:.3f}")
+        print(f"OLS R-squared: {r2_OLS:.3f}")
+
+        # Calculate the R-squared values for cross-validated PLS and OLS models
+        r2_cv_PLS = r2_score(y, y_hat_cv_PLS)
+        r2_cv_OLS = r2_score(y, y_hat_cv_OLS)
+        print(f"Cross-validated PLS R-squared: {r2_cv_PLS:.3f}")
+        print(f"Cross-validated OLS R-squared: {r2_cv_OLS:.3f}\n")
+        
+        # Store the R^2 values in the dictionary
+        r2_values[this_roi][this_voxel] = {
+            'voxelname': voxname,
+            'voxel_xyz': vox_xyz,
+            'PLS': r2_PLS,
+            'OLS': r2_OLS,
+            'Cross-validated PLS': r2_cv_PLS,
+            'Cross-validated OLS': r2_cv_OLS
+        }
+
+# Save the R^2 values to a file
+with open('/home/rfpred/data/custom_files/subj01/center_strict/test_r2_values.pkl', 'wb') as f:
+    pickle.dump(r2_values, f)
     
+print(f'Regressions completed and R^2 values saved to /home/rfpred/data/custom_files/subj01/center_strict/test_r2_values.pkl')
+
+
+
 
 
