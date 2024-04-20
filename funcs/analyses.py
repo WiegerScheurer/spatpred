@@ -124,8 +124,8 @@ def get_hrf_dict(subjects, voxels, prf_region='center_strict', min_size=0.1, max
                 # Convert array of voxel indices to a set of tuples for faster lookup
                 array_vox_indices_set = set(map(tuple, array_vox_indices))
 
-                # Create a new column filled with zeros, to later fill with the voxelnames in the betasession files
-                new_column = np.zeros((size_selected_voxels_cut.shape[0], 1))
+                # Create a new column filled with zeros, to later fill with the voxelnames in the betasession files, and meanbeta values
+                new_column = unscaled_betas = np.zeros((size_selected_voxels_cut.shape[0], 1))
 
                 # Add the new column to the right of size_selected_voxels_cut
                 find_vox_ar = np.c_[size_selected_voxels_cut, new_column].astype(object)
@@ -144,6 +144,8 @@ def get_hrf_dict(subjects, voxels, prf_region='center_strict', min_size=0.1, max
                             # Set the last column of the matching row to voxel
                             find_vox_ar[matching_rows, -1] = voxel
 
+            mean_betas = np.zeros((final_R2_vals.shape))
+            
             # Check whether the entire fourth column is now non-zero:
             if verbose:
                 print(f'\tChecking if all selected voxels are present in beta session file: {np.all(find_vox_ar[:, 4] != 0)}\n')
@@ -151,6 +153,7 @@ def get_hrf_dict(subjects, voxels, prf_region='center_strict', min_size=0.1, max
                 # Get the xyz coordinates of the voxel
                 vox_xyz = find_vox_ar[vox_no, :3]
                 vox_name = find_vox_ar[vox_no, 4]
+                xyz_to_name = np.hstack((vox_xyz.astype('int'), vox_name))
                 if verbose:
                     print(f'This is voxel numero: {vox_no}')
                     print(f'The voxel xyz are {vox_xyz}')
@@ -160,16 +163,37 @@ def get_hrf_dict(subjects, voxels, prf_region='center_strict', min_size=0.1, max
                     if verbose:
                         print(f"There are {len(session_data[roi]['voxel1']['beta_values'])} in this beta batch")
                     these_betas = session_data[roi][vox_name]['beta_values']
-                    hrf_betas.extend(these_betas)
+                    # Flatten the numpy array and convert it to a list before extending hrf_betas
+                    hrf_betas.extend(these_betas.flatten().tolist())
+                
+                # Reshape hrf betas into 40 batches of 750 values
+                betas_reshaped = np.array(hrf_betas).reshape(-1, 750) #, np.array(hrf_betas).shape[1])
 
+                # Initialize an empty array to store the z-scores
+                betas_normalised = np.empty_like(betas_reshaped)
+
+                # Calculate the z-scores for each batch
+                for i in range(betas_reshaped.shape[0]):
+                    betas_mean = np.mean(betas_reshaped[i])
+                    betas_normalised[i] = get_zscore(((betas_reshaped[i] / betas_mean) * 100), print_ars='n')
+
+                # Flatten z_scores back into original shape
+                hrf_betas_z = betas_normalised.flatten()
+                mean_beta = np.mean(hrf_betas_z)
                 hrf_dict[subject][roi][vox_name] = {
                     'xyz': list(vox_xyz.astype('int')),
                     'size': size_selected_voxels_cut[vox_no,3],
+                    'R2': final_R2_vals[vox_no,3],
                     'hrf_betas': hrf_betas,
-                    'hrf_betas_z': 0,
-                    'hrf_rsquared': 0,
-                    'hrf_rsquared_z': 0
-                }
+                    'hrf_betas_z': hrf_betas_z,
+                    'mean_beta': mean_beta
+                    }
+                unscaled_betas[vox_no] = mean_beta
+            mean_betas[:, :3] = size_selected_voxels_cut[:,:3]
+            mean_betas[:, 3] = get_zscore(unscaled_betas, print_ars='n').flatten()
+            
+            hrf_dict[subject][roi]['mean_betas'] = mean_betas # Store the mean_beta values for each voxel in the roi
+
 
             n_betas = len(hrf_dict[subject][roi][vox_name]['hrf_betas'])
             if verbose:
@@ -190,8 +214,24 @@ def get_hrf_dict(subjects, voxels, prf_region='center_strict', min_size=0.1, max
         fig.suptitle(f'{prf_region}', fontsize=18)
         plt.tight_layout()
         plt.show()
+        
+    import re
+    xyz_to_voxname = {tuple(vox['xyz']): name for name, vox in hrf_dict[subject][rois[0]].items()}
+    # Example string
+    s = 'voxel130'
+
+    # Use regex to find the numerical values after 'voxel'
+    match = re.search('voxel(\d+)', s)
+
+    if match:
+        # If a match is found, group(1) will return the first group in the match, which is the numerical value
+        num = int(match.group(1))
+        print(num)    
+            
+    
                 
     return hrf_dict, find_vox_ar
+
 
 def univariate_regression(X, y, z_scorey:bool = False, meancentery:bool = False):
     # Reshape X to (n_imgs, 1) if it's not already

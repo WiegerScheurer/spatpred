@@ -25,7 +25,7 @@ import seaborn as sns
 import pprint as pprint
 from sklearn.linear_model import LinearRegression
 import copy
-from funcs.utility import print_dict_structure, print_large, ecc_angle_to_coords, numpy2coords, coords2numpy, filter_array_by_size, find_common_rows
+from funcs.utility import print_dict_structure, print_large, ecc_angle_to_coords, numpy2coords, coords2numpy, filter_array_by_size, find_common_rows, _sort_by_column
 from scipy.ndimage import binary_dilation
 
 
@@ -230,6 +230,45 @@ def plot_top_vox(dim = 425, vox_dict_item = None, type:str = None, add_central_p
     # Set ticks at every 0.1 step
     ax.xaxis.set_major_locator(MultipleLocator(0.5))
     ax.yaxis.set_major_locator(MultipleLocator(0.5))
+
+# Get some good voxels that tick all the boxes of the selection procedure (location, size, R2)
+def get_good_voxel(subject=None, roi:str=None, hrf_dict=None, pick_manually=None, 
+                   plot:bool=True, prf_dict=None, vismask_dict=None,
+                   selection_basis:str='R2'):
+    """
+    Description:
+        This function picks out a good voxel based on the R2/prfsize/meanbeta score of the HRF fits in the NSD.
+    Arguments:
+        subject = the subject to use
+        roi = the region of interest for which to find a good voxel
+        hrf_dict = the corresponding hrf dictionary created using get_hrf_dict()
+        pick_manually = optional argument to manually select one of the top voxels regarding R2 value, takes None or integer value
+                        which then selects a specific voxel from high to low (so 0 selects the optimal R2/prfsize/meanbeta voxel)
+        plot = option to plot
+        prf_dict = dictionary with population receptive field information
+        vismask_dict = dictionary with visual cortex masks for the subjects, rois
+        selection_basis = either 'R2', 'prfsize', or 'meanbeta'. Determines on what values the selection is based.
+    """
+    
+    if selection_basis == 'R2':
+        select_values = 'R2_vals'
+    elif selection_basis == 'meanbeta':
+        select_values = 'mean_betas'
+    elif selection_basis == 'prfsize':
+        select_values = 'roi_sizes'
+    
+    if pick_manually is not None:
+        which = pick_manually
+    else: which = random.randint(1, hrf_dict[subject][f'{roi}_mask'][select_values].shape[0])
+    indices = tuple(_sort_by_column(hrf_dict[subject][f'{roi}_mask'][select_values], 3, top_n = 100000)[which,:3].astype('int')) 
+    
+    if plot:
+        plot_top_vox(dim = 425, vox_dict_item = None, type = 'cut_gaussian', 
+                    add_central_patch = True, outline_rad = 1, xyz_only = indices, 
+                    subject = subject, prf_dict = prf_dict, vismask_dict = vismask_dict)
+        
+    return indices
+
 
 def prf_plots_new(subj_no, bottom_percent=95):
     prf_info = ['angle', 'eccentricity', 'size']

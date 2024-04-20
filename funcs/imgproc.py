@@ -605,7 +605,7 @@ def get_betas(subjects, voxels, start_session, end_session, prf_region='center')
                 
                 for voxel in range(n_voxels):
                     vox_idx = tuple(vox_indices[voxel])
-                    hrf_betas_ses = (np.array(session_nifti[vox_idx]).reshape(n_imgs, 1)) / 300
+                    hrf_betas_ses = (np.array(session_nifti[vox_idx]).reshape(n_imgs, 1)) / 300 # Step 1 of normalisation
                     
                     if session == start_session:
                         hrf_betas[roi][f'voxel{voxel + 1}'] = {
