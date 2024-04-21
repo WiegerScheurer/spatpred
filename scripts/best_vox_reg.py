@@ -2,7 +2,6 @@
 
 import os
 import sys
-
 import numpy as np
 import random
 import matplotlib.pyplot as plt
@@ -27,8 +26,6 @@ sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
 
 print(sys.path)
-# %pwd
-
 
 from funcs.imgproc import (get_imgs_designmx, rms_all, feature_df, show_stim, get_rms_contrast, 
                            get_rms_contrast_lab, get_contrast_df, get_img_prf, get_visfeature_dict,
@@ -129,14 +126,14 @@ feature_names = [
 ]
 
 # Initialize a dictionary to store the z scores
-Xpred_dict = {}
+Xvisfeats_dict = {}
 
 # Calculate the z score for each feature
 for feature in feature_names:
-    Xpred_dict[feature] = get_zscore(predfeats[feature], print_ars = 'n')
+    Xvisfeats_dict[feature] = get_zscore(predfeats[feature], print_ars = 'n')
 
 # Convert the dictionary to a numpy array
-Xpred = np.array(list(Xpred_dict.values()))
+Xpred = np.array(list(Xvisfeats_dict.values()))
 
 # for i in range(Xpred.shape[0]):
 #     plt.plot(get_zscore(predfeats[f'content_loss_{i}_{loss}'][:n_trials], print_ars = 'n'), label=f'content_loss_{i}_MSE')
@@ -161,8 +158,8 @@ for this_roi in hrf_dict_tight['subj01'].keys():
         # Assuming Xpred and y are already defined in your workspace
 
         # Reshape X and y to 2D arrays because sklearn expects 2D inputs
-        X = Xpred.T
-        # X = Xvisfeats.T
+        # X = Xpred.T
+        X = Xvisfeats.T
 
         # Create a PLSRegression and LinearRegression objects
         PLSmodel = PLSRegression(n_components=X.shape[1])
@@ -204,10 +201,10 @@ for this_roi in hrf_dict_tight['subj01'].keys():
         }
 
 # Save the R^2 values to a file
-with open('/home/rfpred/data/custom_files/subj01/center_strict/test_r2_values.pkl', 'wb') as f:
+with open('/home/rfpred/data/custom_files/subj01/center_strict/r2_values_visfeats.pkl', 'wb') as f:
     pickle.dump(r2_values, f)
     
-print(f'Regressions completed and R^2 values saved to /home/rfpred/data/custom_files/subj01/center_strict/test_r2_values.pkl')
+print(f'Regressions completed and R^2 values saved to /home/rfpred/data/custom_files/subj01/center_strict/r2_values_visfeats.pkl')
 
 
 
