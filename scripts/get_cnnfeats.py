@@ -21,6 +21,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
+import scipy.stats.mstats as mstats
 
 
 os.chdir('/home/rfpred')
@@ -42,6 +43,11 @@ predparser.add_argument('subject', type=str, help='The subject to get the cnn la
 args = predparser.parse_args()
 
 print(args,'\n')
+
+
+# Winsorization
+def winsorize_data(data, lower_percentile=5, upper_percentile=95):
+    return mstats.winsorize(data, limits=[lower_percentile / 100., upper_percentile / 100.])
 
 
 # Load the pretrained AlexNet model
@@ -131,9 +137,10 @@ for i in range(5):
         # print("NaN values found in layer_features. Imputing with mean.")
         print("Still some NaNs in this shithole")
     layer_features = np.nan_to_num(layer_features)  # Replace NaN values with 0
+    layer_features_win = winsorize_data(layer_features, lower_percentile=5, upper_percentile=95)
     # Initialize and fit PCA for this layer
     pca = PCA(n_components=600, svd_solver='full')  # Adjust as needed
-    layer_features_pca = pca.fit_transform(layer_features)
+    layer_features_pca = pca.fit_transform(layer_features_win)
 
     pca_list.append(pca)  # Store the PCA object for later use
 
@@ -141,7 +148,7 @@ for i in range(5):
 print ("Finished performing PCA on all layers")
 
 # Initialize a new StandardScaler for each layer
-scaler_list = [StandardScaler() for _ in range(5)]
+# scaler_list = [StandardScaler() for _ in range(5)]
 
 # Get the PCs for each layer
 pcs_list = []
@@ -153,13 +160,15 @@ for i in range(5):
     scaler = scaler_list[i]
     print("Before scaling:", np.isnan(layer_features).any())
     layer_features = np.nan_to_num(layer_features)  # Replace NaN values with 0
+    layer_features_win = winsorize_data(layer_features, lower_percentile=5, upper_percentile=95)
 
-    layer_features_scaled = scaler.fit_transform(layer_features)
-    print("After scaling:", np.isnan(layer_features_scaled).any())
+    # layer_features_scaled = scaler.fit_transform(layer_features_win)
+    # print("After scaling:", np.isnan(layer_features_scaled).any())
     # Get the PCA object for this layer
     pca = pca_list[i]
     # Apply PCA to the scaled features
-    layer_features_pca = pca.transform(layer_features_scaled)
+    # layer_features_pca = pca.transform(layer_features_scaled)
+    layer_features_pca = pca.transform(layer_features)
     # Add the PCs to the list
     pcs_list.append(layer_features_pca)
     
