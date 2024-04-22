@@ -9,6 +9,7 @@ import sys
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+import torch
 import pandas as pd
 import torch
 import argparse
@@ -22,6 +23,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
 import scipy.stats.mstats as mstats
+torch.manual_seed(1)
+random.seed(1)
+np.random.seed(1)
 
 
 os.chdir('/home/rfpred')
@@ -64,7 +68,8 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, idx):
         img_id = self.image_ids[idx]
-        imgnp = show_stim(img_no=img_id, hide='y', small = 'y')[0][163:263,163:263]
+        imgnp = (show_stim(img_no=img_id, hide='y', small = 'y')[0][163:263,163:263])
+        
         imgPIL = Image.fromarray(imgnp) # Convert into PIL from np
 
         if self.transform:
@@ -72,16 +77,25 @@ class ImageDataset(Dataset):
 
         return imgPIL
     
+# preprocess = transforms.Compose([
+#     transforms.Resize(224),  # Resize the image to 227x227 pixels
+#     transforms.ToTensor(),
+#     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+# ])
+
 preprocess = transforms.Compose([
-    transforms.Resize(227),  # Resize the image to 227x227 pixels
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
+
 start = args.start
 end = args.end
+batch_size = 50
 image_ids = get_imgs_designmx()[args.subject][start:end]
 dataset = ImageDataset(image_ids, transform=preprocess)
-dataloader = DataLoader(dataset, batch_size=32, shuffle=False)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
 class AlexNetFeatureExtractorReLU(Module):
     def __init__(self, model):
@@ -92,6 +106,8 @@ class AlexNetFeatureExtractorReLU(Module):
         self.layer3 = torch.nn.Sequential(*list(self.features.children())[5:7])
         self.layer4 = torch.nn.Sequential(*list(self.features.children())[7:9])
         self.layer5 = torch.nn.Sequential(*list(self.features.children())[9:12])
+        
+
 
     def forward(self, x):
         x1 = self.layer1(x)
@@ -109,11 +125,30 @@ pca_feats_relu = AlexNetFeatureExtractorReLU(model)
 features = []
 batch_count = 0
 
+# for batch in dataloader:
+#     batch_count += 1
+#     print(f"Processing batch {batch_count} of {len(dataloader)}")
+
+#     img_tensor = (batch)  
+
+#     x1, x2, x3, x4, x5 = pca_feats_relu(img_tensor)
+        
+#     features.append((x1.view(x1.size(0), -1).detach().numpy(), 
+#                         x2.view(x2.size(0), -1).detach().numpy(), 
+#                         x3.view(x3.size(0), -1).detach().numpy(), 
+#                         x4.view(x4.size(0), -1).detach().numpy(), 
+#                         x5.view(x5.size(0), -1).detach().numpy()))
+
+
 for batch in dataloader:
     batch_count += 1
     print(f"Processing batch {batch_count} of {len(dataloader)}")
 
     img_tensor = (batch)  
+
+    # Check for NaN values in the input data
+    if torch.isnan(img_tensor).any():
+        print(f"\tBatch {batch_count} contains NaN values")
 
     x1, x2, x3, x4, x5 = pca_feats_relu(img_tensor)
         
@@ -125,6 +160,21 @@ for batch in dataloader:
 
 
 print("Finished processing all batches")
+
+for batch in range((end - start) // batch_size):
+    for layer in range(5):
+        max_val = np.round(np.max(features[batch][layer]), 3)
+        min_val = np.round(np.min(features[batch][layer]), 3)
+        zeros = round(np.count_nonzero(features[batch][layer] == 0), 3)
+        non_zeros = round(np.count_nonzero(features[batch][layer] != 0), 3)
+        percentage_zeros = round(np.count_nonzero(features[batch][layer] == 0) / features[batch][layer].size * 100, 3)
+        
+        print(f'Max value of batch {batch} layer {layer}: {max_val} min val: {min_val}')
+        print(f'Amount of zeros: {zeros}, amount of non-zeros: {non_zeros}')
+        print(f'Percentage of zeros: {round(percentage_zeros, 4)}%')
+        print(f'There are {np.isnan(features[batch][layer]).sum()} NaNs in this layer\n')
+
+
 ############OLDCODE
 pca_list = []  # List to store PCA objects for each layer
 
@@ -140,6 +190,7 @@ for i in range(5):
     layer_features_win = winsorize_data(layer_features, lower_percentile=5, upper_percentile=95)
     # Initialize and fit PCA for this layer
     pca = PCA(n_components=600, svd_solver='full')  # Adjust as needed
+    # pca = PCA(n_components=.95, svd_solver='full')  # Adjust as needed
     layer_features_pca = pca.fit_transform(layer_features_win)
 
     pca_list.append(pca)  # Store the PCA object for later use
@@ -157,7 +208,7 @@ for i in range(5):
     # Get the features of the i-th layer for all images
     layer_features = np.concatenate([feat[i] for feat in features], axis=0)
     # Fit and transform the StandardScaler on the features
-    scaler = scaler_list[i]
+    # scaler = scaler_list[i]
     print("Before scaling:", np.isnan(layer_features).any())
     layer_features = np.nan_to_num(layer_features)  # Replace NaN values with 0
     layer_features_win = winsorize_data(layer_features, lower_percentile=5, upper_percentile=95)

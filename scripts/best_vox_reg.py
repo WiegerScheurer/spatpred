@@ -14,11 +14,11 @@ from importlib import reload
 import h5py
 from nilearn import plotting
 import nibabel as nib
-from sklearn.cross_decomposition import PLSRegression
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import KFold, cross_val_predict
 from sklearn.metrics import r2_score
+from sklearn.linear_model import LinearRegression, Lasso, Ridge
 
 os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred')
@@ -135,6 +135,40 @@ for feature in feature_names:
 # Convert the dictionary to a numpy array
 Xpred = np.array(list(Xvisfeats_dict.values()))
 
+prf_region = 'center_strict'
+subject = 'subj01'  # Define the subject
+
+# Initialize a dictionary to store the data for each layer
+cnn_feats = {f'layer{i}': [] for i in range(5)}
+
+# Loop over the files in the directory
+for n_file, file_name in enumerate(sorted(os.listdir(f'/home/rfpred/data/custom_files/{subject}/{prf_region}/'))):
+    if file_name.startswith("cnn_pcs") and file_name.endswith(".npz"):
+        # Load the data from the .npz file
+        data = np.load(f'/home/rfpred/data/custom_files/{subject}/{prf_region}/{file_name}')
+        
+        
+        # Append the data for each layer to the corresponding list in the dictionary
+        for layer in range(5):
+            for batch in range(0, data[f'arr_{layer}'].shape[0], 50):
+                data_norm = get_zscore(data[f'arr_{layer}'][batch:batch+50, :], print_ars = 'n')
+                cnn_feats[f'layer{layer}'].append(data_norm)
+            # cnn_feats[f'layer{layer}'].append(data[f'arr_{layer}'])
+
+# Convert the lists in the dictionary to numpy arrays, and stack the data for each layer vertically
+for layer in range(5):
+    cnn_feats[f'layer{layer}'] = np.vstack(cnn_feats[f'layer{layer}'])
+    
+# Make X matrix for each layer
+# Xcnn1 = cnn_feats['layer0'].T
+Xcnn1 = cnn_feats['layer0']
+Xcnn2 = cnn_feats['layer1']
+Xcnn3 = cnn_feats['layer2']
+Xcnn4 = cnn_feats['layer3']
+Xcnn5 = cnn_feats['layer4']
+
+
+
 # for i in range(Xpred.shape[0]):
 #     plt.plot(get_zscore(predfeats[f'content_loss_{i}_{loss}'][:n_trials], print_ars = 'n'), label=f'content_loss_{i}_MSE')
 # 
@@ -149,62 +183,65 @@ for this_roi in hrf_dict_tight['subj01'].keys():
         print(f'Now running regressions for {this_voxel}')
 
         vox_xyz, voxname = get_good_voxel(subject='subj01', roi=this_roi[:2], hrf_dict=hrf_dict_tight, xyz_to_voxname=xyz_to_name, 
-                                        pick_manually=this_voxel, plot=True, prf_dict=prf_dict, vismask_dict=vismask_dict,selection_basis='R2')
+                                        pick_manually=this_voxel, plot=False, prf_dict=prf_dict, vismask_dict=vismask_dict,selection_basis='R2')
         # good ones for V1: 2,3,6 (0.14)
 
-        y = hrf_dict_tight['subj01'][f'{this_roi[:2]}_mask'][voxname]['hrf_betas_z']
+        y = hrf_dict_tight['subj01'][f'{this_roi[:2]}_mask'][voxname]['hrf_betas_z'][:3000]
 
 
         # Assuming Xpred and y are already defined in your workspace
 
         # Reshape X and y to 2D arrays because sklearn expects 2D inputs
         # X = Xpred.T
-        X = Xvisfeats.T
+        # X = Xvisfeats.T
+        X = Xcnn2[:3000,:]
 
-        # Create a PLSRegression and LinearRegression objects
-        PLSmodel = PLSRegression(n_components=X.shape[1])
-        OLSmodel = LinearRegression()
+        # Create a LassoRegression and LinearRegression objects
+        # Lassomodel = LassoRegression(n_components=X.shape[1])
+        # Ridgemodel = LinearRegression()
+        Lassomodel = Lasso(alpha = 0.01, fit_intercept=False)
+        Ridgemodel = Ridge(fit_intercept=False)
 
         # Fit the models to the data
-        PLSmodel.fit(X, y)
-        OLSmodel.fit(X, y)
+        Lassomodel.fit(X, y)
+        Ridgemodel.fit(X, y)
 
         # Use the models to predict y values
-        y_hat_PLS = PLSmodel.predict(X)
-        y_hat_OLS = OLSmodel.predict(X)
+        y_hat_Lasso = Lassomodel.predict(X)
+        y_hat_Ridge = Ridgemodel.predict(X)
 
         # Perform 5-fold cross-validation and get predicted y values
-        kf = KFold(n_splits=2)
-        y_hat_cv_PLS = cross_val_predict(PLSmodel, X, y, cv=kf)
-        y_hat_cv_OLS = cross_val_predict(OLSmodel, X, y, cv=kf)
+        kf = KFold(n_splits=7)
+        y_hat_cv_Lasso = cross_val_predict(Lassomodel, X, y, cv=kf)
+        y_hat_cv_Ridge = cross_val_predict(Ridgemodel, X, y, cv=kf)
 
-        # Calculate and print the R-squared values for PLS and OLS models
-        r2_PLS = r2_score(y, y_hat_PLS)
-        r2_OLS = r2_score(y, y_hat_OLS)
-        print(f"PLS R-squared: {r2_PLS:.3f}")
-        print(f"OLS R-squared: {r2_OLS:.3f}")
+        # Calculate and print the R-squared values for Lasso and Ridge models
+        r2_Lasso = r2_score(y, y_hat_Lasso)
+        r2_Ridge = r2_score(y, y_hat_Ridge)
+        print(f"Lasso R-squared: {r2_Lasso:.3f}")
+        print(f"Ridge R-squared: {r2_Ridge:.3f}")
 
-        # Calculate the R-squared values for cross-validated PLS and OLS models
-        r2_cv_PLS = r2_score(y, y_hat_cv_PLS)
-        r2_cv_OLS = r2_score(y, y_hat_cv_OLS)
-        print(f"Cross-validated PLS R-squared: {r2_cv_PLS:.3f}")
-        print(f"Cross-validated OLS R-squared: {r2_cv_OLS:.3f}\n")
+        # Calculate the R-squared values for cross-validated Lasso and Ridge models
+        r2_cv_Lasso = r2_score(y, y_hat_cv_Lasso)
+        r2_cv_Ridge = r2_score(y, y_hat_cv_Ridge)
+        print(f"Cross-validated Lasso R-squared: {r2_cv_Lasso:.3f}")
+        print(f"Cross-validated Ridge R-squared: {r2_cv_Ridge:.3f}\n")
         
         # Store the R^2 values in the dictionary
         r2_values[this_roi][this_voxel] = {
             'voxelname': voxname,
             'voxel_xyz': vox_xyz,
-            'PLS': r2_PLS,
-            'OLS': r2_OLS,
-            'Cross-validated PLS': r2_cv_PLS,
-            'Cross-validated OLS': r2_cv_OLS
+            'Lasso': r2_Lasso,
+            'Ridge': r2_Ridge,
+            'Cross-validated Lasso': r2_cv_Lasso,
+            'Cross-validated Ridge': r2_cv_Ridge
         }
 
 # Save the R^2 values to a file
-with open('/home/rfpred/data/custom_files/subj01/center_strict/r2_values_visfeats.pkl', 'wb') as f:
+with open('/home/rfpred/data/custom_files/subj01/center_strict/r2_values_cnn1_3000.pkl', 'wb') as f:
     pickle.dump(r2_values, f)
     
-print(f'Regressions completed and R^2 values saved to /home/rfpred/data/custom_files/subj01/center_strict/r2_values_visfeats.pkl')
+print(f'Regressions completed and R^2 values saved to /home/rfpred/data/custom_files/subj01/center_strict/r2_values_cnn1_3000.pkl')
 
 
 
