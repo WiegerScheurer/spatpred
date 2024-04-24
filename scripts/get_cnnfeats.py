@@ -99,7 +99,7 @@ dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 def fit_pca(feature_extractor, dataloader):
 
     # Define PCA parameters
-    pca = IncrementalPCA(n_components=200, batch_size=batch_size)
+    pca = IncrementalPCA(n_components=5, batch_size=batch_size)
 
     # Fit PCA to batch
     for _, d in tqdm(enumerate(dataloader), total=len(dataloader)):
@@ -129,15 +129,44 @@ def extract_features(feature_extractor, dataloader, pca):
 
 features_algo = extract_features(feature_extractor, dataloader, pca)
 
-np.savez(f'/home/rfpred/data/custom_files/{args.subject}/center_strict/cnn_pcs_layer{this_layer}_{start}-{end}.npz', *features_algo)
+# np.savez(f'/home/rfpred/data/custom_files/{args.subject}/center_strict/cnn_pcs_layer{this_layer}_{start}-{end}.npz', *features_algo)
 
 print('gelukt hoor')
 
-del model, pca
+del pca
 print('Deleted model and pca object to save memory')
 
+print('Now figuring out which images mess up the boel')
+nan_indices = []
 
+# Iterate over the range of images
+for i in range(start, end):
+    # Create an instance of the ImageDataset with the current image index
+    dataset = ImageDataset([i], transform=preprocess)
+    
+    # Load the image
+    image = dataset[0]
+    
+    # Add an extra dimension to the image tensor and move it to the GPU if available
+    image = image.unsqueeze(0)
+    
+    # Extract features using the model
+    features = model(image)
+    
+    # Check if any of the features are NaN
+    if torch.isnan(features).any():
+        # If a NaN value is found, store the index of the image
+        nan_indices.append(i)
 
+# Print the indices of images that cause NaN values
+print(nan_indices)
+
+# Assuming 'nan_indices' is the list of indices that cause NaN values
+with open(f'chron_bad_ices{start}-{end}.txt', 'w') as f:
+    for index in nan_indices:
+        f.write(f'{index}\n')
+        
+print(f'indices are saved, note that these are not the 73k ices, but 10k ices, so check with design matrix')
 
 # class AlexNetFeatureExtractorReLU(Module):
 #     def __init__(self, model):
