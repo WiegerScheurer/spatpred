@@ -11,5 +11,5 @@ for arg1 in $(seq 0 1000 29000); do
     # Calculate arg2 as arg1 + 250
     arg2=$((arg1 + 1000))
     # Run the Python script with the current arguments
-    /home/rfpred/scripts/get_cnnfeats.py $arg1 $arg2 'subj01'
+    /home/rfpred/scripts/get_cnnfeats.py $arg1 $arg2 'subj01' 1
 done

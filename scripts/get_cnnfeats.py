@@ -133,7 +133,8 @@ np.savez(f'/home/rfpred/data/custom_files/{args.subject}/center_strict/cnn_pcs_l
 
 print('gelukt hoor')
 
-
+del model, pca
+print('Deleted model and pca object to save memory')
 
 
 
