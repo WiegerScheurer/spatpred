@@ -16,9 +16,9 @@ source activate /home/rfpred/envs/rfenv
 
 
 # Iterate over the first argument from 0 to 29000 in steps of 1000
-for arg1 in $(seq 0 3000 27000); do
+for arg1 in $(seq 0 1200 28800); do
     # Calculate arg2 as arg1 + 250
-    arg2=$((arg1 + 3000))
+    arg2=$((arg1 + 1200))
     # Run the Python script with the current arguments
-    /home/rfpred/scripts/get_cnnfeats.py $arg1 $arg2 'subj01' 1
+    /home/rfpred/scripts/get_cnnfeats.py $arg1 $arg2 'subj01' 4
 done

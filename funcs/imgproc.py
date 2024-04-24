@@ -696,6 +696,9 @@ def scale_square_mask(mask_in:np.ndarray, scale_fact=np.sqrt(1.5), mask_val=1, m
 # However, this is not yet working, because the final evaluation is done based on a 'eval_mask' object.
 # Perhaps also add this to the function.
 # Could also add the option to select a subject so it automatically gets a specified amount of their images.
+
+##### Give this a better name, and change a bit so it works for different subjects. It is not really random, but 
+# it CAN be random, because it mainly just helps provide the lists
 def rand_img_list(n_imgs, asPIL:bool = True, add_masks:bool = True, mask_loc = 'center', ecc_max = 1, select_ices = None):
     imgs = []
     img_nos = []
