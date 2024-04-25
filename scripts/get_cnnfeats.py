@@ -198,6 +198,39 @@ del model, pca
 
 print('Deleted model and pca object to save memory')
 
+if args.end == 30000:
+    prf_region = 'center_strict'
+    
+    # Calculate total number of arrays across all files
+    total_arrays = 0
+    for file_name in sorted(os.listdir(f'/home/rfpred/data/custom_files/{args.subject}/{prf_region}/')):
+        if file_name.startswith(f"cnn_pcs_layerfeatures.{args.cnn_layer}") and file_name.endswith(".npz"):
+            data = np.load(f'/home/rfpred/data/custom_files/{args.subject}/{prf_region}/{file_name}')
+            total_arrays += len(data.files)
+
+    # Create layer7_feats with the correct size
+    layer_feats = np.zeros((total_arrays, 600))
+
+    n_file = -1
+    current_array = 0
+    for file_name in sorted(os.listdir(f'/home/rfpred/data/custom_files/{args.subject}/{prf_region}/')):
+        n_file += 1
+        if file_name.startswith(f"cnn_pcs_layerfeatures{args.cnn_layer}4") and file_name.endswith(".npz"):
+            data = np.load(f'/home/rfpred/data/custom_files/{args.subject}/{prf_region}/{file_name}')
+            n_imgs = len(data.files)
+            
+            if n_imgs > 0:
+                session_ar = np.zeros((n_imgs, 600))
+                for image in range(n_imgs):
+                    session_ar[image, :] = data[f'arr_{image}']
+
+                layer_feats[current_array:current_array+n_imgs, :] = session_ar
+                current_array += n_imgs
+                
+                
+    # if layer_feats.shape == (30000, 600):
+    np.save(f'/home/rfpred/data/custom_files/subj01/center_strict/alex_lay{args.cnn_layer}.npy', layer_feats)
+    print(f'Saved yet another collection of extracted features, this time from layer {args.cnn_layer}')
 # print('Now figuring out which images mess up the boel')
 
 # # Print the indices of images that cause NaN values

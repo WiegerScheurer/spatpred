@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import numpy as np
@@ -48,7 +50,7 @@ with open('./data/custom_files/subj01/prf_mask_periphery_strict.pkl', 'rb') as f
 
 
 
-central_betas_halfloose3 = get_betas('subj01', prf_mask_center_strict, 40, 40, prf_region = 'center_strict')
+full_viscortex = get_betas('subj01', vismask_dict, 1, 5, prf_region = 'full_viscortex')
 
 print('soepje')
 
