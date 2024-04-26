@@ -117,6 +117,8 @@ def fit_pca(feature_extractor, dataloader):
 
 pca = fit_pca(feature_extractor, dataloader)
 
+# Implement the code belowin the NSP.cortex class as well, to check whether it makes sense
+
 def extract_features(feature_extractor, dataloader, pca):
     while True:  # Keep trying until successful
         try:

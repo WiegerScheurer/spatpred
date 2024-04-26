@@ -36,179 +36,7 @@ from funcs.utility import (print_dict_structure, print_large, ecc_angle_to_coord
                            _sort_by_column, _get_voxname_for_xyz)
 from scipy.ndimage import binary_dilation
 
-class NatSpatPred():
-    
-    def __init__(self, datapath:str='/home/rfpred/data', verbose:bool=False):
-        self._datapath = datapath
-        self._verbose = verbose
-        self.subjects = sorted(os.listdir(f'{datapath}/natural-scenes-dataset/nsddata/ppdata'), key=lambda s: int(s.split('subj')[-1]))
-        self.rois = None
-        self.roi_masks = None
-        self.prf_dict = None
-        self.anat_temps = None
-        self.feats = None
-        self.prfloc_vox_selections = None
-        self.attributes = None
-        self.attributes_unfiltered = None
-
-    def initialise(self):
-        self.rois, self.roi_masks = self._make_visrois_dict()
-        self.prf_dict = self._write_prf_dict()
-        self.anat_temps = self._get_anat_templates()
-        self.feats = self._fetch_features()
-        self.prfloc_vox_selections = self._fetch_prf_selections()
-        self.attributes = [attr for attr in dir(self) if not attr.startswith('_')] # Filter out both the 'dunder' and hidden methods
-        self.attributes_unfiltered = [attr for attr in dir(self) if not attr.startswith('__')] # Filter out only the 'dunder' methods
-        print(f'Naturalistic Spatial Prediction class: {Fore.LIGHTGREEN_EX}Initialised{Style.RESET_ALL}')
-        print('\nClass contains the following attributes:')
-        for attr in self.attributes:
-            print(f"{Fore.LIGHTWHITE_EX}\t.{attr}{Style.RESET_ALL}")
-            
-    # Function to get the visual contrast features and predictability estimates
-    # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
-    def _fetch_features(self):
-        feature_paths = [
-            './data/custom_files/all_visfeats_rms.pkl',
-            './data/custom_files/all_visfeats_rms_crop_prior.pkl',
-            '/home/rfpred/data/custom_files/all_visfeats_scce.pkl',
-            '/home/rfpred/data/custom_files/all_visfeats_scce_large.pkl',
-            '/home/rfpred/data/custom_files/subj01/pred/all_predestims.h5'
-        ]
-        return {os.path.basename(file): self._fetch_file(file) for file in feature_paths}
-    # Function to get the pRF-based voxel selections
-    # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
-    def _fetch_prf_selections(self):
-        prf_selection_paths = [
-            './data/custom_files/subj01/prf_mask_center_strict.pkl',
-            './data/custom_files/subj01/prf_mask_central_strict_l.pkl',
-            './data/custom_files/subj01/prf_mask_central_halfloose.pkl',
-            './data/custom_files/subj01/prf_mask_central_loose.pkl',
-            './data/custom_files/subj01/prf_mask_periphery_strict.pkl'
-        ]
-        return {os.path.basename(file): self._fetch_file(file) for file in prf_selection_paths}
-    
-    def _fetch_file(self, file_path:str):
-        """
-        General function to acquire saved data from various file types
-        file_type: str, the types of files to be fetched, either features or prf_selections
-        """
-        _, ext = os.path.splitext(file_path)
-        
-        # Check if file is of .h5 type
-        if ext == '.h5':
-            with h5py.File(file_path, 'r') as hf:
-                data = hf.keys()
-                return {key: np.array(hf[key]).flatten() for key in data}
-        # Check if file is of .pkl type
-        elif ext == '.pkl':
-            with open(file_path, 'rb') as fp:
-                return pickle.load(fp)
-    
-    def _make_visrois_dict(self):
-        rois = []
-        binary_masks = {}
-
-        for subj_no in range(1, len(self.subjects) + 1):
-            if self._verbose:
-                print(f'Fetching roi masks for subject {Fore.LIGHTBLUE_EX}{subj_no}{Style.RESET_ALL}')
-            mask_dir = f'{self._datapath}/natural-scenes-dataset/nsddata/ppdata/subj0{subj_no}/func1mm/roi'
-
-            # read in and sort all the filenames in the mapped masks folder for each subject
-            non_binary_masks = sorted([file for file in os.listdir(mask_dir) if '_mask.nii' in file])
-            subj_binary_masks = {}
-
-            for idx, mask_file in enumerate(non_binary_masks):
-                # Load the mask file
-                subj_binary_masks[non_binary_masks[idx][:-7]] = (nib.load(os.path.join(mask_dir, mask_file)).get_fdata()).astype(int)
-            if self._verbose:
-                # Print the amount of non-zero voxels in the roi
-                for key, subj_binary_mask in subj_binary_masks.items():
-                    print(f" - Voxels in {Fore.BLUE}{key[:2]}{Style.RESET_ALL}: {np.sum(subj_binary_mask)}")
-                    if subj_no == 1:
-                        rois.append(key[:2])
-            binary_masks[f'subj0{subj_no}'] = subj_binary_masks
-
-        # rois = list(binary_masks['subj01'].keys())
-        return rois, binary_masks
-    
-    # Function to create a list solely containing roi-based voxels
-    def _roi_filter(self, roi_mask, input_array, nan2null:bool=False):
-        roi_ices = np.argwhere(roi_mask != 0)
-
-        # Create list that only contains the voxels of the specific roi
-        roi_ar = np.column_stack((roi_ices, input_array[roi_ices[:, 0], roi_ices[:, 1], roi_ices[:, 2]]))
-
-        # Turn the nan values into zeros for the angle parameter
-        if nan2null:
-            output_roi = np.nan_to_num(roi_ar, nan=0)
-            
-        # Filter away the nan values
-        output_roi = roi_ar[~np.isnan(roi_ar).any(axis=1)]
-        rounded_output_roi = np.round(roi_ar, 5)
-        
-        # Set print options to control precision and suppress scientific notation
-        np.set_printoptions(precision=5, suppress=True)
-        
-        return rounded_output_roi
-        
-    # Function to load in nifti (.nii.gz) data and create some useful variables 
-    def _get_dat(self, path:str):
-        full_dat = nib.load(path)
-        dat_array = full_dat.get_fdata()
-        
-        # Calculate the range of values
-        flat_arr = dat_array[~np.isnan(dat_array)]
-        dat_dim = dat_array.shape
-
-        return full_dat, dat_array, dat_dim, {'min': round(np.nanmin(flat_arr),7), 'max': np.nanmax(flat_arr), 'mean': round(np.nanmean(flat_arr),5)}
-    
-    # This function provides a dictionary with all the pRF data for all subjects and rois
-    def _write_prf_dict(self):
-        prf_dict = {}
-
-        # Make a loop to go over all the subjects
-        for subject in self.subjects:
-            prf_dict[subject] = {}
-            prf_dict[subject]['nsd_dat'] = {}
-            
-            # Initialize dictionaries if they don't exist
-            prf_dict[subject]['proc'] = {}
-
-            # Get the overall prf results, save them in a dict
-            prf_types = ['angle', 'eccentricity', 'exponent', 'gain', 'meanvol', 'R2', 'size']
-
-            for prf_type in prf_types:
-                prf_path = f'{self._datapath}/natural-scenes-dataset/nsddata/ppdata/{subject}/func1mm/prf_{prf_type}.nii.gz'
-                prf_dat, prf_ar, prf_dim, prf_range = self._get_dat(prf_path)
-                prf_dict[subject]['nsd_dat'][prf_type] = {
-                    'prf_dat': prf_dat,
-                    'prf_ar': prf_ar,
-                    'prf_dim': prf_dim,
-                    'prf_range': prf_range
-                }
-            for roi in [f'{roistr}_mask' for roistr in self.rois]:
-                prf_dict[subject]['proc'][roi] = {
-                    prf_type : None for prf_type in prf_types
-                } 
-                for prf_type in prf_types:
-                    prf_dict[subject]['proc'][roi][prf_type] = self._roi_filter(self.roi_masks[subject][roi], prf_dict[subject]['nsd_dat'][prf_type]['prf_ar'])
-
-            # Calculate the linear pRF sigma values, these tend to be smaller and don't take
-            # into account the nonlinear relationship between input and neural respons
-                lin_sigmas = prf_dict[subject]['proc'][roi]['size'][:,3] * np.sqrt(prf_dict[subject]['proc'][roi]['exponent'][:,3])
-                prf_dict[subject]['proc'][roi]['lin_sigma'] = np.column_stack([prf_dict[subject]['proc'][roi]['size'][:,0:3], lin_sigmas])
-
-        return prf_dict
-    
-    def _get_anat_templates(self):
-        # Get subject-specific T1 anatomical maps to use as base for later overlays
-        anat_temps = {}
-        for subject in self.prf_dict.keys():
-            anat_temps[subject] = nib.load(f'{self._datapath}/natural-scenes-dataset/nsddata/ppdata/{subject}/func1mm/T1_to_func1mm.nii.gz')
-        return anat_temps
-    
-# NSP = NatSpatPred(verbose=False)
-
+#INNSP
 # Function to load in nifti (.nii.gz) data and create some useful variables 
 def get_dat(path):
 
@@ -221,6 +49,8 @@ def get_dat(path):
 
     return full_dat, dat_array, dat_dim, {'min': round(np.nanmin(flat_arr),7), 'max': np.nanmax(flat_arr), 'mean': round(np.nanmean(flat_arr),5)}
   
+  
+#INNSP
 def make_visrois_dict(vox_count = 'n', bin_check = 'n', n_subjects = None):
     binary_masks = {}
 
@@ -252,7 +82,7 @@ def make_visrois_dict(vox_count = 'n', bin_check = 'n', n_subjects = None):
 
     return binary_masks
 
-
+#INNSP
 def calculate_sigma(eccentricity, angle, visual_stimulus_size=8.4):
     # Convert polar coordinates to Cartesian coordinates
     x = eccentricity * np.cos(angle)
@@ -267,6 +97,7 @@ def calculate_sigma(eccentricity, angle, visual_stimulus_size=8.4):
 
     return sigma, x, y
 
+#INNSP
 def calculate_pRF_location(prf_size, prf_ecc, prf_angle, image_size=(200, 200), visual_angle_extent=8.4):
     # Calculate sigma parameter in degrees visual angle
     sigma = prf_size * np.sqrt(2)
@@ -281,7 +112,7 @@ def calculate_pRF_location(prf_size, prf_ecc, prf_angle, image_size=(200, 200), 
     c_index = (image_size[1] + 1) / 2 + (prf_ecc * np.cos(np.radians(prf_angle)) * (image_size[0] / visual_angle_extent))
     
     return sigma_px, r_index, c_index
-
+#INNSP
  # This is basically what is also present inside the get_mask function, but now it just gives you a list of voxels       
 def find_top_vox(subject = 'subj01', roi = 'V1', n_voxels = None, prf_dict = None, vismask_dict = None, 
                  min_size = 0, max_size = 4.2, min_prf_R2 = 0, min_hrf_R2 = 0, min_ecc = 0, max_ecc = 1):
@@ -321,6 +152,7 @@ def find_top_vox(subject = 'subj01', roi = 'V1', n_voxels = None, prf_dict = Non
     print(f'Found {voxel_count} voxels in {roi}')
     return top_vox_dict
 
+#INNSP
 # Simple function to plot a specific voxel from the top_vox_dict, vox_dict_item ought to be the same
 # type of dict object returned by the find_top_vox() function.
 def plot_top_vox(dim = 425, vox_dict_item = None, type:str = None, add_central_patch:bool = False, 
@@ -409,6 +241,7 @@ def plot_top_vox(dim = 425, vox_dict_item = None, type:str = None, add_central_p
     # Set ticks at every 0.1 step
     ax.xaxis.set_major_locator(MultipleLocator(0.5))
     ax.yaxis.set_major_locator(MultipleLocator(0.5))
+
 
 # Get some good voxels that tick all the boxes of the selection procedure (location, size, R2)
 def get_good_voxel(subject=None, roi:str=None, hrf_dict=None, xyz_to_voxname=None,
@@ -568,7 +401,7 @@ def prf_plots(subj_no, bottom_percent=95):
     
     return prf_dict
 
-
+#INNSP
 # Simple function to get the roi of a specific voxel, given its coordinates, a subject, and the binary vismask_dict
 def find_roi(vismask_dict, subj, voxel_coords):
     for roi in vismask_dict[subj].keys():
@@ -576,6 +409,7 @@ def find_roi(vismask_dict, subj, voxel_coords):
             return roi
     return None
 
+#INNSP
 # Function to create a dictionary containing all the R2 explained variance data of the NSD experiment, could also be turned into a general dict-making func
 def nsd_R2_dict(binary_masks = None, glm_type = 'hrf'):
     
