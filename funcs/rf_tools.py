@@ -7,7 +7,7 @@ import nibabel as nib
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-# from matplotlib.lines import Line2Dgit 
+from matplotlib.lines import Line2D
 from matplotlib.ticker import MultipleLocator
 import nsdcode
 from nsdcode.nsd_mapdata import NSDmapdata
@@ -242,7 +242,7 @@ def plot_top_vox(dim = 425, vox_dict_item = None, type:str = None, add_central_p
     ax.xaxis.set_major_locator(MultipleLocator(0.5))
     ax.yaxis.set_major_locator(MultipleLocator(0.5))
 
-
+#INNSP
 # Get some good voxels that tick all the boxes of the selection procedure (location, size, R2)
 def get_good_voxel(subject=None, roi:str=None, hrf_dict=None, xyz_to_voxname=None,
                    pick_manually=None, plot:bool=True, prf_dict=None, vismask_dict=None,
@@ -284,7 +284,7 @@ def get_good_voxel(subject=None, roi:str=None, hrf_dict=None, xyz_to_voxname=Non
         
     return indices, voxelname
 
-
+#INNSP
 def prf_plots_new(subj_no, bottom_percent=95):
     prf_info = ['angle', 'eccentricity', 'size']
     prf_plot_dict = {}
@@ -338,68 +338,8 @@ def prf_plots_new(subj_no, bottom_percent=95):
     plt.xlabel('Eccentricity (degrees)')
     plt.ylabel('Angle (degrees)')
     plt.show()
-
-    # Scatter plot for 'r_index', 'c_index' and 'sigma_px' as coordinates
-    # plt.figure()
-    # plt.scatter(prf_dict['c_index'], prf_dict['r_index'], c=prf_dict['sigma'], cmap='cividis', s=20)
-    # plt.colorbar(label='Sigma')
-    # plt.title('pRF locations based on Row-Column, coloured for sigma value')
-    # plt.xlabel('Column Index (pixel units)')
-    # plt.ylabel('Row Index (pixel units)')
-    # plt.show()
     
     return prf_plot_dict
-
-# This one works
-def prf_plots(subj_no, bottom_percent=95):
-    prf_info = ['angle', 'eccentricity', 'size']
-    prf_dict = {}
-    
-    # Load data for angle, eccentricity, and size
-    for idx in prf_info:
-        _, prf_dict[idx], _, prf_range = get_dat(f'/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata/subj0{subj_no}/func1mm/prf_{idx}.nii.gz')
-    
-    # Calculate the common boolean mask based on exclusion criteria
-    common_mask = (~np.isnan(prf_dict['eccentricity'])) & (prf_dict['eccentricity'] <= 950)  # Adjust conditions as needed
-
-    # Apply the common boolean mask to all relevant arrays
-    for key in prf_info:
-        prf_dict[key] = prf_dict[key][common_mask]
-
-    # Calculate sigma, x, and y
-    sigma_array, x, y = calculate_sigma(prf_dict['eccentricity'], prf_dict['angle'])
-
-    # Add sigma_array, x, and y to prf_dict
-    prf_dict.update({'sigma': sigma_array, 'x': x, 'y': y})
-
-    # Plot histograms for all dictionary elements excluding NaN and large values
-    for key, value in prf_dict.items():
-        if key in ['x', 'y']:
-            # Skip histograms for 'x' and 'y'
-            continue
-        
-        plt.figure()
-        
-        # Determine adaptive binning based on the range of valid values
-        num_bins = min(50, int(np.sqrt(len(value))))  # Adjust as needed
-        
-        plt.hist(value.flatten(), bins=num_bins, color='red', alpha=0.7)
-        plt.title(f'Histogram for {key} (excluding NaN and values > 950)')
-        plt.xlabel(key)
-        
-        plt.ylabel('Frequency')
-        plt.show()
-
-    # Scatter plot for 'x' and 'y' as coordinates
-    plt.figure()
-    plt.scatter(prf_dict['x'], prf_dict['y'], c=prf_dict['sigma'], cmap='cividis', s=20)
-    plt.colorbar(label='Sigma')
-    plt.title('pRF locations based on Eccentricity-Angle, coloured for sigma value')
-    plt.xlabel('Eccentricity (degrees)')
-    plt.ylabel('Angle (degrees)')
-    plt.show()
-    
-    return prf_dict
 
 #INNSP
 # Simple function to get the roi of a specific voxel, given its coordinates, a subject, and the binary vismask_dict
@@ -453,8 +393,6 @@ def nsd_R2_dict(binary_masks = None, glm_type = 'hrf'):
 # Create a dictionary for the top n R2 prf/nsd values, the amount of explained variance
 # it does so for every visual roi and subject separately. dataset can be 'nsd' or 'prf'
 # and input_dict should be given accordingly.
-# I do have to think why I would use one of these, to what extent does it matter whether it is prf or nsd R2?
-# What are the exact differences?
 def rsquare_selection(input_dict = None, top_n = 1000, n_subjects = None, dataset = 'nsd'):
     rsq_dict = {}
     
@@ -476,6 +414,7 @@ def rsquare_selection(input_dict = None, top_n = 1000, n_subjects = None, datase
         rsq_dict[f'subj0{subj_no}'] = subj_rsq
     return rsq_dict
         
+#INNSP
 # This function is capable of figuring out what the best top R2 selection is for a specific roi   
 def _optimize_rsquare(R2_dict_hrf, subject, dataset, this_roi, R2_threshold, verbose:int, stepsize):
     top_n = 1
@@ -492,6 +431,7 @@ def _optimize_rsquare(R2_dict_hrf, subject, dataset, this_roi, R2_threshold, ver
     # Return the optimal top_n value, which is one less than the value that caused lowest_val to fall below R2_threshold
     return top_n - 1
 
+#INNSP
 # Function to create the Gaussian image
 def make_gaussian_2d(size, center_row, center_col, sigma):
     rows = np.arange(size)
@@ -501,6 +441,7 @@ def make_gaussian_2d(size, center_row, center_col, sigma):
     gaussian = np.exp(exponent)
     return gaussian
 
+#INNSP
 # Function to create a circle mask
 def make_circle_mask(size, center_row, center_col, radius, fill='y', margin_width=1):
     rows = np.arange(size)
@@ -523,7 +464,8 @@ def make_circle_mask(size, center_row, center_col, radius, fill='y', margin_widt
         return circle_mask
     elif fill == 'n':
         return -outline_circle_mask
-
+    
+#INNSP
 def css_gaussian_cut(size, center_row, center_col, sigma):
     rows = np.arange(size)
     cols = np.arange(size)
@@ -538,7 +480,7 @@ def css_gaussian_cut(size, center_row, center_col, sigma):
     return gaussian
 
 
-
+#INNSP
 # Function to create a list solely containing roi-based voxels
 def roi_filter(roi_mask, input_array, nan2null:bool = False):
     roi_ices = np.argwhere(roi_mask != 0)
@@ -560,6 +502,7 @@ def roi_filter(roi_mask, input_array, nan2null:bool = False):
     
     return rounded_output_roi
 
+#INNSP
 # This function provides a dictionary with all the pRF data for all subjects and rois
 def write_prf_dict(binary_masks):
     n_subjects = len(os.listdir('/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata'))
@@ -607,7 +550,7 @@ def write_prf_dict(binary_masks):
 
     return prf_dict
 
-
+#INNSP
 # Create a plot in which the different calculations (CSS,nonlinear vs. linear) for pRF radius are compared
 def compare_radius(prf_dictionary, size_key='size', sigma_key='lin_sigma', x_lim=(0, 20), y_lim=(0, 8), ci = 95):
     """
@@ -704,7 +647,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 import numpy as np
 
-
+#INNSP
 # Function to compare the relative nsd R2 values (over all sessions) per pRF size
 # make sure this one also works for the prf R2 values. 
 def rsq_to_size(prf_dict=None, vismask_dict=None, rsq_type = 'nsd'):
@@ -766,7 +709,7 @@ def rsq_to_size(prf_dict=None, vismask_dict=None, rsq_type = 'nsd'):
     return df
 
 
-
+#INNSP
 class AllPRFConsidered(Exception):
     pass
 
@@ -877,14 +820,12 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
             outer_bound = prf_ecc + prf_size
             inner_bound = prf_ecc - prf_size
             
-        
         # Sinus is used to calculate height, cosinus width
         # so c_index is the y coordinate and r_index is the x coordinate. 
         # the * (dim / 8.4) is the factor to translate it into raw pixel values
         
         y = ((1 + dim) / 2) - (prf_ecc * np.sin(np.radians(prf_angle)) * (dim / 8.4)) #y in pix (c_index)
         x = ((1 + dim) / 2) + (prf_ecc * np.cos(np.radians(prf_angle)) * (dim / 8.4)) #x in pix (r_index)
-
 
         if type == 'circle' or type == 'gaussian':
             deg_radius = sigma
@@ -906,7 +847,6 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
             prf_rsq > prfR2_min            
             )
 
-
         middle_xy = (((dim + 1) / 2), ((dim + 1) / 2))
         if peripheral_center == None:
             center_x = center_y = middle_xy[0]
@@ -916,7 +856,6 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
             # in the NSD documentation. It has to do with where the y-axis starts, which is ('upper') in this case.
             # To verify this I checked the angle coordinates
             
-
         if all(valid_conditions):
             
             if ecc_strict == 'y' and min_overlap < 100: # Fix this condiional
@@ -957,11 +896,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
                 print(f"   -  This voxel's NSD R-squared does not explain more than {nsdR2_min}% of the fMRI signal variance")
             if not valid_conditions[7]:
                 print(f"   -  This voxel's pRF R-squared does not explain more than {nsdR2_min}% of the fMRI signal variance")
-            # if not valid_conditions[4]:
-            #     print("   - expt_ar value too small")
 
-    
-    
     # Note: all the masks are made using pixel values for x, y, and sigma
     # Check whether the same is done later on, in the heatmaps and get_img_prf.
     if type == 'gaussian':
@@ -1011,7 +946,6 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         if grid == 'y':
             ax.grid(which='both', linestyle='--', linewidth=0.5, color='black')
 
-
             # Create a dictionary to store the output values
     prf_output_dict = {
         'mask': prf_mask,
@@ -1039,6 +973,7 @@ def get_mask(dim = 200, subject = 'subj01', binary_masks = None,
         # Return the dictionary
     return prf_output_dict
 
+#INNSP
 # Function to compare the different ways of reaching a pRF filter. Nonlinear (CSS) and linear
 def compare_masks(mask_dict = None, prf_dict = None, subject='subj01', roi='V1', sigma_min=0.1, 
                   sigma_max=4.2, ecc_min = 0, ecc_max = 4.2, angle_min = 0, angle_max = 360, 
