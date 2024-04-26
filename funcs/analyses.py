@@ -512,10 +512,6 @@ def plot_beta_to_icept(reg_dict, dictdescrip1 = '', comparison_reg_dict = None, 
     plt.tight_layout()
     plt.show()
     
-    
-
-    
-    
 def reg_plots(reg_dict, dictdescrip1 = '', icept_correct = None, feat_type = None, 
               beta_hist:bool = True, beta_icept:bool = True, comparison_reg_dict = None, 
               dictdescrip2 = '', comptype = ''):
