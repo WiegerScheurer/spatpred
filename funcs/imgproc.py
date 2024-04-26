@@ -21,7 +21,7 @@ import pickle
 from funcs.rf_tools import get_mask, make_circle_mask, css_gaussian_cut, make_gaussian_2d
 from funcs.utility import get_zscore, mean_center, cap_values
 
-
+#INNSP
 # Function to show a randomly selected image of the nsd dataset
 def show_stim(hide = 'n', img_no = 'random', small = 'n'):
     # Example code to show how to access the image files, these are all 73000 of them, as np.arrays
@@ -51,6 +51,7 @@ def show_stim(hide = 'n', img_no = 'random', small = 'n'):
         
     return test_image, image_no
 
+#INNSP
 # Create design matrix containing ordered indices of stimulus presentation per subject
 def get_imgs_designmx():
     
@@ -82,7 +83,7 @@ def get_imgs_designmx():
     
     return stims_design_mx
 
-
+#INNSP
 # Get random design matrix to test other fuctions
 def get_random_designmx(idx_min = 0, idx_max = 40, n_img = 20):
     
@@ -97,6 +98,7 @@ def get_random_designmx(idx_min = 0, idx_max = 40, n_img = 20):
     
     return stims_design_mx
 
+#INNSP
 # Function get the min and max x,y values in order to acquire a perfect square crop of the RF mask.
 def get_bounding_box(mask):
     # Get the indices where the mask is True
@@ -697,6 +699,7 @@ def scale_square_mask(mask_in:np.ndarray, scale_fact=np.sqrt(1.5), mask_val=1, m
 # Perhaps also add this to the function.
 # Could also add the option to select a subject so it automatically gets a specified amount of their images.
 
+#
 ##### Give this a better name, and change a bit so it works for different subjects. It is not really random, but 
 # it CAN be random, because it mainly just helps provide the lists
 def rand_img_list(n_imgs, asPIL:bool = True, add_masks:bool = True, mask_loc = 'center', ecc_max = 1, select_ices = None):
@@ -731,7 +734,7 @@ def rand_img_list(n_imgs, asPIL:bool = True, add_masks:bool = True, mask_loc = '
     masks = [mask] * n_imgs
 
     return imgs, masks, img_nos
-
+#INNPS
 # Function to load in all the computed predictability estimates, created using the get_pred.py and pred_stack.sh scripts.
 def load_pred_estims(subject = None, start = None, n_files = None, verbose:bool = False):
     dict_list = []

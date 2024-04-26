@@ -21,6 +21,6 @@ for arg1 in $(seq 0 1200 28800); do
     arg2=$((arg1 + 1200))
 
     # Run the Python script with the current arguments
-    /home/rfpred/scripts/get_cnnfeats.py $arg1 $arg2 'subj01' 11
+    /home/rfpred/scripts/get_cnnfeats.py $arg1 $arg2 'subj01' 7
 done
 

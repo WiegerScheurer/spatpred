@@ -66,7 +66,7 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, idx):
         img_id = self.image_ids[idx]
-        imgnp = (show_stim(img_no=img_id, hide='y', small = 'y')[0][163:263,163:263])
+        imgnp = (show_stim(img_no=img_id, hide='y', small = 'y')[0]) #[163:263,163:263])
         
         imgPIL = Image.fromarray(imgnp) # Convert into PIL from np
 

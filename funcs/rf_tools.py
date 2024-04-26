@@ -1,3 +1,5 @@
+# All functions are now also implemented into the NSD or Cortex class.
+
 import os
 import sys
 from tkinter import Y
@@ -1175,7 +1177,7 @@ def prf_heatmap(n_prfs, binary_masks, prf_proc_dict, dim=425, mask_type='gaussia
 
 
 
-
+#INNSP
 def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=None, basis='roi',
                      mask_type='cut_gaussian', cmap='CMRmap', roi='V1', excl_reason='n', sigma_min=0,
                      sigma_max=4.2, ecc_min = 0, ecc_max=2, angle_min = 0, angle_max = 360, peripheral_center = None,
@@ -1228,6 +1230,7 @@ def compare_heatmaps(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=
     
     return prfmask_dict_all, heatmaps
 
+#INNSP
 # Function that does the same but it plots them differently and removes headers so it can be used in documents.
 def compare_heatmaps_clean(n_prfs, binary_masks=None, prf_proc_dict=None, filter_dict=None, basis='roi',
                      mask_type='cut_gaussian', cmap='CMRmap', roi='V1', excl_reason='n', sigma_min=0,
