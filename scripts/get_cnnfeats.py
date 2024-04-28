@@ -51,6 +51,8 @@ predparser.add_argument('cnn_layer', type=int, help='The layer to extract neural
 
 args = predparser.parse_args()
 
+prf_region = 'center_strict'
+
 print(args,'\n')
 
 # Load the pretrained AlexNet model
@@ -67,7 +69,7 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, idx):
         img_id = self.image_ids[idx]
-        imgnp = (show_stim(img_no=img_id, hide='y', small = 'y')[0])[163:263,163:263]
+        imgnp = (show_stim(img_no=img_id, hide='y', small = 'y')[0][163:263,163:263])
         
         imgPIL = Image.fromarray(imgnp) # Convert into PIL from np
 
@@ -187,7 +189,7 @@ def extract_features(feature_extractor, dataloader, pca):
 
 features_algo = extract_features(feature_extractor, dataloader, pca)
 
-np.savez(f'/home/rfpred/data/custom_files/{args.subject}/center_strict/cnn_pcs_layer{this_layer}_{start}-{end}.npz', *features_algo)
+np.savez(f'/home/rfpred/data/custom_files/{args.subject}/{prf_region}/cnn_pcs_layer{this_layer}_{start}-{end}.npz', *features_algo)
 
 print('gelukt hoor')
 
@@ -197,7 +199,7 @@ print('Deleted model and pca object to save memory')
 
 # Here I stack all the stuff
 if args.end == 30000:
-    prf_region = 'center_strict'
+    
     
     # Calculate total number of arrays across all files
     total_arrays = 0
@@ -230,5 +232,5 @@ if args.end == 30000:
     # Print out some summary statistics of the features
     print(f'All feat stats:\nMean: {layer_feats.mean()}, Std: {layer_feats.std()}, Min: {layer_feats.min()}, Max: {layer_feats.max()}')
     # if layer_feats.shape == (30000, 600):
-    np.save(f'/home/rfpred/data/custom_files/subj01/center_strict/alex_lay{args.cnn_layer}.npy', layer_feats)
+    np.save(f'/home/rfpred/data/custom_files/subj01/{prf_region}/alex_lay{args.cnn_layer}.npy', layer_feats)
     print(f'Saved yet another collection of extracted features, this time from layer {args.cnn_layer}')
