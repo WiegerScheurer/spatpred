@@ -47,6 +47,7 @@ class UNet():
 
         # Define the model
         print("Loading the Model...")
+        print("kommetje soep")
         self.model = PConvUNet(finetune=False, layer_size=7)
         self.model.load_state_dict(torch.load(MODEL_LOC/checkpoint_name, 
                                               map_location=torch.device(device=self.device))['model'])
@@ -54,8 +55,12 @@ class UNet():
         self.model.eval()
         
         # define perceptual loss model        
-        self.loss_obj_l1=NNLoss(extractor=feature_model,loss='L1',add_loss_suff=add_loss_suff)
-        self.loss_obj_l2=NNLoss(extractor=feature_model,loss='MSE',add_loss_suff=add_loss_suff)
+        self.loss_obj_l1=NNLoss(extractor=feature_model,loss='L1',add_loss_suff=add_loss_suff)[0] # WADDITION
+        self.loss_obj_l2=NNLoss(extractor=feature_model,loss='MSE',add_loss_suff=add_loss_suff)[0] # WADDITION
+        # self.loss_obj_l1=NNLoss(extractor=feature_model,loss='L1',add_loss_suff=add_loss_suff)
+        # self.loss_obj_l2=NNLoss(extractor=feature_model,loss='MSE',add_loss_suff=add_loss_suff)
+        
+        self.featmaps=NNLoss(extractor=feature_model,loss='L1',add_loss_suff=add_loss_suff)[1] # WADDITION
 
         # store additional attributes
         self._im_size=im_size # todo: can we handle arbitrary aspect ratios w/o padding?
@@ -122,12 +127,18 @@ class UNet():
 
             eval_pld.update(loss_dict_1)
             eval_pld.update(loss_dict_2)
+            
+            self.featmaps = {'featmaps': self.featmaps}
+            # self.featmaps = {f'featmaps_{i}': featmap for i, featmap in enumerate(self.featmaps)}
+            eval_pld.update(self.featmaps) # WADDITION
 
 #         if normalise: # undo the normalisation
 #             recon_pld={k:TF.normalize(v,mean=(-1,-1,-1),std=(2,2,2)) for k,v in recon_pld.items()}
         # 
         if return_recons: eval_pld['recon_dict']=recon_pld
         
+        # eval_pld['featmaps'] = self.featmaps
+        # return eval_pld, kont
         return(eval_pld)
                     
     def recon_imgs(self,imgs_in,mask_in,remove_padding=False):

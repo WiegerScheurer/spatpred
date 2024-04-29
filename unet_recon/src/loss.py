@@ -68,6 +68,12 @@ class ReconLoss(nn.Module):
         if self.add_loss_suff:
             loss_dict = {key+f'_{self.loss_str}': value for key, value in loss_dict.items()}
 
+        # feats_comp_np = [feat.detach().cpu().numpy() for feat in feats_comp] # WADDITION
+        # feats_gt_np = [feat.detach().cpu().numpy() for feat in feats_gt] # WADDITION
+        
+        # featmap_dict = {'feats_comp': feats_comp_np, 'feats_gt': feats_gt_np} # WADDITION
+
+        # return loss_dict, featmap_dict # WADDITION
         return(loss_dict)
 
 
@@ -116,7 +122,10 @@ class InpaintingLoss(nn.Module):
                 'hole': hole_loss,
                 'perc': perc_loss,
                 'style': style_loss,
-                'tv': tv_loss}
+                'tv': tv_loss,
+                'feats_out': feats_out, # WADDITION
+                'feats_comp': feats_comp, # WADDITION
+                'feats_gt': feats_gt} # WADDITION
 
 # Modified block-wise feature extractor
 class VGGBlockFeatureExtractor(nn.Module):

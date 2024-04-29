@@ -92,6 +92,39 @@ this_layer = train_nodes[args.cnn_layer + 1]
 
 feature_extractor = create_feature_extractor(model, return_nodes=[this_layer])
 
+# THis is how Micha does it:
+# class AlexNetFeatureExtractor(nn.Module):
+#     MEAN = [0.485, 0.456, 0.406]
+#     STD = [0.229, 0.224, 0.225]
+
+#     def __init__(self):
+#         super().__init__()
+#         alexnet = models.alexnet(pretrained=True)
+#         alexnet.eval()  # Set to evaluation mode
+#         normalization = Normalization(self.MEAN, self.STD)
+
+#         # Define each feature extractor
+#         self.enc_1 = nn.Sequential(normalization, *alexnet.features[:3]) # Conv + ReLU + MaxPool
+#         self.enc_2 = nn.Sequential(*alexnet.features[3:6]) # Conv + ReLU + MaxPool
+#         self.enc_3 = nn.Sequential(*alexnet.features[6:8]) # Conv + ReLU
+#         self.enc_4 = nn.Sequential(*alexnet.features[8:10]) # Conv + ReLU
+#         self.enc_5 = nn.Sequential(*alexnet.features[10:]) # Conv + ReLU + MaxPool
+# #         self.enc_6 = nn.Sequential(*alexnet.classifier[:2]) # Dropout + FC
+# #         self.enc_7 = nn.Sequential(*alexnet.classifier[2:5]) # ReLU + Dropout + FC
+# #         self.enc_8 = nn.Sequential(*alexnet.classifier[5:]) # ReLU + FC
+
+#         # Fix the encoder
+#         for i in range(5):
+#             for param in getattr(self, 'enc_{}'.format(i+1)).parameters():
+#                 param.requires_grad = False
+
+#     def forward(self, input):
+#         feature_maps = [input]
+#         for i in range(5):
+#             feature_map = getattr(self, 'enc_{}'.format(i+1))(feature_maps[-1])
+#             feature_maps.append(feature_map)
+#         return feature_maps[1:]
+
 start = args.start
 end = args.end
 batch_size = end - start
@@ -99,29 +132,6 @@ n_comps = 500
 image_ids = get_imgs_designmx()[args.subject][start:end]
 dataset = ImageDataset(image_ids, transform=preprocess)
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-
-# def fit_pca(feature_extractor, dataloader):
-#     # Define PCA parameters
-#     pca = IncrementalPCA(n_components=n_comps, batch_size=batch_size)
-
-#     while True:  # Keep trying until successful
-#         try:
-#             # Fit PCA to batch
-#             for _, d in tqdm(enumerate(dataloader), total=len(dataloader)):
-#                 # Extract features
-#                 ft = feature_extractor(d)
-#                 # Flatten the features
-#                 ft = torch.hstack([torch.flatten(l, start_dim=1) for l in ft.values()])
-#                 if np.isnan(ft.detach().numpy().any()):
-#                     raise ValueError("Nan value detected before PCA fit")
-#                 # Print out some summary statistics of the features
-#                 print(f'Mean: {ft.mean()}, Std: {ft.std()}, Min: {ft.min()}, Max: {ft.max()}')
-#                 # Fit PCA to batch
-#                 pca.partial_fit(ft.detach().cpu().numpy())
-#             return pca  # Return the PCA object
-#         except Exception as e:
-#             print(f"Error occurred: {e}")
-#             print("Restarting PCA fitting...")
 
 def fit_pca(feature_extractor, dataloader):
     # Define PCA parameters
