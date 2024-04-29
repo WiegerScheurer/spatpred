@@ -1,10 +1,4 @@
-#!/usr/bin/env python3
-
 import os
-
-os.environ["OMP_NUM_THREADS"] = "10"
-
-
 import sys
 import numpy as np
 import random
@@ -20,7 +14,7 @@ import nibabel as nib
 import h5py
 import scipy.stats.mstats as mstats
 import copy
-
+import ipywidgets as widgets
 
 from nilearn import plotting
 from scipy.ndimage import binary_dilation
@@ -45,11 +39,12 @@ from matplotlib.lines import Line2D
 from sklearn.model_selection import KFold
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import cross_val_score, KFold, cross_val_predict
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error    
+from IPython.display import display
 from math import sqrt
 
-print(sys.path)
-
+# print(sys.path)
+print('soepstengesl')
 
 os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred/')
@@ -106,7 +101,35 @@ class DataFetch():
         dat_dim = dat_array.shape
 
         return full_dat, dat_array, dat_dim, {'min': round(np.nanmin(flat_arr),7), 'max': np.nanmax(flat_arr), 'mean': round(np.nanmean(flat_arr),5)}
-    
+        
+    # Hard coded, make flexible    
+    # Function to load in all the computed predictability estimates, created using the get_pred.py and pred_stack.sh scripts.
+    def load_pred_estims(self, subject = None, start = None, n_files = None, verbose:bool = False):
+        dict_list = []
+
+        # Get a list of files in the directory
+        files = os.listdir(f'/home/rfpred/data/custom_files/{subject}/pred/')
+
+        # Filter files that start with "beta_dict" and end with ".pkl"
+        filtered_files = [file for file in files if file.startswith('light_payloads') and file.endswith(".h5")]
+        
+        # Sort files based on the first number after 'beta_dict'
+        sorted_files = sorted(filtered_files, key=lambda x: int(''.join(filter(str.isdigit, x.split('light_payloads')[1]))))
+
+        # Load in the .h5 files
+        for file_no, file in enumerate(sorted_files):
+            if verbose:
+                print(f'Now loading file {file_no + 1} of {len(sorted_files)}')
+            # load in back dictionary
+            with h5py.File(f'/home/rfpred/data/custom_files/{subject}/pred/{file}', 'r') as hf:
+                data = hf.keys()
+                    
+                dict = {key: np.array(hf[key]) for key in data}
+            
+            dict_list.append(dict)
+                
+        return dict_list
+        
 class Utilities():
 
     def __init__(self):
@@ -1610,6 +1633,68 @@ class Cortex():
         
         return prfmask_dict_all, heatmaps
     
+
+    def viscortex_plot(self, prf_dict, vismask_dict, plot_param, subject, distinct_roi_colours:bool = True, inv_colour:bool = False, cmap = 'hot',
+                    lowcap = None, upcap = None):
+
+        mask_viscortex = np.zeros((vismask_dict[subject]['V1_mask'].shape))
+        
+        # Loop over all rois to create a mask of them conjoined
+        for roi_factor, roi in enumerate(vismask_dict[subject].keys()):
+            if distinct_roi_colours:
+                roi_facor = 1
+            mask_viscortex += (self.nsp.utils.cap_values(vismask_dict[subject][roi], lower_threshold = lowcap, upper_threshold = upcap) * ((roi_factor + 1)))
+
+        mask_flat = self.nsp.utils.numpy2coords(mask_viscortex, keep_vals = True)
+
+        if plot_param == 'nsdR2':
+            R2_dict = self.nsd_R2_dict(vismask_dict, glm_type = 'hrf')
+            brain = self.nsp.utils.cap_values(np.nan_to_num(R2_dict[subject]['full_R2']['R2_ar']), lower_threshold = lowcap, upper_threshold = upcap)
+        else:
+            brain = self.nsp.utils.cap_values(np.nan_to_num(prf_dict[subject]['nsd_dat'][plot_param]['prf_ar']), lower_threshold = lowcap, upper_threshold = upcap)
+        brain_flat = self.nsp.utils.numpy2coords(brain, keep_vals = True)
+
+        comrows = self.nsp.utils.find_common_rows(brain_flat, mask_flat, keep_vals = True)
+
+        # slice_flt = cap_values(coords2numpy(coordinates = comrows, shape = brain.shape, keep_vals = True), threshold = 4)
+        slice_flt = self.nsp.utils.coords2numpy(coordinates = comrows, shape = brain.shape, keep_vals = True)
+
+        # Create sliders for each dimension
+        z_slider = widgets.IntSlider(min=0, max=slice_flt.shape[2]-1, description='saggital')
+        x_slider = widgets.IntSlider(min=0, max=slice_flt.shape[0]-1, description='horizontal:')
+        # y_slider = widgets.IntSlider(min=0, max=slice_flt.shape[1]-1, description='coronal')
+        y_slider = widgets.IntSlider(min=6, max=40, description='coronal')
+
+        if inv_colour:
+            rev = '_r'
+        else:
+            rev = ''
+
+        # Function to update the plot
+        def _update_plot(x, y, z):
+            # Create a new figure with 2 subplots
+            fig, axs = plt.subplots(1, 2, figsize=(16, 8))  # Adjust the size as needed
+
+            # Plot the first image on the left subplot
+            img1 = np.rot90(mask_viscortex[:x, y, :z])
+            im1 = axs[0].imshow(img1, cmap=f'{cmap}{rev}', vmin=np.min(mask_viscortex), vmax=np.max(mask_viscortex))
+            axs[0].axis('off')
+            cbar1 = fig.colorbar(im1, ax=axs[0])
+            cbar1.set_ticks([1,2,3,4])  # Set tick positions
+            cbar1.set_ticklabels(['V1', 'V2', 'V3', 'V4'])  # Set tick labels
+
+            # Plot the second image on the right subplot
+            img2 = np.rot90(slice_flt[:x, y, :z])
+            im2 = axs[1].imshow(img2, cmap=f'{cmap}{rev}', vmin=np.min(brain), vmax=np.max(brain))
+            axs[1].set_title(f'{plot_param} across visual cortex')
+            axs[1].axis('off')
+            fig.colorbar(im2, ax=axs[1])
+
+            plt.show()
+            
+        widgets.interact(_update_plot, x=slice_flt.shape[0]-1, y=y_slider, z=slice_flt.shape[2]-1)
+        
+        
 class Stimuli():
     
     def __init__(self, NSPobject):
@@ -1657,6 +1742,126 @@ class Stimuli():
         ]
         return {os.path.basename(file): self.nsp.datafetch.fetch_file(file) for file in feature_paths}
     
+    def baseline_feats(self, feat_type:str):
+        """
+        Input options:
+        - 'rms' for Root Mean Square
+        - 'ce' for Contrast Energy (ce_l) for larger pooling region (5 instead of 1 degree radius)
+        - 'sc' for Spatial Coherence (sc_l) for larger pooling region (5 instead of 1 degree radius)
+        """
+        if feat_type == 'rms':
+            file_name = 'all_visfeats_rms_crop_prior.pkl'
+            category = feat_type
+            key = 'rms_z'
+        elif feat_type == 'sc':
+            file_name = 'all_visfeats_scce.pkl'
+            category = 'scce'
+            key = 'sc_z' if 'sc' in feat_type else 'ce_z'
+        elif feat_type[-1:] == 'l':
+            file_name = 'all_visfeats_scce_large.pkl'
+            category = 'scce'
+            key = 'ce_z' if 'ce' in feat_type else 'sc_z'
+        else:
+            raise ValueError(f"Unknown feature type: {feat_type}")
+
+        X = np.array(self.nsp.stimuli.features()[file_name]['subj01'][category][key]).reshape(-1,1)
+        return X
+        
+    def unpred_feats(self, content:bool, style:bool, ssim:bool, pixel_loss:bool, L1:bool, MSE:bool, verbose:bool):
+        """
+        Function to create an X matrix based on the exclusion criteria defined in the arguments.
+        Input:
+        - content: boolean, whether to include content loss features
+        - style: boolean, whether to include style loss features
+        - ssim: boolean, whether to include structural similarity features
+        - pixel_loss: boolean, whether to include pixel loss features
+        - L1: boolean, whether to include L1 features
+        - MSE: boolean, whether to include MSE or L2 features
+        Output:
+        - X: np.array, the X matrix based on the exclusion criteria
+        """
+        predfeatnames = [name for name in list(self.nsp.stimuli.features()['all_predestims.h5'].keys()) if name != 'img_ices']
+        
+        if not content:
+            predfeatnames = [name for name in predfeatnames if 'content' not in name]
+        if not style:
+            predfeatnames = [name for name in predfeatnames if 'style' not in name]
+        if not ssim:
+            predfeatnames = [name for name in predfeatnames if 'ssim' not in name]
+        if not pixel_loss:
+            predfeatnames = [name for name in predfeatnames if 'pixel_loss' not in name]
+        if not L1:
+            predfeatnames = [name for name in predfeatnames if 'L1' not in name]
+        if not MSE:
+            predfeatnames = [name for name in predfeatnames if 'MSE' not in name]
+        
+        data = {name: self.nsp.stimuli.features()['all_predestims.h5'][name] for name in predfeatnames}
+        
+        # Convert the dictionary values to a list of lists
+        data_list = list(data.values())
+        
+        # Convert the list of lists to a 2D array
+        X = np.array(data_list)
+
+        # Transpose the array so that each row corresponds to a sample and each column corresponds to a feature
+        X = X.T[:,:]
+        
+        if verbose:
+            print(predfeatnames)
+        
+        return X
+    
+        
+    def unet_featmaps(self, list_layers:list):
+        """
+        Load in the UNet extracted feature maps
+        Input:
+        - list_layers: list with values between 1 and 4 to indicate which layers to include
+        """
+        # Load all the matrices and store them in a list
+        matrices = [np.load(f'/home/rfpred/data/custom_files/subj01/pred/featmaps/Aunet_gt_feats_{layer}.npy') for layer in list_layers]
+
+        # Horizontally stack the matrices
+        Xcnn_stack = np.hstack(matrices)
+
+        return Xcnn_stack
+    
+    def plot_unet_feats(self, layer:int, batch:int, cmap:str='bone', subject:str='subj01'):
+        """
+        Function to plot a selection of feature maps extracted from the U-Net class.
+        Input:
+        - layer: integer to select layer
+        - batch: integer to select batch
+        - cmap: string to define the matplotlib colour map used to plot the feature maps
+        - subject: string to select the subject
+        """
+        with open(f'/home/rfpred/data/custom_files/{subject}/pred/featmaps/feats_gt_np_{batch}.pkl', 'rb') as f:
+            feats_gt_np = pickle.load(f)
+            
+        # Get the number of feature maps
+        num_feature_maps = feats_gt_np[0].shape[1]
+
+        # Calculate the number of rows and columns for the subplots
+        num_cols = int(np.ceil(np.sqrt(num_feature_maps)))
+        num_rows = int(np.ceil(num_feature_maps / num_cols))
+
+        fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 15))
+
+        # Flatten the axes array to make it easier to loop over
+        axes = axes.flatten()
+
+        # Loop over the feature maps and plot each one
+        for i in range(num_feature_maps):
+            # first index is the CNN layer, then, the [image, featmap no, dimx, dimy]
+            axes[i].imshow(feats_gt_np[layer][random.randint(0, 500), i, :, :], cmap=cmap)
+            axes[i].axis('off')  # Hide axes
+
+        # If there are more subplots than feature maps, hide the extra subplots
+        for j in range(num_feature_maps, len(axes)):
+            axes[j].axis('off')
+
+        plt.show()
+        
     # Create design matrix containing ordered indices of stimulus presentation per subject
     def imgs_designmx(self):
         
@@ -1853,33 +2058,6 @@ class Stimuli():
         masks = [mask] * n_imgs
 
         return imgs, masks, img_nos
-        
-    # Function to load in all the computed predictability estimates, created using the get_pred.py and pred_stack.sh scripts.
-    def load_pred_estims(self, subject = None, start = None, n_files = None, verbose:bool = False):
-        dict_list = []
-
-        # Get a list of files in the directory
-        files = os.listdir(f'/home/rfpred/data/custom_files/{subject}/pred/')
-
-        # Filter files that start with "beta_dict" and end with ".pkl"
-        filtered_files = [file for file in files if file.startswith('light_payloads') and file.endswith(".h5")]
-        
-        # Sort files based on the first number after 'beta_dict'
-        sorted_files = sorted(filtered_files, key=lambda x: int(''.join(filter(str.isdigit, x.split('light_payloads')[1]))))
-
-        # Load in the .h5 files
-        for file_no, file in enumerate(sorted_files):
-            if verbose:
-                print(f'Now loading file {file_no + 1} of {len(sorted_files)}')
-            # load in back dictionary
-            with h5py.File(f'/home/rfpred/data/custom_files/subj01/pred/{file}', 'r') as hf:
-                data = hf.keys()
-                    
-                dict = {key: np.array(hf[key]) for key in data}
-            
-            dict_list.append(dict)
-                
-        return dict_list
         
     # Allround function to run the U-Net and create intuitive plots of the resulting predictability estimates.
     def predplot(self, subject:str = None, start_img:int = 0, n_imgs:int = 5, mask_loc:str = 'center', ecc_max:float = 1, select_ices = 'subject_based', 
@@ -2200,31 +2378,47 @@ class Analysis():
         return hrf_dict, xyz_to_name
     
     def load_y(self, subject:str, roi:str, hrf_dict:dict, 
-           xyz_to_name:np.array, roi_masks:dict, prf_dict:dict, n_voxels, start_img:int, n_imgs):
+           xyz_to_name:np.array, roi_masks:dict, prf_dict:dict, 
+           n_voxels, start_img:int, n_imgs:int, verbose:bool=True, across_rois:bool=False):
         
-        # Check the maximum amount of voxels for this subject, roi
-        max_voxels = len(hrf_dict[subject][f'{roi}_mask']['R2_vals'])
-        if n_voxels == 'all': 
-            n_voxels = max_voxels
+        if across_rois: 
+            rois = self.nsp.cortex.visrois_dict()[0]
+            ys = []
+            xyzs_stack = []
+        else: rois = [roi]
+        for roi in rois:
+            # Check the maximum amount of voxels for this subject, roi
+            max_voxels = len(hrf_dict[subject][f'{roi}_mask']['R2_vals'])
+            if n_voxels == 'all': 
+                n_voxels = max_voxels
 
-        selection_xyz = np.zeros((n_voxels, 2),dtype='object')
-        y_matrix = np.zeros((start_img+n_imgs-start_img, n_voxels))
+            selection_xyz = np.zeros((n_voxels, 2),dtype='object')
+            y_matrix = np.zeros((start_img+n_imgs-start_img, n_voxels))
 
-        for voxel in range(n_voxels):
-            if voxel < max_voxels:
-                vox_xyz, voxname = self.nsp.cortex.get_good_voxel(subject='subj01', roi=roi, hrf_dict=hrf_dict, xyz_to_voxname=xyz_to_name, 
-                                        pick_manually=voxel, plot=False, prf_dict=prf_dict, vismask_dict=roi_masks,selection_basis='R2')
-                selection_xyz[voxel,0] = vox_xyz
-                selection_xyz[voxel,1] = voxname
-                y_matrix[:,voxel] = hrf_dict[subject][f'{roi}_mask'][voxname]['hrf_betas_z'][start_img:start_img+n_imgs]
-            else: 
-                print(f'Voxel {voxel+1} not found in {roi}, only {max_voxels} available for {roi}')
-                voxdif = n_voxels - max_voxels
-                y_matrix = y_matrix[:,:-voxdif]
-                break
-            
-        print(y_matrix.shape)
+            for voxel in range(n_voxels):
+                if voxel < max_voxels:
+                    vox_xyz, voxname = self.nsp.cortex.get_good_voxel(subject='subj01', roi=roi, hrf_dict=hrf_dict, xyz_to_voxname=xyz_to_name, 
+                                            pick_manually=voxel, plot=False, prf_dict=prf_dict, vismask_dict=roi_masks,selection_basis='R2')
+                    selection_xyz[voxel,0] = vox_xyz
+                    selection_xyz[voxel,1] = voxname
+                    y_matrix[:,voxel] = hrf_dict[subject][f'{roi}_mask'][voxname]['hrf_betas_z'][start_img:start_img+n_imgs]
+                else: 
+                    print(f'Voxel {voxel+1} not found in {roi}, only {max_voxels} available for {roi}')
+                    voxdif = n_voxels - max_voxels
+                    y_matrix = y_matrix[:,:-voxdif]
+                    break
+            if across_rois:
+                ys.append(y_matrix)
+                xyzs_stack.append(selection_xyz)
+                
+        if across_rois:
+            y_matrix = np.hstack(ys)
+            selection_xyz = np.vstack(xyzs_stack)
+        if verbose:
+            print(f'Loaded y-matrix with {selection_xyz.shape[0]} voxels from {rois}')
         return y_matrix, selection_xyz
+                
+    # def load_X
                 
     def run_ridge_regression(self, X:np.array, y:np.array, alpha=1.0):
         model = Ridge(alpha=alpha)
@@ -2418,68 +2612,7 @@ class NatSpatPred():
         self.attributes = [attr for attr in dir(self) if not attr.startswith('_')] # Filter out both the 'dunder' and hidden methods
         self.attributes_unfiltered = [attr for attr in dir(self) if not attr.startswith('__')] # Filter out only the 'dunder' methods
         
-        print(f'Naturalistic Spatial Prediction class: {Fore.LIGHTGREEN_EX}Initialised{Style.RESET_ALL}')
+        print(f'Naturalistic Spatial Prediction class: {Fore.LIGHTBLACK_EX}Initialised{Style.RESET_ALL}')
         print('\nClass contains the following attributes:')
         for attr in self.attributes:
-            print(f"{Fore.LIGHTBLACK_EX} .{attr}{Style.RESET_ALL}")
-            
-NSP = NatSpatPred()
-NSP.initialise()
-
-rois, roi_masks = NSP.cortex.visrois_dict()
-prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
-
-vox_picks = NSP.datafetch.prf_selections()['prf_mask_center_strict.pkl']
-y_dict, xyz_to_vox = NSP.analyse.get_hrf_dict('subj01', voxels=vox_picks, prf_region = 'center_strict', 
-                                             min_size = .2, max_size = 1, prf_proc_dict=prf_dict, max_voxels = None ,plot_sizes = 'y',
-                                             vismask_dict=roi_masks, minimumR2=50)
-
-# Define the colors for the line plots
-colors = ['r', 'g', 'b', 'c']
-rois = ['V1', 'V2', 'V3', 'V4']  # Assuming these are your ROIs
-
-# Create 1 row and 4 columns for the plots
-fig, axes = plt.subplots(1, 4, figsize=(15, 10))
-
-for layer in range(1,5):
-    for n_roi, roi in enumerate(rois):   
-        print(f'')
-        
-        this_y, this_xyzs = NSP.analyse.load_y('subj01', roi, y_dict, xyz_to_vox, roi_masks, prf_dict, n_voxels = 'all', start_img = 0, n_imgs = 30000)
-        this_X = np.load(f'/home/rfpred/data/custom_files/subj01/pred/featmaps/Aunet_gt_feats_{layer}.npy')
-        n_imgs = 30000
-        
-        
-        alf = .01
-        cv = 15
-        results = NSP.analyse.evaluate_model(this_X[:n_imgs,:], this_y[:n_imgs], alpha=alf, cv=cv, extra_stats=False)
-
-        n_voxels = this_y.shape[1]
-        cv_r2_all = np.zeros((n_voxels, 4))
-        for vox in range(n_voxels):
-            for idx in range(3):
-                cv_r2_all[vox,idx] = this_xyzs[vox][0][idx]
-            cv_r2_all[vox,3] = results['cross_validation_scores'][vox]
-
-        cv_sorted = NSP.utils.sort_by_column(cv_r2_all, 3, top_n=n_voxels)
-        # Plot the line plot in the corresponding subplot with the corresponding color
-        line = axes[layer-1].plot(cv_sorted[:,3]*100, color=colors[n_roi], label=roi)
-        axes[layer-1].set_title(f'AlexNet Layer {layer}')
-        axes[layer-1].set_xlabel('Number of selected voxels in roi')
-        axes[layer-1].set_ylabel('Cross-validated R2 in %')
-        axes[layer-1].set_ylim([-10, 25])
-
-    # Add a legend to the first subplot
-    if layer == 1:
-        axes[layer-1].legend()
-    
-    # Remove the y-axis for the right 3 plots
-    if layer > 1:
-        axes[layer-1].set_yticks([])
-        axes[layer-1].set_ylabel('')  # Remove the y-axis label
-
-# Save the figure as a .png file
-plt.savefig('/home/rfpred/imgs/UNet_featmaps_reg.png')
-
-# Display the plots
-# plt.show()
+            print(f"{Fore.BLUE} .{attr}{Style.RESET_ALL}")
