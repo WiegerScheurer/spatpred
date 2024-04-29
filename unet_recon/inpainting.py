@@ -47,20 +47,20 @@ class UNet():
 
         # Define the model
         print("Loading the Model...")
-        print("kommetje soep")
+        print("Running the inpainting file from /rfpred/src/inpainting.py")
         self.model = PConvUNet(finetune=False, layer_size=7)
         self.model.load_state_dict(torch.load(MODEL_LOC/checkpoint_name, 
                                               map_location=torch.device(device=self.device))['model'])
         self.model.to(self.device)
         self.model.eval()
         
-        # define perceptual loss model        
-        self.loss_obj_l1=NNLoss(extractor=feature_model,loss='L1',add_loss_suff=add_loss_suff)[0] # WADDITION
-        self.loss_obj_l2=NNLoss(extractor=feature_model,loss='MSE',add_loss_suff=add_loss_suff)[0] # WADDITION
-        # self.loss_obj_l1=NNLoss(extractor=feature_model,loss='L1',add_loss_suff=add_loss_suff)
-        # self.loss_obj_l2=NNLoss(extractor=feature_model,loss='MSE',add_loss_suff=add_loss_suff)
+        # define perceptual loss model   
         
-        self.featmaps=NNLoss(extractor=feature_model,loss='L1',add_loss_suff=add_loss_suff)[1] # WADDITION
+        # self.loss_obj_l1=NNLoss(extractor=feature_model,loss='L1',add_loss_suff=add_loss_suff)[0] # WADDITION
+        # self.loss_obj_l2=NNLoss(extractor=feature_model,loss='MSE',add_loss_suff=add_loss_suff)[0] # WADDITION     
+        self.loss_obj_l1=NNLoss(extractor=feature_model,loss='L1',add_loss_suff=add_loss_suff)
+        self.loss_obj_l2=NNLoss(extractor=feature_model,loss='MSE',add_loss_suff=add_loss_suff)
+        # self.featmaps=NNLoss(extractor=feature_model,loss='L1',add_loss_suff=add_loss_suff)[1] # WADDITION
 
         # store additional attributes
         self._im_size=im_size # todo: can we handle arbitrary aspect ratios w/o padding?
@@ -112,11 +112,16 @@ class UNet():
         
          # compute perceptual loss
         with torch.no_grad():
+            # loss_dict_1=self.loss_obj_l1.forward(recon_pld['input_masked'],recon_pld['masks'],
+            #                                      recon_pld['out_raw'],recon_pld['input_gt'])
+            # loss_dict_2=self.loss_obj_l2.forward(recon_pld['input_masked'],recon_pld['masks'],
+            #                                 recon_pld['out_raw'],recon_pld['input_gt'])
+
             loss_dict_1=self.loss_obj_l1.forward(recon_pld['input_masked'],recon_pld['masks'],
                                                  recon_pld['out_raw'],recon_pld['input_gt'])
             loss_dict_2=self.loss_obj_l2.forward(recon_pld['input_masked'],recon_pld['masks'],
                                             recon_pld['out_raw'],recon_pld['input_gt'])
-
+            
             ssims=np.array([ssim(to_np(recon_pld['input_gt'][img_ix]),
                          to_np(recon_pld['out_composite'][img_ix]),multichannel=True, channel_axis = 2)
                     for img_ix in range(recon_pld['out_composite'].shape[0])])
@@ -127,18 +132,12 @@ class UNet():
 
             eval_pld.update(loss_dict_1)
             eval_pld.update(loss_dict_2)
-            
-            self.featmaps = {'featmaps': self.featmaps}
-            # self.featmaps = {f'featmaps_{i}': featmap for i, featmap in enumerate(self.featmaps)}
-            eval_pld.update(self.featmaps) # WADDITION
 
 #         if normalise: # undo the normalisation
 #             recon_pld={k:TF.normalize(v,mean=(-1,-1,-1),std=(2,2,2)) for k,v in recon_pld.items()}
         # 
         if return_recons: eval_pld['recon_dict']=recon_pld
-        
         # eval_pld['featmaps'] = self.featmaps
-        # return eval_pld, kont
         return(eval_pld)
                     
     def recon_imgs(self,imgs_in,mask_in,remove_padding=False):

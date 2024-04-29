@@ -29,7 +29,7 @@ args = predparser.parse_args()
 
 print(args,'\n')
 
-from funcs.rf_tools import (get_dat, calculate_sigma, calculate_pRF_location, prf_plots_new, prf_plots, make_visrois_dict, 
+from funcs.rf_tools import (get_dat, calculate_sigma, calculate_pRF_location, prf_plots_new, make_visrois_dict, 
                             make_gaussian_2d, make_circle_mask, css_gaussian_cut, roi_filter, write_prf_dict, compare_radius, 
                             get_mask, compare_masks, prf_heatmap, nsd_R2_dict, rsq_to_size, rsquare_selection)
 from funcs.utility import print_dict_structure, print_large
@@ -265,11 +265,11 @@ payload_light = {k: v for k, v in payload_nsd_crop.items() if k not in excl}
 # payloads = {'full': payload_nsd, 'crop': payload_nsd_crop}
 
 
-
-with h5py.File(f'/home/rfpred/data/custom_files/subj01/pred/light_payloads{args.start}_{args.end}.h5', 'w') as hf:
-    for key, value in payload_light.items():
-        hf.create_dataset(key, data=value)
-        print('Light payload saved succesfully')
+print("succeeded")
+# with h5py.File(f'/home/rfpred/data/custom_files/subj01/pred/light_payloads{args.start}_{args.end}.h5', 'w') as hf:
+#     for key, value in payload_light.items():
+#         hf.create_dataset(key, data=value)
+#         print('Light payload saved succesfully')
 
 # with open(f'/home/rfpred/data/custom_files/{args.subject}/pred/pred_payloads{args.start}_{args.end}.pkl', 'wb') as fp:
 #     pickle.dump(payloads, fp)

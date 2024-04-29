@@ -7,9 +7,17 @@
 
 # Iterate over the first argument from 0 to 29750 in steps of 500
 # for arg1 in $(seq 0 750 29750); do
-for arg1 in $(seq 2500 500 29500); do
+for arg1 in $(seq 0 500 29500); do
     # Calculate arg2 as arg1 + 250
     arg2=$((arg1 + 500))
     # Run the Python script with the current arguments
     python ./scripts/get_pred.py $arg1 $arg2 'subj01'
 done
+
+
+# for arg1 in $(seq 0 10 100); do
+#     # Calculate arg2 as arg1 + 250
+#     arg2=$((arg1 + 10))
+#     # Run the Python script with the current arguments
+#     python ./scripts/get_pred.py $arg1 $arg2 'subj01'
+# done

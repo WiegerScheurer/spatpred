@@ -3,6 +3,11 @@ import torch.nn as nn
 from torchvision import models
 from pdb import set_trace
 from skimage.metrics import structural_similarity as ssim
+import h5py
+import pickle
+import numpy as np
+import os
+
 
 class ReconLoss(nn.Module):
     """loss **to be used in the analysis** (not fine-tuning, to quantify 
@@ -46,6 +51,10 @@ class ReconLoss(nn.Module):
         pixel_loss_hole = (self.loss((1-mask) * output, (1-mask) * gt)).mean(dim=(1,2,3)).numpy()
 
         # Perceptual Loss and Style Loss
+        # ADD PRINT STATEMENT HERE TO CHECK WHETHER IT IS THE FULL OR CROPPPED
+        # THEN INCLUDE CONDITIONAL TO CHECK AND SAVE FILE ACCORDINGLY
+        # It does it twice because one is for L1, the other for MSE, but I only need 1 
+        print(f'this is the size of the groundtruth patch: {gt.shape}')
         feats_comp = self.extractor(comp)
         feats_gt = self.extractor(gt)
         n_layers=len(feats_comp) # n_layers 
@@ -68,12 +77,35 @@ class ReconLoss(nn.Module):
         if self.add_loss_suff:
             loss_dict = {key+f'_{self.loss_str}': value for key, value in loss_dict.items()}
 
+
         # feats_comp_np = [feat.detach().cpu().numpy() for feat in feats_comp] # WADDITION
-        # feats_gt_np = [feat.detach().cpu().numpy() for feat in feats_gt] # WADDITION
+        feats_gt_np = [feat.detach().cpu().numpy() for feat in feats_gt] # WADDITION
         
+        if self.loss_str == 'L1':
+
+            filename = '/home/rfpred/data/custom_files/subj01/pred/featmaps/feats_gt_np.pkl'
+            base_filename, ext = os.path.splitext(filename)
+            i = 0
+
+            while os.path.exists(filename):
+                i += 1
+                filename = f"{base_filename}_{i}{ext}"
+
+            with open(filename, 'wb') as f:
+                pickle.dump(feats_gt_np, f)
+            
+        
+        # with open('/home/rfpred/data/custom_files/subj01/pred/featmaps/feats_gt_np.pkl', 'wb') as f:
+        #     pickle.dump(feats_gt_np, f)
         # featmap_dict = {'feats_comp': feats_comp_np, 'feats_gt': feats_gt_np} # WADDITION
 
+
+        # with h5py.File('TESTTESTfeatmap_dict.h5', 'w') as hf:
+            # for key in featmap_dict.keys():
+                # hf.create_dataset(key, data=featmap_dict[key])
+
         # return loss_dict, featmap_dict # WADDITION
+
         return(loss_dict)
 
 
@@ -122,10 +154,11 @@ class InpaintingLoss(nn.Module):
                 'hole': hole_loss,
                 'perc': perc_loss,
                 'style': style_loss,
-                'tv': tv_loss,
-                'feats_out': feats_out, # WADDITION
-                'feats_comp': feats_comp, # WADDITION
-                'feats_gt': feats_gt} # WADDITION
+                'tv': tv_loss}
+    # ,
+    #             'feats_out': feats_out, # WADDITION
+    #             'feats_comp': feats_comp, # WADDITION
+    #             'feats_gt': feats_gt} # WADDITION
 
 # Modified block-wise feature extractor
 class VGGBlockFeatureExtractor(nn.Module):
@@ -230,10 +263,13 @@ class AlexNetFeatureExtractor(nn.Module):
 
         # Define each feature extractor
         self.enc_1 = nn.Sequential(normalization, *alexnet.features[:3]) # Conv + ReLU + MaxPool
+        # self.enc_1 = nn.Sequential(normalization, *alexnet.features[:2]) # Conv + ReLU + MaxPool
         self.enc_2 = nn.Sequential(*alexnet.features[3:6]) # Conv + ReLU + MaxPool
+        # self.enc_2 = nn.Sequential(*alexnet.features[3:5]) # Conv + ReLU + MaxPool
         self.enc_3 = nn.Sequential(*alexnet.features[6:8]) # Conv + ReLU
         self.enc_4 = nn.Sequential(*alexnet.features[8:10]) # Conv + ReLU
         self.enc_5 = nn.Sequential(*alexnet.features[10:]) # Conv + ReLU + MaxPool
+        # self.enc_5 = nn.Sequential(*alexnet.features[10:11]) # Conv + ReLU + MaxPool
 #         self.enc_6 = nn.Sequential(*alexnet.classifier[:2]) # Dropout + FC
 #         self.enc_7 = nn.Sequential(*alexnet.classifier[2:5]) # ReLU + Dropout + FC
 #         self.enc_8 = nn.Sequential(*alexnet.classifier[5:]) # ReLU + FC
