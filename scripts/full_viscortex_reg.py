@@ -24,7 +24,7 @@ rois, roi_masks = NSP.cortex.visrois_dict()
 prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 
 y_dict_all, xyz_to_vox_all = NSP.analyse.get_hrf_dict('subj01', voxels=roi_masks, prf_region = 'full_viscortex', 
-                                             min_size = 0, max_size = 100, prf_proc_dict=prf_dict, max_voxels = None ,plot_sizes = 'n',
+                                             min_size = 0.1, max_size = 10, prf_proc_dict=prf_dict, max_voxels = None ,plot_sizes = 'n',
                                              vismask_dict=roi_masks, minimumR2=0, in_perc_signal_change=False)
 
 y_all, xyzs_all = NSP.analyse.load_y(subject='subj01', 

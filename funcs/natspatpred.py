@@ -16,6 +16,7 @@ import scipy.stats.mstats as mstats
 import copy
 import ipywidgets as widgets
 
+from typing import Union
 from nilearn import plotting
 from scipy.ndimage import binary_dilation
 from PIL import Image
@@ -42,6 +43,8 @@ from sklearn.model_selection import cross_val_score, KFold, cross_val_predict
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error    
 from IPython.display import display
 from math import sqrt
+from scipy.special import softmax
+
 
 # print(sys.path)
 print('soepstengesl')
@@ -1756,7 +1759,11 @@ class Stimuli():
         elif feat_type == 'sc':
             file_name = 'all_visfeats_scce.pkl'
             category = 'scce'
-            key = 'sc_z' if 'sc' in feat_type else 'ce_z'
+            key = 'sc_z'
+        elif feat_type == 'ce':
+            file_name = 'all_visfeats_scce.pkl'
+            category = 'scce'
+            key = 'ce_z'
         elif feat_type[-1:] == 'l':
             file_name = 'all_visfeats_scce_large.pkl'
             category = 'scce'
@@ -1862,6 +1869,31 @@ class Stimuli():
 
         plt.show()
         
+    def alex_featmaps(self, layers:list, pcs_per_layer:Union[int, str]='all', subject:str='subj01'):
+        """
+        Load in the feature maps from the AlexNet model for a specific layer and subject
+        Input:
+        layers: list of integers representing the layers of the AlexNet model to include in the X-matrix
+        pcs_per_layer: integer value indicating the top amount of principal components to which the feature map should be reduced to, or 
+            'all' if all components should be included.
+        - subject: string value representing the subject for which the feature maps should be loaded in
+        """
+        # Load in the feature maps extracted by the AlexNet model
+        X_all = []
+        
+        if isinstance(pcs_per_layer, int):
+            cut_off = pcs_per_layer
+        
+        for layer in layers:
+            this_X = np.load(f'/home/rfpred/data/custom_files/subj01/center_strict/alex_lay{layer}.npy')
+            if layer == 1:
+                if pcs_per_layer == 'all':
+                    cut_off = this_X.shape[0]
+                X_all = this_X[:, :cut_off]
+            else: X_all = np.hstack((X_all, this_X[:, :cut_off]))
+        
+        return X_all    
+    
     # Create design matrix containing ordered indices of stimulus presentation per subject
     def imgs_designmx(self):
         
