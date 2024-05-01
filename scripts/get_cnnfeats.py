@@ -92,39 +92,6 @@ this_layer = train_nodes[args.cnn_layer + 1]
 
 feature_extractor = create_feature_extractor(model, return_nodes=[this_layer])
 
-# THis is how Micha does it:
-# class AlexNetFeatureExtractor(nn.Module):
-#     MEAN = [0.485, 0.456, 0.406]
-#     STD = [0.229, 0.224, 0.225]
-
-#     def __init__(self):
-#         super().__init__()
-#         alexnet = models.alexnet(pretrained=True)
-#         alexnet.eval()  # Set to evaluation mode
-#         normalization = Normalization(self.MEAN, self.STD)
-
-#         # Define each feature extractor
-#         self.enc_1 = nn.Sequential(normalization, *alexnet.features[:3]) # Conv + ReLU + MaxPool
-#         self.enc_2 = nn.Sequential(*alexnet.features[3:6]) # Conv + ReLU + MaxPool
-#         self.enc_3 = nn.Sequential(*alexnet.features[6:8]) # Conv + ReLU
-#         self.enc_4 = nn.Sequential(*alexnet.features[8:10]) # Conv + ReLU
-#         self.enc_5 = nn.Sequential(*alexnet.features[10:]) # Conv + ReLU + MaxPool
-# #         self.enc_6 = nn.Sequential(*alexnet.classifier[:2]) # Dropout + FC
-# #         self.enc_7 = nn.Sequential(*alexnet.classifier[2:5]) # ReLU + Dropout + FC
-# #         self.enc_8 = nn.Sequential(*alexnet.classifier[5:]) # ReLU + FC
-
-#         # Fix the encoder
-#         for i in range(5):
-#             for param in getattr(self, 'enc_{}'.format(i+1)).parameters():
-#                 param.requires_grad = False
-
-#     def forward(self, input):
-#         feature_maps = [input]
-#         for i in range(5):
-#             feature_map = getattr(self, 'enc_{}'.format(i+1))(feature_maps[-1])
-#             feature_maps.append(feature_map)
-#         return feature_maps[1:]
-
 start = args.start
 end = args.end
 batch_size = end - start

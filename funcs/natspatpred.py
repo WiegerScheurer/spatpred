@@ -15,6 +15,7 @@ import h5py
 import scipy.stats.mstats as mstats
 import copy
 import ipywidgets as widgets
+import sklearn as sk
 
 from typing import Union
 from nilearn import plotting
@@ -44,6 +45,8 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from IPython.display import display
 from math import sqrt
 from scipy.special import softmax
+from matplotlib.ticker import MaxNLocator
+
 
 
 # print(sys.path)
@@ -321,15 +324,29 @@ class Utilities():
         common_rows = np.array([list(x) + ([set1[x]] if keep_vals else []) for x in set1.keys() & set2])
         return common_rows    
 
-    def sort_by_column(self, array, column_index, top_n):
+    def sort_by_column(self, array:np.ndarray, column_index:int, top_n: Union[int, str]):
+        """Function to sort a numpy array based on one of the column values
+
+        Args:
+            array (np.ndarray): Input array
+            column_index (int): The index of the column to sort by
+            top_n (np.ndarray): The top number of rows to return
+
+        Returns:
+            np.array: sorted array containing only the top_n rows
+        """                
         # Get the column
         column = array[:, column_index]
 
         # Get the indices that would sort the column
         sorted_indices = np.argsort(column)
 
+        if top_n == 'all':
+            cut_off = array.shape[0]
+        else: cut_off = top_n
+
         # Reverse the indices to sort in descending order and get the top_n indices
-        top_indices = sorted_indices[::-1][:top_n]
+        top_indices = sorted_indices[::-1][:cut_off]
 
         # Sort the entire array by these indices
         sorted_array = array[top_indices]
@@ -343,7 +360,16 @@ class Utilities():
         return filtered_array
 
     def ecc_angle_to_coords(self, ecc, angle, dim = 425):
-        
+        """_summary_
+
+        Args:
+            ecc (_type_): _description_
+            angle (_type_): _description_
+            dim (int, optional): _description_. Defaults to 425.
+
+        Returns:
+            _type_: _description_
+        """        
         y = ((1 + dim) / 2) - (ecc * np.sin(np.radians(angle)) * (dim / 8.4)) #y in pix (c_index)
         x = ((1 + dim) / 2) + (ecc * np.cos(np.radians(angle)) * (dim / 8.4)) #x in pix (r_index)
         
@@ -1884,9 +1910,9 @@ class Stimuli():
         if isinstance(pcs_per_layer, int):
             cut_off = pcs_per_layer
         
-        for layer in layers:
+        for n_layer, layer in enumerate(layers):
             this_X = np.load(f'/home/rfpred/data/custom_files/subj01/center_strict/alex_lay{layer}.npy')
-            if layer == 1:
+            if n_layer == 0:
                 if pcs_per_layer == 'all':
                     cut_off = this_X.shape[0]
                 X_all = this_X[:, :cut_off]
@@ -2233,187 +2259,266 @@ class Analysis():
         self.nsp = NSPobj
         pass
 
-    # Okay this one is the actual good function. The other should be deleted and never be used again. 
+    # # Okay this one is the actual good function. The other should be deleted and never be used again. 
+    # def get_hrf_dict(self, subjects, voxels, prf_region='center_strict', min_size=0.1, max_size=1,
+    #                 prf_proc_dict=None, max_voxels=None, plot_sizes='n', verbose:bool=False,
+    #                 vismask_dict=None, minimumR2:int=100, in_perc_signal_change:bool=False):
+    #     hrf_dict = {}
+    #     R2_dict_hrf = self.nsp.cortex.nsd_R2_dict(vismask_dict, glm_type = 'hrf')
+        
+        
+    #     for subject in [subjects]:
+    #         hrf_dict[subject] = {}
+
+    #         # Load beta dictionaries for each session
+    #         beta_sessions = []
+    #         for file_name in sorted(os.listdir(f'/home/rfpred/data/custom_files/{subject}/{prf_region}/')):
+    #             if file_name.startswith("beta_dict") and file_name.endswith(".pkl"):
+    #                 with open(f'/home/rfpred/data/custom_files/{subject}/{prf_region}/{file_name}', 'rb') as fp:
+                        
+    #                     beta_sessions.append(pickle.load(fp)[subject])
+
+    #         rois = list(beta_sessions[0].keys())
+
+    #         for n_roi, roi in enumerate(rois):
+    #             hrf_dict[subject][roi] = {}
+                
+    #             # Determine the subject, roi specific optimal top number of R2 values to filter the voxels for
+    #             optimal_top_n_R2 = self.nsp.cortex.optimize_rsquare(R2_dict_hrf, 'subj01','nsd', roi, minimumR2, False, 250)
+    #             print(f'Voxels in {roi[:2]} with a minimum R2 of {minimumR2} is approximately {optimal_top_n_R2}')
+    #             # Fetch this specific number of selected top R2 values for this roi
+    #             highR2 = self.nsp.cortex.rsquare_selection(R2_dict_hrf, optimal_top_n_R2, n_subjects = 8, dataset = 'nsd')[subject][roi]
+    #             # print(f'The average R2 value for {roi}') # This does not make sense, because not filtered yet.
+    #             voxel_mask = voxels[subject][roi] # So this is not the binary mask, but the prf-selection made with the heatmap function
+                
+    #             # if max_voxels is None or n_roi > 0:
+    #                 # vox_n_cutoff = numpy2coords(voxel_mask).shape[0]
+                    
+    #             # This if statement is to allow for a size-based selection of voxels
+    #             if min_size is not None and max_size is not None:
+    #                 preselect_voxels = self.nsp.utils.numpy2coords(voxel_mask, keep_vals = True) # Get the voxel coordinates based on the prf selection
+    #                 # This is another array with coordinates on the first 3 columns and then a selected size on the 4th column
+    #                 size_selected_voxels = self.nsp.utils.filter_array_by_size(prf_proc_dict[subject]['proc'][roi]['size'], min_size, max_size)
+                    
+    #                 joint_ar_prf = self.nsp.utils.find_common_rows(size_selected_voxels, preselect_voxels, keep_vals = True) # Keep_vals keeps the values of the first array
+    #                 joint_ar_R2 = self.nsp.utils.find_common_rows(joint_ar_prf, highR2, keep_vals = True) # Select based on the top R2 values
+    #                 if verbose:
+    #                     print(f'This is joint_ar_R2 {joint_ar_R2[10:15,:]}')
+    #                 available_voxels = joint_ar_R2.shape[0] # Check how many voxels we end up with
+    #                 print(f'Found {available_voxels} voxels in {roi[:2]} with pRF sizes between {min_size} and {max_size}')
+                    
+    #                 selected_R2_vals = self.nsp.utils.find_common_rows(highR2, joint_ar_R2, keep_vals = True)#[:,3] # Get a list of the R2 values for the selected voxels
+    #                 if verbose:
+    #                     print(f'This is the final r2 vals {selected_R2_vals[10:15,:]}')
+
+    #                 # Check whether the amount of voxels available is more than a potential predetermined limit
+    #                 if max_voxels is not None and available_voxels > max_voxels:
+                        
+    #                     top_n_R2_voxels = self.nsp.utils.sort_by_column(selected_R2_vals, 3, top_n = 1000)[:max_voxels, :] # Sort the R2 values and select the top n
+    #                     size_selected_voxels_cut = self.nsp.utils.find_common_rows(joint_ar_R2, top_n_R2_voxels, keep_vals = True) # Get the pRF sizes of these voxels
+    #                     print(f'The amount of voxels are manually restricted to {max_voxels} out of {available_voxels}')
+    #                 else: size_selected_voxels_cut = joint_ar_R2                
+                    
+    #                 final_R2_vals = self.nsp.utils.find_common_rows(highR2, size_selected_voxels_cut, keep_vals = True) # Get a list of the R2 values for the selected voxels
+                    
+    #                 print(f'of which the average R2 value is {np.mean(final_R2_vals[:,3])}\n')
+
+    #                 # size_slct = size_selected_voxels_cut
+    #                 hrf_dict[subject][roi]['roi_sizes'] = size_selected_voxels_cut # This is to be able to plot them later on
+    #                 hrf_dict[subject][roi]['R2_vals'] = final_R2_vals # Idem dito for the r squared values
+
+    #                 n_voxels = size_selected_voxels_cut.shape[0]
+    #                 if verbose:
+    #                     print(f'\tAmount of voxels in {roi[:2]}: {n_voxels}')
+
+    #                 # And the first three columns are the voxel indices
+    #                 array_vox_indices = size_selected_voxels_cut[:, :3]
+
+    #                 # Convert array of voxel indices to a set of tuples for faster lookup
+    #                 array_vox_indices_set = set(map(tuple, array_vox_indices))
+
+    #                 # Create a new column filled with zeros, to later fill with the voxelnames in the betasession files, and meanbeta values
+    #                 new_column = unscaled_betas = np.zeros((size_selected_voxels_cut.shape[0], 1))
+
+    #                 # Add the new column to the right of size_selected_voxels_cut
+    #                 find_vox_ar = np.c_[size_selected_voxels_cut, new_column].astype(object)
+
+    #                 # Iterate over the dictionary
+    #                 for this_roi, roi_data in beta_sessions[0].items():
+    #                     for voxel, voxel_data in roi_data.items():
+    #                         # Check if the voxel's vox_idx is in the array
+    #                         if voxel_data['vox_idx'] in array_vox_indices_set:
+    #                             if verbose:
+    #                                 print(f"Found {voxel_data['vox_idx']} in array for {this_roi}, {voxel}")
+
+    #                             # Find the row in find_vox_ar where the first three values match voxel_data['vox_idx']
+    #                             matching_rows = np.all(find_vox_ar[:, :3] == voxel_data['vox_idx'], axis=1)
+
+    #                             # Set the last column of the matching row to voxel
+    #                             find_vox_ar[matching_rows, -1] = voxel
+
+    #             mean_betas = np.zeros((final_R2_vals.shape))
+                
+    #             xyz_to_name_roi = np.hstack((find_vox_ar[:,:3].astype('int'), find_vox_ar[:,4].reshape(-1,1)))
+    #             if n_roi == 0:
+    #                 xyz_to_name = xyz_to_name_roi
+    #             else: xyz_to_name = np.vstack((xyz_to_name, xyz_to_name_roi))
+                
+    #             # Check whether the entire fourth column is now non-zero:
+    #             if verbose:
+    #                 print(f'\tChecking if all selected voxels are present in beta session file: {np.all(find_vox_ar[:, 4] != 0)}\n')
+    #             for vox_no in range(n_voxels):
+    #                 # Get the xyz coordinates of the voxel
+    #                 vox_xyz = find_vox_ar[vox_no, :3]
+    #                 vox_name = find_vox_ar[vox_no, 4]
+                    
+    #                 if verbose:
+    #                     print(f'This is voxel numero: {vox_no}')
+    #                     print(f'The voxel xyz are {vox_xyz}')
+                    
+    #                 hrf_betas = []
+    #                 for session_data in beta_sessions:
+    #                     if verbose:
+    #                         print(f"There are {len(session_data[roi]['voxel1']['beta_values'])} in this beta batch")
+    #                     these_betas = session_data[roi][vox_name]['beta_values']
+    #                     # Flatten the numpy array and convert it to a list before extending hrf_betas
+    #                     hrf_betas.extend(these_betas.flatten().tolist())
+                    
+    #                 # Reshape hrf betas into 40 batches of 750 values
+    #                 betas_reshaped = np.array(hrf_betas).reshape(-1, 750) #, np.array(hrf_betas).shape[1])
+
+    #                 # Initialize an empty array to store the z-scores
+    #                 betas_normalised = np.empty_like(betas_reshaped)
+
+    #                 if in_perc_signal_change:
+    #                     # Calculate the z-scores for each batch
+    #                     for i in range(betas_reshaped.shape[0]):
+    #                         betas_mean = np.mean(betas_reshaped[i])
+    #                         betas_normalised[i] = self.nsp.utils.get_zscore(((betas_reshaped[i] / betas_mean) * 100), print_ars='n')
+    #                 else: 
+    #                     betas_normalised = betas_reshaped * 300
+    #                     for i in range(betas_reshaped.shape[0]):
+    #                         betas_normalised[i] = self.nsp.utils.get_zscore(betas_reshaped[i], print_ars='n')
+                        
+    #                 # Flatten z_scores back into original shape
+    #                 hrf_betas_z = betas_normalised.flatten()
+    #                 mean_beta = np.mean(hrf_betas_z)
+    #                 hrf_dict[subject][roi][vox_name] = {
+    #                     'xyz': list(vox_xyz.astype('int')),
+    #                     'size': size_selected_voxels_cut[vox_no,3],
+    #                     'R2': final_R2_vals[vox_no,3],
+    #                     'hrf_betas': hrf_betas,
+    #                     'hrf_betas_z': hrf_betas_z,
+    #                     'mean_beta': mean_beta
+    #                     }
+    #                 unscaled_betas[vox_no] = mean_beta
+    #             mean_betas[:, :3] = size_selected_voxels_cut[:,:3]
+    #             mean_betas[:, 3] = self.nsp.utils.get_zscore(unscaled_betas, print_ars='n').flatten()
+                
+    #             hrf_dict[subject][roi]['mean_betas'] = mean_betas # Store the mean_beta values for each voxel in the roi
+
+
+    #             n_betas = len(hrf_dict[subject][roi][vox_name]['hrf_betas'])
+    #             if verbose:
+    #                 print(f'\tProcessed images: {n_betas}')
+                
+    #     plt.style.use('default')
+
+    #     if plot_sizes == 'y':
+    #         _, axs = plt.subplots(2, 2, figsize=(10, 8))  # Create a figure with 2x2 subplots
+    #         axs = axs.flatten()  # Flatten the 2D array of axes to 1D for easier indexing
+    #         cmap = plt.get_cmap('gist_heat')  # Get the 'viridis' color map
+    #         for i, roi in enumerate(rois):
+    #             sizes = hrf_dict[subject][roi]['roi_sizes'][:,3]
+    #             color = cmap(i / len(rois))  # Get a color from the color map
+    #             sns.histplot(sizes, kde=True, ax=axs[i], color=color, bins = 10)  # Plot on the i-th subplot
+    #             axs[i].set_title(f'RF sizes for {roi[:2]} (n={sizes.shape[0]})')  # Include the number of voxels in the title
+    #             axs[i].set_xlim([min_size-.1, max_size+.1])  # Set the x-axis limit from 0 to 2
+              
+    #     return hrf_dict, xyz_to_name
+    
+#     import numpy as np
+# import os
+# import pickle
+
+# class DataProcessor:
+
     def get_hrf_dict(self, subjects, voxels, prf_region='center_strict', min_size=0.1, max_size=1,
                     prf_proc_dict=None, max_voxels=None, plot_sizes='n', verbose:bool=False,
                     vismask_dict=None, minimumR2:int=100, in_perc_signal_change:bool=False):
+
         hrf_dict = {}
-        R2_dict_hrf = self.nsp.cortex.nsd_R2_dict(vismask_dict, glm_type = 'hrf')
-        
-        
-        for subject in [subjects]:
+        R2_dict_hrf = self.nsp.cortex.nsd_R2_dict(vismask_dict, glm_type='hrf')
+
+        for subject in subjects:
             hrf_dict[subject] = {}
-
-            # Load beta dictionaries for each session
-            beta_sessions = []
-            for file_name in sorted(os.listdir(f'/home/rfpred/data/custom_files/{subject}/{prf_region}/')):
-                if file_name.startswith("beta_dict") and file_name.endswith(".pkl"):
-                    with open(f'/home/rfpred/data/custom_files/{subject}/{prf_region}/{file_name}', 'rb') as fp:
-                        
-                        beta_sessions.append(pickle.load(fp)[subject])
-
+            beta_sessions = self.load_beta_sessions(subject, prf_region)
             rois = list(beta_sessions[0].keys())
 
             for n_roi, roi in enumerate(rois):
-                hrf_dict[subject][roi] = {}
-                
-                # Determine the subject, roi specific optimal top number of R2 values to filter the voxels for
-                optimal_top_n_R2 = self.nsp.cortex.optimize_rsquare(R2_dict_hrf, 'subj01','nsd', roi, minimumR2, False, 250)
-                print(f'Voxels in {roi[:2]} with a minimum R2 of {minimumR2} is approximately {optimal_top_n_R2}')
-                # Fetch this specific number of selected top R2 values for this roi
-                highR2 = self.nsp.cortex.rsquare_selection(R2_dict_hrf, optimal_top_n_R2, n_subjects = 8, dataset = 'nsd')[subject][roi]
-                # print(f'The average R2 value for {roi}') # This does not make sense, because not filtered yet.
-                voxel_mask = voxels[subject][roi] # So this is not the binary mask, but the prf-selection made with the heatmap function
-                
-                # if max_voxels is None or n_roi > 0:
-                    # vox_n_cutoff = numpy2coords(voxel_mask).shape[0]
-                    
-                # This if statement is to allow for a size-based selection of voxels
-                if min_size is not None and max_size is not None:
-                    preselect_voxels = self.nsp.utils.numpy2coords(voxel_mask, keep_vals = True) # Get the voxel coordinates based on the prf selection
-                    # This is another array with coordinates on the first 3 columns and then a selected size on the 4th column
-                    size_selected_voxels = self.nsp.utils.filter_array_by_size(prf_proc_dict[subject]['proc'][roi]['size'], min_size, max_size)
-                    
-                    joint_ar_prf = self.nsp.utils.find_common_rows(size_selected_voxels, preselect_voxels, keep_vals = True) # Keep_vals keeps the values of the first array
-                    joint_ar_R2 = self.nsp.utils.find_common_rows(joint_ar_prf, highR2, keep_vals = True) # Select based on the top R2 values
-                    if verbose:
-                        print(f'This is joint_ar_R2 {joint_ar_R2[10:15,:]}')
-                    available_voxels = joint_ar_R2.shape[0] # Check how many voxels we end up with
-                    print(f'Found {available_voxels} voxels in {roi[:2]} with pRF sizes between {min_size} and {max_size}')
-                    
-                    selected_R2_vals = self.nsp.utils.find_common_rows(highR2, joint_ar_R2, keep_vals = True)#[:,3] # Get a list of the R2 values for the selected voxels
-                    if verbose:
-                        print(f'This is the final r2 vals {selected_R2_vals[10:15,:]}')
-
-                    # Check whether the amount of voxels available is more than a potential predetermined limit
-                    if max_voxels is not None and available_voxels > max_voxels:
-                        
-                        top_n_R2_voxels = self.nsp.utils.sort_by_column(selected_R2_vals, 3, top_n = 1000)[:max_voxels, :] # Sort the R2 values and select the top n
-                        size_selected_voxels_cut = self.nsp.utils.find_common_rows(joint_ar_R2, top_n_R2_voxels, keep_vals = True) # Get the pRF sizes of these voxels
-                        print(f'The amount of voxels are manually restricted to {max_voxels} out of {available_voxels}')
-                    else: size_selected_voxels_cut = joint_ar_R2                
-                    
-                    final_R2_vals = self.nsp.utils.find_common_rows(highR2, size_selected_voxels_cut, keep_vals = True) # Get a list of the R2 values for the selected voxels
-                    
-                    print(f'of which the average R2 value is {np.mean(final_R2_vals[:,3])}\n')
-
-                    # size_slct = size_selected_voxels_cut
-                    hrf_dict[subject][roi]['roi_sizes'] = size_selected_voxels_cut # This is to be able to plot them later on
-                    hrf_dict[subject][roi]['R2_vals'] = final_R2_vals # Idem dito for the r squared values
-
-                    n_voxels = size_selected_voxels_cut.shape[0]
-                    if verbose:
-                        print(f'\tAmount of voxels in {roi[:2]}: {n_voxels}')
-
-                    # And the first three columns are the voxel indices
-                    array_vox_indices = size_selected_voxels_cut[:, :3]
-
-                    # Convert array of voxel indices to a set of tuples for faster lookup
-                    array_vox_indices_set = set(map(tuple, array_vox_indices))
-
-                    # Create a new column filled with zeros, to later fill with the voxelnames in the betasession files, and meanbeta values
-                    new_column = unscaled_betas = np.zeros((size_selected_voxels_cut.shape[0], 1))
-
-                    # Add the new column to the right of size_selected_voxels_cut
-                    find_vox_ar = np.c_[size_selected_voxels_cut, new_column].astype(object)
-
-                    # Iterate over the dictionary
-                    for this_roi, roi_data in beta_sessions[0].items():
-                        for voxel, voxel_data in roi_data.items():
-                            # Check if the voxel's vox_idx is in the array
-                            if voxel_data['vox_idx'] in array_vox_indices_set:
-                                if verbose:
-                                    print(f"Found {voxel_data['vox_idx']} in array for {this_roi}, {voxel}")
-
-                                # Find the row in find_vox_ar where the first three values match voxel_data['vox_idx']
-                                matching_rows = np.all(find_vox_ar[:, :3] == voxel_data['vox_idx'], axis=1)
-
-                                # Set the last column of the matching row to voxel
-                                find_vox_ar[matching_rows, -1] = voxel
-
-                mean_betas = np.zeros((final_R2_vals.shape))
-                
-                xyz_to_name_roi = np.hstack((find_vox_ar[:,:3].astype('int'), find_vox_ar[:,4].reshape(-1,1)))
-                if n_roi == 0:
-                    xyz_to_name = xyz_to_name_roi
-                else: xyz_to_name = np.vstack((xyz_to_name, xyz_to_name_roi))
-                
-                # Check whether the entire fourth column is now non-zero:
-                if verbose:
-                    print(f'\tChecking if all selected voxels are present in beta session file: {np.all(find_vox_ar[:, 4] != 0)}\n')
-                for vox_no in range(n_voxels):
-                    # Get the xyz coordinates of the voxel
-                    vox_xyz = find_vox_ar[vox_no, :3]
-                    vox_name = find_vox_ar[vox_no, 4]
-                    
-                    if verbose:
-                        print(f'This is voxel numero: {vox_no}')
-                        print(f'The voxel xyz are {vox_xyz}')
-                    
-                    hrf_betas = []
-                    for session_data in beta_sessions:
-                        if verbose:
-                            print(f"There are {len(session_data[roi]['voxel1']['beta_values'])} in this beta batch")
-                        these_betas = session_data[roi][vox_name]['beta_values']
-                        # Flatten the numpy array and convert it to a list before extending hrf_betas
-                        hrf_betas.extend(these_betas.flatten().tolist())
-                    
-                    # Reshape hrf betas into 40 batches of 750 values
-                    betas_reshaped = np.array(hrf_betas).reshape(-1, 750) #, np.array(hrf_betas).shape[1])
-
-                    # Initialize an empty array to store the z-scores
-                    betas_normalised = np.empty_like(betas_reshaped)
-
-                    if in_perc_signal_change:
-                        # Calculate the z-scores for each batch
-                        for i in range(betas_reshaped.shape[0]):
-                            betas_mean = np.mean(betas_reshaped[i])
-                            betas_normalised[i] = self.nsp.utils.get_zscore(((betas_reshaped[i] / betas_mean) * 100), print_ars='n')
-                    else: 
-                        betas_normalised = betas_reshaped * 300
-                        
-                    # Flatten z_scores back into original shape
-                    hrf_betas_z = betas_normalised.flatten()
-                    mean_beta = np.mean(hrf_betas_z)
-                    hrf_dict[subject][roi][vox_name] = {
-                        'xyz': list(vox_xyz.astype('int')),
-                        'size': size_selected_voxels_cut[vox_no,3],
-                        'R2': final_R2_vals[vox_no,3],
-                        'hrf_betas': hrf_betas,
-                        'hrf_betas_z': hrf_betas_z,
-                        'mean_beta': mean_beta
-                        }
-                    unscaled_betas[vox_no] = mean_beta
-                mean_betas[:, :3] = size_selected_voxels_cut[:,:3]
-                mean_betas[:, 3] = self.nsp.utils.get_zscore(unscaled_betas, print_ars='n').flatten()
-                
-                hrf_dict[subject][roi]['mean_betas'] = mean_betas # Store the mean_beta values for each voxel in the roi
-
-
-                n_betas = len(hrf_dict[subject][roi][vox_name]['hrf_betas'])
-                if verbose:
-                    print(f'\tProcessed images: {n_betas}')
-                
-        plt.style.use('default')
+                self.process_roi(subject, roi, n_roi, beta_sessions, hrf_dict, R2_dict_hrf,
+                                 voxels, prf_proc_dict, min_size, max_size, max_voxels, minimumR2, 
+                                 verbose, in_perc_signal_change)
 
         if plot_sizes == 'y':
-            _, axs = plt.subplots(2, 2, figsize=(10, 8))  # Create a figure with 2x2 subplots
-            axs = axs.flatten()  # Flatten the 2D array of axes to 1D for easier indexing
-            cmap = plt.get_cmap('gist_heat')  # Get the 'viridis' color map
-            for i, roi in enumerate(rois):
-                sizes = hrf_dict[subject][roi]['roi_sizes'][:,3]
-                color = cmap(i / len(rois))  # Get a color from the color map
-                sns.histplot(sizes, kde=True, ax=axs[i], color=color, bins = 10)  # Plot on the i-th subplot
-                axs[i].set_title(f'RF sizes for {roi[:2]} (n={sizes.shape[0]})')  # Include the number of voxels in the title
-                axs[i].set_xlim([min_size-.1, max_size+.1])  # Set the x-axis limit from 0 to 2
-              
-        return hrf_dict, xyz_to_name
+            self.plot_sizes(hrf_dict, min_size, max_size)
+        
+        return hrf_dict
+
+    def load_beta_sessions(self, subject, prf_region):
+        beta_sessions = []
+        base_path = f'/home/rfpred/data/custom_files/{subject}/{prf_region}/'
+        for file_name in sorted(os.listdir(base_path)):
+            if file_name.startswith("beta_dict") and file_name.endswith(".pkl"):
+                with open(os.path.join(base_path, file_name), 'rb') as fp:
+                    beta_sessions.append(pickle.load(fp)[subject])
+        return beta_sessions
+
+    def process_roi(self, subject, roi, n_roi, beta_sessions, hrf_dict, R2_dict_hrf, voxels, 
+                    prf_proc_dict, min_size, max_size, max_voxels, minimumR2, verbose, in_perc_signal_change):
+        hrf_dict[subject][roi] = {}
+        optimal_top_n_R2 = self.nsp.cortex.optimize_rsquare(R2_dict_hrf, subject, 'nsd', roi, minimumR2, False, 250)
+        
+        highR2 = self.nsp.cortex.rsquare_selection(R2_dict_hrf, optimal_top_n_R2, n_subjects=8, dataset='nsd')[subject][roi]
+        voxel_mask = voxels[subject][roi]
+        
+        preselect_voxels = self.nsp.utils.numpy2coords(voxel_mask, keep_vals=True)
+        size_selected_voxels = self.nsp.utils.filter_array_by_size(prf_proc_dict[subject]['proc'][roi]['size'], min_size, max_size)
+        joint_ar_prf = self.nsp.utils.find_common_rows(size_selected_voxels, preselect_voxels, keep_vals=True)
+        joint_ar_R2 = self.nsp.utils.find_common_rows(joint_ar_prf, highR2, keep_vals=True)
+        
+        available_voxels = joint_ar_R2.shape[0]
+        if verbose:
+            print(f'Found {available_voxels} voxels in {roi[:2]} with pRF sizes between {min_size} and {max_size}')
+        
+        selected_R2_vals = joint_ar_R2
+        if max_voxels is not None and available_voxels > max_voxels:
+            selected_R2_vals = self.nsp.utils.sort_by_column(selected_R2_vals, 3, top_n=max_voxels)
+        
+        hrf_dict[subject][roi]['roi_sizes'] = selected_R2_vals
+        hrf_dict[subject][roi]['R2_vals'] = selected_R2_vals
+
+    def plot_sizes(self, hrf_dict, min_size, max_size):
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        plt.style.use('default')
+        _, axs = plt.subplots(2, 2, figsize=(10, 8))
+        axs = axs.flatten()
+        cmap = plt.get_cmap('gist_heat')
+        for i, (subject, rois) in enumerate(hrf_dict.items()):
+            for j, (roi, data) in enumerate(rois.items()):
+                sizes = data['roi_sizes'][:, 3]
+                color = cmap(j / len(rois))
+                sns.histplot(sizes, kde=True, ax=axs[j], color=color, bins=10)
+                axs[j].set_title(f'RF sizes for {roi[:2]} (n={sizes.shape[0]})')
+                axs[j].set_xlim([min_size - .1, max_size + .1])
+
     
     def load_y(self, subject:str, roi:str, hrf_dict:dict, 
            xyz_to_name:np.array, roi_masks:dict, prf_dict:dict, 
            n_voxels, start_img:int, n_imgs:int, verbose:bool=True, across_rois:bool=False):
         
-        if across_rois: 
+        if across_rois: # Optional looping over the four different regions of interest
             rois = self.nsp.cortex.visrois_dict()[0]
             ys = []
             xyzs_stack = []
@@ -2424,12 +2529,12 @@ class Analysis():
             if n_voxels == 'all': 
                 n_voxels = max_voxels
 
-            selection_xyz = np.zeros((n_voxels, 2),dtype='object')
+            selection_xyz = np.zeros((min(max_voxels, n_voxels), 2),dtype='object')
             y_matrix = np.zeros((start_img+n_imgs-start_img, n_voxels))
 
             for voxel in range(n_voxels):
                 if voxel < max_voxels:
-                    vox_xyz, voxname = self.nsp.cortex.get_good_voxel(subject='subj01', roi=roi, hrf_dict=hrf_dict, xyz_to_voxname=xyz_to_name, 
+                    vox_xyz, voxname = self.nsp.cortex.get_good_voxel(subject=subject, roi=roi, hrf_dict=hrf_dict, xyz_to_voxname=xyz_to_name, 
                                             pick_manually=voxel, plot=False, prf_dict=prf_dict, vismask_dict=roi_masks,selection_basis='R2')
                     selection_xyz[voxel,0] = vox_xyz
                     selection_xyz[voxel,1] = voxname
@@ -2449,24 +2554,48 @@ class Analysis():
         if verbose:
             print(f'Loaded y-matrix with {selection_xyz.shape[0]} voxels from {rois}')
         return y_matrix, selection_xyz
-                
-    # def load_X
-                
+                                
     def run_ridge_regression(self, X:np.array, y:np.array, alpha=1.0):
         model = Ridge(alpha=alpha)
         model.fit(X, y)
         return model
 
-    def _get_coefs(self, model):
+    # Not really necessary
+    def _get_coefs(self, model:sk.linear_model._ridge.Ridge):
         return model.coef_
 
-    def _score_model(self, X, y, model, cv=5):
+    def _get_r(self, y:np.ndarray, y_hat:np.ndarray):
+        """Function to get the correlation between the predicted and actual HRF signal betas.
+
+        Args:
+            y (np.ndarray): The original HRF signal betas from the NSD
+            y_hat (np.ndarray): The predicted HRF signal betas
+
+        Returns:
+            float: The correlation between the two sets of betas as a measure of fit
+        """        
+        return np.mean(y * y_hat, axis=0)
+
+    def score_model(self, X:np.ndarray, y:np.ndarray, model:sk.linear_model._ridge.Ridge, cv:int=5):
+        """This function evaluates the performance of the model using cross-validation.
+
+        Args:
+            X (np.ndarray): X-matrix, independent variables with shape (n_trials, n_features)
+            y (np.ndarray): y-matrix, dependent variable with shape (n_trials, n_outputs)
+            model (sk.linear_model._ridge.Ridge): The ridge model to score
+            cv (int, optional): The number of cross validation folds. Defaults to 5.
+
+        Returns:
+            tuple: A tuple containing:
+                - y_hat (np.ndarray): The predicted values for y, with shape (n_trials, n_outputs)
+                - scores (np.ndarray): The R^2 scores for each output, with shape (n_outputs,)
+        """        
         # Initialize the KFold object
         kf = KFold(n_splits=cv)
         
         # Initialize lists to store the predicted values and scores for each fold
         y_hat = []
-        scores = []
+        cor_scores = []
         
         # For each fold...
         for train_index, test_index in kf.split(X):
@@ -2480,21 +2609,47 @@ class Analysis():
             # Predict the values for the testing data
             y_hat_fold = model.predict(X_test)
             
-            # Calculate the R^2 score for each column
-            scores_fold = [r2_score(y_test[:, i], y_hat_fold[:, i]) for i in range(y_test.shape[1])]
+            # Calculate the R^2 score for each column, no multi output
+            # scores_fold = [r2_score(y_test[:, i], y_hat_fold[:, i]) for i in range(y_test.shape[1])]
+            r_fold = self._get_r(y_test, y_hat_fold)
             
             # Append the predicted values and scores for this fold to the lists
             y_hat.append(y_hat_fold)
-            scores.append(scores_fold)
+            cor_scores.append(r_fold)
         
         # Concatenate the predicted values from each fold into a single array
         y_hat = np.concatenate(y_hat)
         
         # Calculate the average R^2 score for each column
-        scores = np.mean(scores, axis=0)
+        # scores = np.mean(cor_scores, axis=0)
         
-        return y_hat, scores
+        return y_hat, cor_scores
+    
+    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, glass_brain=False):
+        brain_nii = nib.Nifti1Image(brain_numpy, self.nsp.cortex.anat_templates(prf_dict)[subject].affine)
+        if glass_brain:
+            plotting.plot_glass_brain(brain_nii, display_mode='ortho', colorbar=True)
+        else:
+            plotting.plot_stat_map(brain_nii, bg_img=self.nsp.cortex.anat_templates(prf_dict)[subject], display_mode='ortho', colorbar=True)
+            
+    def stat_on_brain(self, prf_dict:dict, roi_masks:dict, subject:str, stat:np.ndarray, xyzs:np.ndarray, glass_brain=False):
+        n_voxels = xyzs.shape[0]
+        statmap = np.zeros((n_voxels, 4))
+        for vox in range(n_voxels):
+            statmap[vox, :3] = (xyzs[vox][0][0], xyzs[vox][0][1], xyzs[vox][0][2])
+            statmap[vox, 3] = stat[vox]
 
+        brainp = self.nsp.utils.coords2numpy(statmap, roi_masks[subject]['V1_mask'].shape, keep_vals=True)
+        
+        self.plot_brain(prf_dict, roi_masks, subject, brainp, glass_brain)
+        
+        # cv_r2_nii = nib.Nifti1Image(cv_r2_brainp, self.nsp.cortex.anat_templates(prf_dict)[subject].affine)
+
+        # if glass_brain:
+        #     plotting.plot_glass_brain(cv_r2_nii, display_mode='ortho', colorbar=True)
+        # else:
+        #     plotting.plot_stat_map(cv_r2_nii, bg_img=self.nsp.cortex.anat_templates(prf_dict)[subject], display_mode='ortho', colorbar=True)
+        
     def evaluate_model(self, X, y, alpha=1.0, cv=5, extra_stats:bool=True):
         # Create and fit the model
         model = self.run_ridge_regression(X, y, alpha)
@@ -2503,7 +2658,7 @@ class Analysis():
         coefs = self._get_coefs(model)
 
         # Score the model with cross-validation
-        y_hat, scores = self._score_model(X, y, model, cv)
+        y_hat, scores = self.score_model(X, y, model, cv)
 
         if extra_stats:
             # Calculate the MAE, MSE, RMSE, and MAPE
@@ -2530,7 +2685,7 @@ class Analysis():
                 'predicted_values': y_hat,
                 'cross_validation_scores': scores
             }
-            
+
     def plot_learning_curve(self, X, y, model=None, alpha=1.0, cv=5):
         if model is None:
             # Create and fit the model
@@ -2554,20 +2709,38 @@ class Analysis():
             # Predict the values for the testing data
             y_hat = model.predict(X_test)
 
-            # Calculate the R^2 score for each column
-            scores_fold = [r2_score(y_test[:, i], y_hat[:, i]) for i in range(y_test.shape[1])]
+            # Calculate the correlation for each column
+            scores_fold = [self._get_r(y_test[:, i], y_hat[:, i]) for i in range(y_test.shape[1])]
 
-            # Append the average R^2 score for this fold to the list
-            scores.append(np.mean(scores_fold))
+            # Append the average correlation for this fold to the list
+            scores.append(scores_fold)
 
         # Plot the scores
-        plt.plot(range(1, cv + 1), scores)
+        for i, scores_fold in enumerate(scores, start=1):
+            # Scatter plot of individual scores
+            plt.scatter([i]*len(scores_fold), scores_fold, color='blue', alpha=0.5)
+
+            # Line plot of mean score
+            plt.plot(i, np.mean(scores_fold), color='red', marker='o')
+
         plt.xlabel('Fold')
-        plt.ylabel('R^2 Score')
+        plt.ylabel('Correlation Score')
         plt.title('Learning Curve')
+
+        # Set x-axis to only show integer values
+        plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+
         plt.show()
-            
+                
     def plot_residuals(self, X, y, model=None, alpha=1.0):
+        """Plot the residuals of the model, which is the difference between the actual y and the predicted y (y_hat)
+
+        Args:
+            X (_type_): _description_
+            y (_type_): _description_
+            model (_type_, optional): _description_. Defaults to None.
+            alpha (float, optional): _description_. Defaults to 1.0.
+        """        
         if model is None:
             # Create and fit the model
             model = self.run_ridge_regression(X, y, alpha)
@@ -2584,36 +2757,6 @@ class Analysis():
         plt.ylabel('Residuals')
         plt.title('Residual Plot')
         plt.show()    
-    
-    def plot_feature_importance(self, X, y, model=None, alpha=1.0):
-        # If no model is provided...
-        if model is None:
-            # Create and fit the model
-            model = self.run_ridge_regression(X, y, alpha)
-
-        # Get the predicted values
-        y_hat = model.predict(X)
-
-        # Get the number of features and output variables
-        n_features = X.shape[1]
-        n_outputs = y.shape[1]
-
-        # Create a figure and axes
-        fig, axs = plt.subplots(n_features, n_outputs, figsize=(5*n_outputs, 5*n_features))
-
-        # For each feature...
-        for i in range(n_features):
-            # For each output variable...
-            for j in range(n_outputs):
-                # Plot the feature values against the predicted values for this output variable
-                axs[i, j].scatter(X[:, i], y_hat[:, j], alpha=0.3)
-
-                # Add a title
-                axs[i, j].set_title(f'Feature {i+1} vs Predicted Values for Output {j+1}')
-
-        # Show the plot
-        plt.tight_layout()
-        plt.show()
 
 class NatSpatPred():
     
