@@ -35,7 +35,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA, IncrementalPCA
 from sklearn.impute import SimpleImputer
 from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
-from tqdm import tqdm
+from tqdm.notebook import tqdm
+
 from matplotlib.lines import Line2D
 from sklearn.model_selection import KFold
 from sklearn.linear_model import LinearRegression
@@ -134,6 +135,40 @@ class DataFetch():
                 
         return dict_list
         
+        
+    # What I Now need to figure out is whether it is doable to just save the aggregated version of this, or 
+    # that it's quick enough to just stack them on the spot.
+    def _stack_betas(self, subject:str, roi:str, verbose:bool, n_sessions:int) -> np.ndarray:
+        """Hidden method to stack the betas for a given subject and roi
+
+        Args:
+            subject (str): The subject to acquire the betas for
+            roi (str): The region of interest
+            verbose (bool): Print out the progress
+            n_sessions (int): The amount of sessions for which to acquire the betas
+
+        Returns:
+            np.ndarray: A numpy array with dimensions (n_voxels, n_betas) of which the first 3 columns
+                represent the voxel coordinates and the rest the betas for each chronological trial
+        """      
+        with tqdm(total=n_sessions, disable=not verbose) as pbar:
+            for session in range(1, 1+n_sessions):
+                session_str = f'{session:02d}'
+                betapath = f'/home/rfpred/data/custom_files/{subject}/betas/{roi}/'
+
+                if session == 1:
+                    init_sesh = np.load(f'{betapath}beta_stack_session{session_str}.npy')
+                    stack = np.hstack((init_sesh[:,:3], self.nsp.utils.get_zscore(init_sesh[:,3:], print_ars='n')))
+                else:
+                    stack = np.hstack((stack,  self.nsp.utils.get_zscore(np.load(f'{betapath}beta_stack_session{session_str}.npy'), print_ars='n')))
+
+                if verbose:
+                    pbar.set_description(f'NSD session: {session}')
+                    pbar.set_postfix({f'{roi} betas': f'{stack.shape} {round(self.nsp.utils.inbytes(stack)/1000000000, 3)}gb'}, refresh=True)
+
+                pbar.update()
+        return stack
+            
 class Utilities():
 
     def __init__(self):
@@ -2738,9 +2773,11 @@ class Analysis():
             xyzs (np.ndarray): The voxel coordinates
             glass_brain (bool, optional): Optional argument to plot a glass brain instead of a static map. Defaults to False.
         """        
+        n_voxels = len(xyzs)
         statmap = np.zeros((n_voxels, 4))
         for vox in range(n_voxels):
-            statmap[vox, :3] = (xyzs[vox][0][0], xyzs[vox][0][1], xyzs[vox][0][2])
+            # statmap[vox, :3] = (xyzs[vox][0][0], xyzs[vox][0][1], xyzs[vox][0][2]) # this is for the old xyzs
+            statmap[vox, :3] = xyzs[vox]
             statmap[vox, 3] = stat[vox]
 
         brainp = self.nsp.utils.coords2numpy(statmap, roi_masks[subject]['V1_mask'].shape, keep_vals=True)
