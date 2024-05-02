@@ -217,19 +217,44 @@ class Utilities():
         elif fill == 'n':
             return -outline_circle_mask
 
-    def css_gaussian_cut(self, size, center_row, center_col, sigma):
-        rows = np.arange(size)
-        cols = np.arange(size)
+    # def css_gaussian_cut(self, size, center_row, center_col, sigma):
+    #     rows = np.arange(size)
+    #     cols = np.arange(size)
+    #     rows, cols = np.meshgrid(rows, cols)
+
+    #     distances = np.sqrt((rows - center_row)**2 + (cols - center_col)**2)
+    #     mask = np.where(distances <= sigma, 1, 0)
+
+    #     exponent = -((rows - center_row)**2 / (2 * sigma**2) + (cols - center_col)**2 / (2 * sigma**2))
+    #     gaussian = np.exp(exponent)
+    #     gaussian *= mask
+    #     return gaussian
+    # import numpy as np
+
+    def css_gaussian_cut(self, size:np.ndarray, center_row:np.ndarray, center_col:np.ndarray, sigma:np.ndarray):
+        # Ensure all inputs are numpy arrays and have the same shape
+        size = np.asarray(size).reshape(-1, 1, 1)
+        center_row = np.asarray(center_row).reshape(-1, 1, 1)
+        center_col = np.asarray(center_col).reshape(-1, 1, 1)
+        sigma = np.asarray(sigma).reshape(-1, 1, 1)
+
+        # Create a meshgrid for rows and cols
+        rows = np.arange(size.max())
+        cols = np.arange(size.max())
         rows, cols = np.meshgrid(rows, cols)
 
+        # Calculate distances, mask, and exponent for all inputs at once using broadcasting
         distances = np.sqrt((rows - center_row)**2 + (cols - center_col)**2)
         mask = np.where(distances <= sigma, 1, 0)
 
         exponent = -((rows - center_row)**2 / (2 * sigma**2) + (cols - center_col)**2 / (2 * sigma**2))
         gaussian = np.exp(exponent)
         gaussian *= mask
-        return gaussian
 
+        # Trim each 2D array in the stack to its corresponding size
+        gaussian = np.array([gaussian[i, :s, :s] for i, s in enumerate(size.flatten())])
+
+        return gaussian
     
     def get_zscore(self, data, print_ars = 'y'):
         mean_value = np.mean(data)
@@ -954,15 +979,15 @@ class Cortex():
 
         return prf_dict
 
-    def calculate_pRF_location(self, prf_size:float, prf_ecc:float, prf_angle:float, image_size:Tuple[int, int]=(200, 200), visual_angle_extent:float=8.4) -> Tuple[float, float, float]:
+    def calculate_pRF_location(self, prf_size:np.ndarray, prf_ecc:np.ndarray, prf_angle:np.ndarray, image_size:Tuple[int, int]=(425, 425), visual_angle_extent:float=8.4) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Calculate pRF location (x, y, z) given the size, eccentricity, angle, image dimensions, and degrees of visual angle the image spans.
 
         Parameters:
-        prf_size (float): The size of the pRF.
-        prf_ecc (float): The eccentricity of the pRF.
-        prf_angle (float): The angle of the pRF.
-        image_size (tuple): The dimensions of the image. Default is (200, 200).
+        prf_size (np.ndarray): The size of the pRF in degrees of visual angle.
+        prf_ecc (np.ndarray): The eccentricity of the pRF in degrees of visual angle.
+        prf_angle (np.ndarray): The angle of the pRF in degrees.
+        image_size (tuple): The dimensions of the image. Default is (425, 425).
         visual_angle_extent (float): The visual angle extent of the image. Default is 8.4.
 
         Returns:
@@ -975,11 +1000,11 @@ class Cortex():
         sigma_px = sigma * (image_size[0] / visual_angle_extent)
         
         # Calculate pRF y-position in row pixel units
-        r_index = (image_size[0] + 1) / 2 - (prf_ecc * np.sin(np.radians(prf_angle)) * (image_size[0] / visual_angle_extent))
+        r_index = (image_size[0] + 1) / 2 + (prf_ecc * np.sin(np.radians(prf_angle)) * (image_size[0] / visual_angle_extent))
         
         # Calculate pRF x-position in column pixel units
         c_index = (image_size[1] + 1) / 2 + (prf_ecc * np.cos(np.radians(prf_angle)) * (image_size[0] / visual_angle_extent))
-        
+
         return sigma_px, r_index, c_index
     
 
