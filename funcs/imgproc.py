@@ -295,43 +295,97 @@ def get_rms_contrast(ar_in,mask_w_in,rf_mask_in,normalise=True, plot = 'n'):
     return(np.sqrt(msquare_contrast))
 
 
-# Function that calculates rms but based on a RGB to LAB conversion, which follows the CIELAB colour space
-# This aligns best with the way humans perceive visual input. 
-def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, full_array, normalise = True, plot = 'n', 
-                         cmap = 'gist_gray', crop_prior:bool = False, crop_post:bool = False, 
-                         save_plot:bool = False):
+# # Function that calculates rms but based on a RGB to LAB conversion, which follows the CIELAB colour space
+# # This aligns best with the way humans perceive visual input. 
+# def get_rms_contrast_lab(rgb_image, mask_w_in, rf_mask_in, full_array, normalise = True, plot = 'n', 
+#                          cmap = 'gist_gray', crop_prior:bool = False, crop_post:bool = False, 
+#                          save_plot:bool = False):
+#     # Convert RGB image to LAB colour space
+#     lab_image = color.rgb2lab(rgb_image)
+    
+#     ar_in = lab_image[:, :, 0] # Extract the L* channel for luminance values, set as input array
+        
+#     if normalise == True:
+#         ar_in = ar_in/np.max(ar_in)
+    
+#     square_contrast=np.square((ar_in-(ar_in[rf_mask_in].mean())))
+#     msquare_contrast=(mask_w_in*square_contrast).sum()
+    
+#     if crop_post:     
+#         x_min, x_max, y_min, y_max = get_bounding_box(rf_mask_in)
+        
+#         square_contrast = square_contrast[x_min:x_max, y_min:y_max]
+#         mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
+    
+#     if plot == 'y':
+#         fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+
+#         plt.subplots_adjust(wspace=0.01)
+
+#         axs[1].set_title(f'rms = {np.sqrt(msquare_contrast):.2f}')
+#         axs[0].imshow(square_contrast, cmap = cmap)
+#         axs[0].axis('off') 
+#         axs[1].imshow(mask_w_in*square_contrast, cmap = cmap)
+#         axs[1].axis('off') 
+        
+#         if save_plot:
+#             plt.savefig(f'rms_crop_prior_{str(crop_prior)}_crop_post_{str(crop_post)}.png')
+            
+#     return (np.sqrt(msquare_contrast))
+
+
+from skimage import color
+import numpy as np
+import matplotlib.pyplot as plt
+
+def get_rms_contrast_lab(rgb_image:np.ndarray, mask_w_in:np.ndarray, rf_mask_in:np.ndarray, 
+                         normalise:bool=True, plot:bool=False, cmap:str='gist_gray', 
+                         crop_post:bool=False) -> float:
+    """"
+    Function that calculates Root Mean Square (RMS) contrast after converting RGB to LAB, 
+    which follows the CIELAB colour space. This aligns better with how visual input is
+    processed in human visual cortex.
+
+    Arguments:
+        rgb_image (np.ndarray): Input RGB image
+        mask_w_in (np.ndarray): Weighted mask
+        rf_mask_in (np.ndarray): RF mask
+        normalise (bool): If True, normalise the input array
+        plot (bool): If True, plot the square contrast and weighted square contrast
+        cmap (str): Matplotlib colourmap for the plot
+        crop_post (bool): If True, crop the image after calculation (to enable comparison of
+            RMS values to images cropped prior to calculation)
+
+    Returns:
+        float: Root Mean Square visual contrast of input img
+    """
     # Convert RGB image to LAB colour space
     lab_image = color.rgb2lab(rgb_image)
     
-    ar_in = lab_image[:, :, 0] # Extract the L* channel for luminance values, set as input array
+    # First channel [0] is Luminance, second [1] is green-red, third [2] is blue-yellow
+    ar_in = lab_image[:, :, 0] # Extract the L channel for luminance values, assign to input array
         
-    if normalise == True:
-        ar_in = ar_in/np.max(ar_in)
+    if normalise:
+        ar_in /= ar_in.max()
     
-    square_contrast=np.square((ar_in-(ar_in[rf_mask_in].mean())))
-    msquare_contrast=(mask_w_in*square_contrast).sum()
+    square_contrast = np.square(ar_in - ar_in[rf_mask_in].mean())
+    msquare_contrast = (mask_w_in * square_contrast).sum()
     
     if crop_post:     
         x_min, x_max, y_min, y_max = get_bounding_box(rf_mask_in)
-        
         square_contrast = square_contrast[x_min:x_max, y_min:y_max]
         mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
     
-    if plot == 'y':
-        fig, axs = plt.subplots(1, 2, figsize=(10, 5))
-
+    if plot:
+        _, axs = plt.subplots(1, 2, figsize=(10, 5))
         plt.subplots_adjust(wspace=0.01)
-
-        axs[1].set_title(f'rms = {np.sqrt(msquare_contrast):.2f}')
-        axs[0].imshow(square_contrast, cmap = cmap)
+        axs[1].set_title(f'RMS = {np.sqrt(msquare_contrast):.2f}')
+        axs[0].imshow(square_contrast, cmap=cmap)
         axs[0].axis('off') 
-        axs[1].imshow(mask_w_in*square_contrast, cmap = cmap)
+        axs[1].imshow(mask_w_in * square_contrast, cmap=cmap)
         axs[1].axis('off') 
         
-        if save_plot:
-            plt.savefig(f'rms_crop_prior_{str(crop_prior)}_crop_post_{str(crop_post)}.png')
-            
-    return (np.sqrt(msquare_contrast))
+    return np.sqrt(msquare_contrast)
 
 
 # Function to get contrast features based on the design matrix of a subject. 

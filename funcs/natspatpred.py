@@ -17,6 +17,7 @@ import copy
 import ipywidgets as widgets
 import sklearn as sk
 
+from skimage import color
 from nilearn import plotting
 from scipy.ndimage import binary_dilation
 from PIL import Image
@@ -507,7 +508,7 @@ class Utilities():
         return sys.getsizeof(thing)
     
     # Function get the min and max x,y values in order to acquire a perfect square crop of the RF mask.
-    def get_bounding_box(mask):
+    def get_bounding_box(self, mask):
         # Get the indices where the mask is True
         y_indices, x_indices = np.where(mask)
 
@@ -1896,6 +1897,55 @@ class Stimuli():
             plt.show()
             
         return test_image, image_no
+
+    def get_rms_contrast_lab(self, rgb_image:np.ndarray, mask_w_in:np.ndarray, rf_mask_in:np.ndarray, 
+                            normalise:bool=True, plot:bool=False, cmap:str='gist_gray', 
+                            crop_post:bool=False) -> float:
+        """"
+        Function that calculates Root Mean Square (RMS) contrast after converting RGB to LAB, 
+        which follows the CIELAB colour space. This aligns better with how visual input is
+        processed in human visual cortex.
+
+        Arguments:
+            rgb_image (np.ndarray): Input RGB image
+            mask_w_in (np.ndarray): Weighted mask
+            rf_mask_in (np.ndarray): RF mask
+            normalise (bool): If True, normalise the input array
+            plot (bool): If True, plot the square contrast and weighted square contrast
+            cmap (str): Matplotlib colourmap for the plot
+            crop_post (bool): If True, crop the image after calculation (to enable comparison of
+                RMS values to images cropped prior to calculation)
+
+        Returns:
+            float: Root Mean Square visual contrast of input img
+        """
+        # Convert RGB image to LAB colour space
+        lab_image = color.rgb2lab(rgb_image)
+        
+        # First channel [0] is Luminance, second [1] is green-red, third [2] is blue-yellow
+        ar_in = lab_image[:, :, 0] # Extract the L channel for luminance values, assign to input array
+            
+        if normalise:
+            ar_in /= ar_in.max()
+        
+        square_contrast = np.square(ar_in - ar_in[rf_mask_in].mean())
+        msquare_contrast = (mask_w_in * square_contrast).sum()
+        
+        if crop_post:     
+            x_min, x_max, y_min, y_max = self.nsp.utils.get_bounding_box(rf_mask_in)
+            square_contrast = square_contrast[x_min:x_max, y_min:y_max]
+            mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
+        
+        if plot:
+            _, axs = plt.subplots(1, 2, figsize=(10, 5))
+            plt.subplots_adjust(wspace=0.01)
+            axs[1].set_title(f'RMS = {np.sqrt(msquare_contrast):.2f}')
+            axs[0].imshow(square_contrast, cmap=cmap)
+            axs[0].axis('off') 
+            axs[1].imshow(mask_w_in * square_contrast, cmap=cmap)
+            axs[1].axis('off') 
+            
+        return np.sqrt(msquare_contrast)
     
     # Function to get the visual contrast features and predictability estimates
     # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
@@ -2102,6 +2152,8 @@ class Stimuli():
             stims_design_mx[subject] = stim_list
         
         return stims_design_mx
+    
+    #REMOVE
     # Plot a correlation matrix for specific loss value estimations of unpredictability estimates
     def unpred_corrmatrix(self, subject='subj01', type:str='content', loss_calc:str='MSE', cmap:str='copper_r'):
         predfeatnames = [name for name in list(self.features()['all_predestims.h5'].keys()) if name.endswith(loss_calc) and name.startswith(type)]
@@ -2116,6 +2168,43 @@ class Stimuli():
         sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks)
         plt.title(f'U-Net unpredictability estimates\n{type} loss {loss_calc} correlation matrix')
         plt.show()
+        
+    def plot_correlation_matrix(self, include_rms:bool=True, include_ce:bool=True, include_ce_l:bool=True, include_sc:bool=True, include_sc_l:bool=True):
+        predfeatnames = [name for name in list(self.features()['all_predestims.h5'].keys()) if name.endswith('MSE') and name.startswith('content')]
+
+        # Build dataframe
+        data = {name: self.features()['all_predestims.h5'][name] for name in predfeatnames}
+        if include_rms:
+            data['rms'] = self.baseline_feats('rms').flatten()
+        if include_ce:
+            data['ce'] = self.baseline_feats('ce').flatten()
+        if include_ce_l:
+            data['ce_l'] = self.baseline_feats('ce_l').flatten()
+        if include_sc:
+            data['sc'] = self.baseline_feats('sc').flatten()
+        if include_sc_l:
+            data['sc_l'] = self.baseline_feats('sc_l').flatten()
+
+        df = pd.DataFrame(data)
+
+        # Compute correlation matrix
+        corr_matrix = df.corr()
+        ticks = [f'Pred {int(name.split("_")[2])+1}' for name in predfeatnames]
+        if include_rms:
+            ticks.append('RMS 1°')
+        if include_ce:
+            ticks.append('CE 1°')
+        if include_ce_l:
+            ticks.append('CE 5°')
+        if include_sc:
+            ticks.append('SC 1°')
+        if include_sc_l:
+            ticks.append('SC 5°')
+        plt.figure(figsize=(9,7))
+        sns.heatmap(corr_matrix, annot=True, cmap='Reds', xticklabels=ticks, yticklabels=ticks)
+        plt.title(f'Correlation matrix for the MSE content loss values per\nlayer, and the baseline features')
+        plt.show()
+            
         
     def extract_features(self, subject:str='subj01', layer:int=4, start_img:int=0, n_imgs:int=1,
                          batch_size:int=10, pca_components=10, verbose:bool=False, img_crop:bool=True):
