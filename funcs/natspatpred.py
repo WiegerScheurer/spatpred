@@ -23,7 +23,7 @@ from scipy.ndimage import binary_dilation
 from PIL import Image
 from importlib import reload
 from scipy.io import loadmat
-from matplotlib.ticker import MultipleLocator
+from matplotlib.ticker import MultipleLocator, NullFormatter
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.linear_model import LinearRegression, Lasso, Ridge
 from colorama import Fore, Style
@@ -59,6 +59,47 @@ sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
 
 from unet_recon.inpainting import UNet
 from funcs.analyses import univariate_regression
+
+
+class VoxelSieve:
+    """
+    A class used to represent a Voxel Sieve, filtering out all voxels that do not
+    meet all requirements defined in the VoxelSieve initiation method.
+
+    Attributes
+    ----------
+    size : ndarray
+        The size of the pRFs.
+    ecc : ndarray
+        The eccentricity of the pRFs.
+    angle : ndarray
+        The angle of the pRFs.
+    prf_R2 : ndarray
+        The R2 value of the voxel from pRF.
+    nsd_R2 : ndarray
+        The R2 value of the voxel from NSD.
+    vox_pick : ndarray
+        Boolean array indicating which voxels meet the criteria.
+    xyz : ndarray
+        The x, y, z coordinates of the selected voxels.
+
+    Methods
+    -------
+    __init__(self, prf_dict: Dict, roi_masks: Dict, NSP, subject: str, roi: str, max_size: float, min_size: float, patchbound: float, min_nsd_R2: int, min_prf_R2: int)
+        Initializes the VoxelSieve instance with the given parameters.
+    """
+    def __init__(self, NSP, prf_dict: Dict, roi_masks: Dict, subject: str, roi: str, max_size: float, min_size: float, patchbound: float, min_nsd_R2: int, min_prf_R2: int):
+        self.size = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:,3]
+        self.ecc = prf_dict[subject]['proc'][f'{roi}_mask']['eccentricity'][:,3]
+        self.angle = prf_dict[subject]['proc'][f'{roi}_mask']['angle'][:,3]
+        self.prf_R2 = prf_dict[subject]['proc'][f'{roi}_mask']['R2'][:,3]
+        self.R2_dict = NSP.cortex.nsd_R2_dict(roi_masks, glm_type='hrf')
+        self.nsd_R2 = self.R2_dict[subject]['R2_roi'][f'{roi}_mask'][:,3]
+        self.sigmas, self.ycoor, self.xcoor = NSP.cortex.calculate_pRF_location(self.size, self.ecc, self.angle, (425,425))
+        self.patchbound = patchbound
+        self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
+        self.xyz = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:, :3][self.vox_pick]
+                
 
 class DataFetch():
     
@@ -1863,6 +1904,30 @@ class Cortex():
         widgets.interact(_update_plot, x=slice_flt.shape[0]-1, y=y_slider, z=slice_flt.shape[2]-1)
         
         
+    def plot_prfs(self, voxelsieve: VoxelSieve, cmap='bone') -> None:
+        print(f'There are {np.sum(voxelsieve.vox_pick)} voxels left')
+
+        dims = np.repeat(np.array(425), np.sum(voxelsieve.vox_pick))
+
+        prfs = np.sum(self.nsp.utils.css_gaussian_cut(dims, voxelsieve.xcoor.reshape(-1,1)[voxelsieve.vox_pick], voxelsieve.ycoor.reshape(-1,1)[voxelsieve.vox_pick], voxelsieve.size.reshape(-1,1)[voxelsieve.vox_pick] * (425 / 8.4)),axis=0)
+        central_patch = np.max(prfs) * self.nsp.utils.make_circle_mask(dims[0], ((dims[0]+2)/2), ((dims[0]+2)/2), voxelsieve.patchbound * (dims[0] / 8.4), fill = 'n')
+
+        _, ax = plt.subplots(figsize=(8,8))
+        
+        ax.imshow(prfs+central_patch, cmap=cmap, extent=[-4.2, 4.2, -4.2, 4.2])
+        
+        # Set major ticks every 2 and minor ticks every 0.1
+        ax.xaxis.set_major_locator(MultipleLocator(1))
+        ax.xaxis.set_minor_locator(MultipleLocator(0.1))
+        ax.yaxis.set_major_locator(MultipleLocator(1))
+        ax.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+        # Hide minor tick labels
+        ax.xaxis.set_minor_formatter(NullFormatter())
+        ax.yaxis.set_minor_formatter(NullFormatter())
+
+        plt.show()
+        
 class Stimuli():
     
     def __init__(self, NSPobject):
@@ -2153,9 +2218,17 @@ class Stimuli():
         
         return stims_design_mx
     
-    #REMOVE
     # Plot a correlation matrix for specific loss value estimations of unpredictability estimates
     def unpred_corrmatrix(self, subject='subj01', type:str='content', loss_calc:str='MSE', cmap:str='copper_r'):
+        """
+        Plot a correlation matrix for specific loss value estimations of unpredictability estimates.
+
+        Parameters:
+        subject (str): The subject for which to plot the correlation matrix. Default is 'subj01'.
+        type (str): The type of loss value estimations to include in the correlation matrix. Default is 'content'.
+        loss_calc (str): The type of loss calculation to use. Default is 'MSE'.
+        cmap (str): The colormap to use for the heatmap. Default is 'copper_r'.
+        """
         predfeatnames = [name for name in list(self.features()['all_predestims.h5'].keys()) if name.endswith(loss_calc) and name.startswith(type)]
 
         # Build dataframe
@@ -2169,7 +2242,17 @@ class Stimuli():
         plt.title(f'U-Net unpredictability estimates\n{type} loss {loss_calc} correlation matrix')
         plt.show()
         
-    def plot_correlation_matrix(self, include_rms:bool=True, include_ce:bool=True, include_ce_l:bool=True, include_sc:bool=True, include_sc_l:bool=True):
+    def plot_correlation_matrix(self, include_rms:bool=True, include_ce:bool=True, include_ce_l:bool=True, include_sc:bool=True, include_sc_l:bool=True, cmap:str='copper_r'): 
+        """
+        Plot a correlation matrix for the MSE content loss values per layer, and the baseline features.
+
+        Parameters:
+        include_rms (bool): If True, include the 'rms' column in the correlation matrix.
+        include_ce (bool): If True, include the 'ce' column in the correlation matrix.
+        include_ce_l (bool): If True, include the 'ce_l' column in the correlation matrix.
+        include_sc (bool): If True, include the 'sc' column in the correlation matrix.
+        include_sc_l (bool): If True, include the 'sc_l' column in the correlation matrix.
+        """
         predfeatnames = [name for name in list(self.features()['all_predestims.h5'].keys()) if name.endswith('MSE') and name.startswith('content')]
 
         # Build dataframe
@@ -2201,7 +2284,7 @@ class Stimuli():
         if include_sc_l:
             ticks.append('SC 5°')
         plt.figure(figsize=(9,7))
-        sns.heatmap(corr_matrix, annot=True, cmap='Reds', xticklabels=ticks, yticklabels=ticks)
+        sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks)
         plt.title(f'Correlation matrix for the MSE content loss values per\nlayer, and the baseline features')
         plt.show()
             
