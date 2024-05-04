@@ -30,7 +30,6 @@ NSP = NatSpatPred()
 NSP.initialise()
 
 rois, roi_masks, viscortex_mask = NSP.cortex.visrois_dict(verbose=True)
-# prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 
 predparser = argparse.ArgumentParser(description='Get the predictability estimates for a range of images of a subject')
 
@@ -40,40 +39,4 @@ predparser.add_argument('subject', type=str, help='The subject to get the predic
 
 args = predparser.parse_args()
 
-def get_betas(subject:str, 
-              viscortex_mask:np.ndarray, 
-              roi_masks:Dict[str, np.ndarray], 
-              start_session:int, 
-              n_sessions:int):
-    betapath = f'/home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/'
-
-    # Initialize a dictionary to hold the 2D arrays for each ROI
-    # beta_dict = {roi: None for roi in roi_masks[subject].keys()}
-
-    for session in range(start_session, start_session + n_sessions): # If start = 1 and n = 10 it goes 1 2 3 4 5 6 7 8 9 10
-        print(f'Working on session: {session}')
-        session_str = f'{session:02d}'
-        session_data = nib.load(f"{betapath}betas_session{session_str}.nii.gz").get_fdata(caching='unchanged')
-
-        for roi in roi_masks[subject].keys():
-            print(f'Working on roi: {roi}')
-            roi_mask = roi_masks[subject][roi]
-            filtbet = session_data[roi_mask.astype(bool)]
-
-            # Get the indices of the True values in the mask
-            if session == 1:  # only get indices for the first session
-                x, y, z = np.where(roi_mask)
-                x = x.reshape(-1, 1)
-                y = y.reshape(-1, 1)
-                z = z.reshape(-1, 1)
-                voxbetas = np.concatenate((x, y, z, filtbet), axis=1)
-            else:
-                voxbetas = filtbet
-            print(f'Current size of voxbetas: {voxbetas.shape}')        
-                
-            np.save(f'/home/rfpred/data/custom_files/subj01/betas/{roi[:2]}/beta_stack_session{session_str}.npy', voxbetas)
-            print(f'Saved beta_stack_session{session_str}.npy')
-        
-        del session_data
-
-get_betas(args.subject, viscortex_mask, roi_masks, args.start, args.n_sessions)
+NSP.datafetch.get_betas(args.subject, viscortex_mask, roi_masks, args.start, args.n_sessions)

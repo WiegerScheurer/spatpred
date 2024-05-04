@@ -660,3 +660,46 @@ for subj in visfeats_rms:
 # Save a dictionary 
 with open(f'./data/custom_files/all_visfeats_rms8.pkl', 'wb') as fp:
     pickle.dump(visfeats_rms, fp)
+    
+ #### NSP CLASS    
+
+def load_y(self, subject:str, roi:str, hrf_dict:dict, 
+        xyz_to_name:np.array, roi_masks:dict, prf_dict:dict, 
+        n_voxels, start_img:int, n_imgs:int, verbose:bool=True, across_rois:bool=False):
+    
+    if across_rois: # Optional looping over the four different regions of interest
+        rois = self.nsp.cortex.visrois_dict()[0]
+        ys = []
+        xyzs_stack = []
+    else: rois = [roi]
+    for roi in rois:
+        # Check the maximum amount of voxels for this subject, roi
+        max_voxels = len(hrf_dict[subject][f'{roi}_mask']['R2_vals'])
+        if n_voxels == 'all': 
+            n_voxels = max_voxels
+
+        selection_xyz = np.zeros((min(max_voxels, n_voxels), 2),dtype='object')
+        y_matrix = np.zeros((start_img+n_imgs-start_img, n_voxels))
+
+        for voxel in range(n_voxels):
+            if voxel < max_voxels:
+                vox_xyz, voxname = self.nsp.cortex.get_good_voxel(subject=subject, roi=roi, hrf_dict=hrf_dict, xyz_to_voxname=xyz_to_name, 
+                                        pick_manually=voxel, plot=False, prf_dict=prf_dict, vismask_dict=roi_masks,selection_basis='R2')
+                selection_xyz[voxel,0] = vox_xyz
+                selection_xyz[voxel,1] = voxname
+                y_matrix[:,voxel] = hrf_dict[subject][f'{roi}_mask'][voxname]['hrf_betas_z'][start_img:start_img+n_imgs]
+            else: 
+                print(f'Voxel {voxel+1} not found in {roi}, only {max_voxels} available for {roi}')
+                voxdif = n_voxels - max_voxels
+                y_matrix = y_matrix[:,:-voxdif]
+                break
+        if across_rois:
+            ys.append(y_matrix)
+            xyzs_stack.append(selection_xyz)
+            
+    if across_rois:
+        y_matrix = np.hstack(ys)
+        selection_xyz = np.vstack(xyzs_stack)
+    if verbose:
+        print(f'Loaded y-matrix with {selection_xyz.shape[0]} voxels from {rois}')
+    return y_matrix, selection_xyz
