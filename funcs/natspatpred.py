@@ -47,7 +47,7 @@ from IPython.display import display
 from math import sqrt
 from scipy.special import softmax
 from matplotlib.ticker import MaxNLocator
-from typing import Union, Dict, List, Tuple, Optional
+from typing import Union, Dict, List, Tuple, Optional, Sequence
 
 # print(sys.path)
 print('soepstengesl')
@@ -115,6 +115,7 @@ class DataFetch():
         self.nsp = NSPobject
         pass
     
+    # REDUNDANT
     # Function to get the pRF-based voxel selections
     # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
     def prf_selections(self):
@@ -145,7 +146,6 @@ class DataFetch():
             with open(file_path, 'rb') as fp:
                 return pickle.load(fp)
             
-            
     # Function to load in nifti (.nii.gz) data and create some useful variables 
     def get_dat(self, path:str):
         full_dat = nib.load(path)
@@ -163,7 +163,7 @@ class DataFetch():
         dict_list = []
 
         # Get a list of files in the directory
-        files = os.listdir(f'/home/rfpred/data/custom_files/{subject}/pred/')
+        files = os.listdir(f'{self.nsp.own_datapath}/{subject}/pred/')
 
         # Filter files that start with "beta_dict" and end with ".pkl"
         filtered_files = [file for file in files if file.startswith('light_payloads') and file.endswith(".h5")]
@@ -176,7 +176,7 @@ class DataFetch():
             if verbose:
                 print(f'Now loading file {file_no + 1} of {len(sorted_files)}')
             # load in back dictionary
-            with h5py.File(f'/home/rfpred/data/custom_files/{subject}/pred/{file}', 'r') as hf:
+            with h5py.File(f'{self.nsp.own_datapath}/{subject}/pred/{file}', 'r') as hf:
                 data = hf.keys()
                     
                 dict = {key: np.array(hf[key]) for key in data}
@@ -200,7 +200,7 @@ class DataFetch():
             start_session (int): The first session
             n_sessions (int): The amount of sessions to get the betas for
         """        
-        betapath = f'/home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/'
+        betapath = f'{self.nsp.nsd_datapath}/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/'
 
         for session in range(start_session, start_session + n_sessions): # If start = 1 and n = 10 it goes 1 2 3 4 5 6 7 8 9 10
             print(f'Working on session: {session}')
@@ -223,7 +223,7 @@ class DataFetch():
                     voxbetas = filtbet
                 print(f'Current size of voxbetas: {voxbetas.shape}')        
                     
-                np.save(f'/home/rfpred/data/custom_files/{subject}/betas/{roi[:2]}/beta_stack_session{session_str}.npy', voxbetas)
+                np.save(f'{self.nsp.own_datapath}/{subject}/betas/{roi[:2]}/beta_stack_session{session_str}.npy', voxbetas)
                 print(f'Saved beta_stack_session{session_str}.npy')
             
             del session_data
@@ -247,7 +247,7 @@ class DataFetch():
         with tqdm(total=n_sessions, disable=not verbose) as pbar:
             for session in range(1, 1+n_sessions):
                 session_str = f'{session:02d}'
-                betapath = f'/home/rfpred/data/custom_files/{subject}/betas/{roi}/'
+                betapath = f'{self.nsp.own_datapath}/{subject}/betas/{roi}/'
 
                 if session == 1:
                     init_sesh = np.load(f'{betapath}beta_stack_session{session_str}.npy')
@@ -261,7 +261,7 @@ class DataFetch():
 
                 pbar.update()
             if save_stack:
-                np.save(f'/home/rfpred/data/custom_files/{subject}/betas/{roi}/all_betas.npy', stack)
+                np.save(f'{self.nsp.own_datapath}/{subject}/betas/{roi}/all_betas.npy', stack)
         return stack
             
 class Utilities():
@@ -786,7 +786,7 @@ class Explorations():
         
         # Load data for angle, eccentricity, and size
         for idx in prf_info:
-            _, prf_plot_dict[idx], _, prf_range = self.nsp.datafetch.get_dat(f'/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata/{subject}/func1mm/prf_{idx}.nii.gz')
+            _, prf_plot_dict[idx], _, prf_range = self.nsp.datafetch.get_dat(f'{self.nsp.nsd_datapath}/nsddata/ppdata/{subject}/func1mm/prf_{idx}.nii.gz')
         
         # Calculate the common boolean mask based on exclusion criteria
         common_mask = (~np.isnan(prf_plot_dict['eccentricity'])) & (prf_plot_dict['eccentricity'] < 1000) & (prf_plot_dict['size']<1000)  # Adjust conditions as needed
@@ -969,7 +969,7 @@ class Cortex():
         for subj_no in range(1, len(self.nsp.subjects) + 1):
             if verbose:
                 print(f'Fetching roi masks for subject {Fore.LIGHTBLUE_EX}{subj_no}{Style.RESET_ALL}')
-            mask_dir = f'{self.nsp.datapath}/natural-scenes-dataset/nsddata/ppdata/subj0{subj_no}/func1mm/roi'
+            mask_dir = f'{self.nsp.nsd_datapath}/nsddata/ppdata/subj0{subj_no}/func1mm/roi'
 
             # read in and sort all the filenames in the mapped masks folder for each subject
             non_binary_masks = sorted(file for file in os.listdir(mask_dir) if '_mask.nii' in file)
@@ -1003,7 +1003,7 @@ class Cortex():
     #         prf_types = ['angle', 'eccentricity', 'exponent', 'gain', 'meanvol', 'R2', 'size']
 
     #         for prf_type in prf_types:
-    #             prf_path = f'{self.nsp.datapath}/natural-scenes-dataset/nsddata/ppdata/{subject}/func1mm/prf_{prf_type}.nii.gz'
+    #             prf_path = f'{self.nsp.nsd_datapath}/nsddata/ppdata/{subject}/func1mm/prf_{prf_type}.nii.gz'
     #             prf_dat, prf_ar, prf_dim, prf_range = self.nsp.datafetch.get_dat(prf_path)
     #             prf_dict[subject]['nsd_dat'][prf_type] = {
     #                 'prf_dat': prf_dat,
@@ -1051,7 +1051,7 @@ class Cortex():
                         'prf_ar': prf_ar, # This is all you should need
                         # 'prf_dim': prf_dim,
                         # 'prf_range': prf_range
-                    } for prf_type in prf_types for prf_dat, prf_ar, prf_dim, prf_range in [self.nsp.datafetch.get_dat(f'{self.nsp.datapath}/natural-scenes-dataset/nsddata/ppdata/{subject}/func1mm/prf_{prf_type}.nii.gz')]
+                    } for prf_type in prf_types for prf_dat, prf_ar, prf_dim, prf_range in [self.nsp.datafetch.get_dat(f'{self.nsp.nsd_datapath}/nsddata/ppdata/{subject}/func1mm/prf_{prf_type}.nii.gz')]
                 }
             } for subject in self.nsp.subjects
         }
@@ -1115,21 +1115,16 @@ class Cortex():
         """
         anat_temps = {}
         for subject in prf_dict.keys():
-            anat_temps[subject] = nib.load(f'{self.nsp.datapath}/natural-scenes-dataset/nsddata/ppdata/{subject}/func1mm/T1_to_func1mm.nii.gz')
+            anat_temps[subject] = nib.load(f'{self.nsp.nsd_datapath}/nsddata/ppdata/{subject}/func1mm/T1_to_func1mm.nii.gz')
         return anat_temps
     
     # Function to create a dictionary containing all the R2 explained variance data of the NSD experiment, could also be turned into a general dict-making func
     def nsd_R2_dict(self, roi_masks:dict, glm_type:str='hrf'):
-        
         """
         Function to get voxel specific R squared values of the NSD.
         The binary masks argument takes the binary masks of the visual rois as input.
         The glm_type argument specifies the type of glm used, either 'hrf' or 'onoff'.
-        
         """
-        
-        # n_subjects = len(os.listdir('/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata'))
-        # subject_list = [f'subj{i:02d}' for i in range(1, n_subjects + 1)] 
 
         nsd_R2_dict = {}
 
@@ -1142,9 +1137,9 @@ class Cortex():
             # Create list for all visual rois
             roi_list = list(roi_masks[subject].keys())
             if glm_type == 'onoff':
-                nsd_R2_path = f'/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata/{subject}/func1mm/R2.nii.gz'
+                nsd_R2_path = f'{self.nsp.nsd_datapath}/nsddata/ppdata/{subject}/func1mm/R2.nii.gz'
             elif glm_type == 'hrf':
-                nsd_R2_path = f'/home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/R2.nii.gz'
+                nsd_R2_path = f'{self.nsp.nsd_datapath}/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/R2.nii.gz'
             nsd_R2_dat, nsd_R2_ar, nsd_R2_dim, nsd_R2_range = self.nsp.datafetch.get_dat(nsd_R2_path)
             nsd_R2_dict[subject]['full_R2'] = {
                     'R2_dat': nsd_R2_dat,
@@ -1252,7 +1247,6 @@ class Cortex():
             
         return indices, voxelname
         
-    
     # Simple function to plot a specific voxel from the top_vox_dict, vox_dict_item ought to be the same
     # type of dict object returned by the find_top_voxels() function.
     def plot_top_vox(self, dim=425, vox_dict_item=None, type:str=None, add_central_patch:bool=False, 
@@ -1957,13 +1951,36 @@ class Cortex():
         widgets.interact(_update_plot, x=slice_flt.shape[0]-1, y=y_slider, z=slice_flt.shape[2]-1)
         
         
-    def plot_prfs(self, voxelsieve:VoxelSieve, cmap:str='bone', enlarge:bool=True) -> None:
-        print(f'There are {np.sum(voxelsieve.vox_pick)} voxels left')
+    def plot_prfs(self, voxelsieve:VoxelSieve, which_voxels:Union[int, Sequence[int],str]='all', cmap:str='bone', enlarge:bool=True, sort_by:str='random') -> None:
+        """Function to plot the pRFs of the voxels in a VoxelSieve class instance. 
 
-        dims = np.repeat(np.array(425), np.sum(voxelsieve.vox_pick))
+        Args:
+            voxelsieve (VoxelSieve): VoxelSieve class instance
+            which_voxels (Union[int, Sequence[int],str], optional): Choose which voxels to plot, can be either:
+                - an integer for a single voxel
+                - a sequence of integers, for example:
+                    - ([1, 34, 5]) for specific voxels
+                    - range(10, 20) for a range of voxels
+                - 'all' for all voxels, default value
+            cmap (str, optional): Matplotlib colourmap to use for plotting. Defaults to 'bone'.
+            enlarge (bool, optional): Whether or not to enlarge the plot. Defaults to True.
+            sort_by (str, optional): Non-functional, still have to implement. Defaults to 'random'.
+        """        
+        n_voxels = np.sum(voxelsieve.vox_pick)
+        print(f'{n_voxels} voxels remain after filtering')
+        
+        if isinstance(which_voxels, int):
+            which_voxels = [which_voxels]
+        elif which_voxels == 'all':
+            which_voxels = range(0, n_voxels)
+                
+        dims = np.repeat(np.array(425), n_voxels)[which_voxels]
+        
 
-        # prfs = np.sum(self.nsp.utils.css_gaussian_cut(dims, voxelsieve.xcoor.reshape(-1,1)[voxelsieve.vox_pick], voxelsieve.ycoor.reshape(-1,1)[voxelsieve.vox_pick], voxelsieve.size.reshape(-1,1)[voxelsieve.vox_pick] * (425 / 8.4)),axis=0)
-        prfs = np.sum(self.nsp.utils.css_gaussian_cut(dims, voxelsieve.xcoor.reshape(-1,1), voxelsieve.ycoor.reshape(-1,1), voxelsieve.size.reshape(-1,1) * (425 / 8.4)),axis=0)
+        prfs = np.sum(self.nsp.utils.css_gaussian_cut(dims,
+                                                      voxelsieve.xcoor.reshape(-1,1)[which_voxels], 
+                                                      voxelsieve.ycoor.reshape(-1,1)[which_voxels], 
+                                                      voxelsieve.size.reshape(-1,1)[which_voxels] * (425 / 8.4)), axis=0)
         central_patch = np.max(prfs) * self.nsp.utils.make_circle_mask(dims[0], ((dims[0]+2)/2), ((dims[0]+2)/2), voxelsieve.patchbound * (dims[0] / 8.4), fill = 'n')
 
         figfactor = 1 if enlarge else 2
@@ -1995,7 +2012,7 @@ class Stimuli():
         # I keep it like this as it might be useful to also store the reconstructed images with the autoencoder
         # using a .hdf5 folder structure, but I can change this later on.
 
-        stim_dir = '/home/rfpred/data/natural-scenes-dataset/nsddata_stimuli/stimuli/nsd/'
+        stim_dir = f'{self.nsp.nsd_datapath}/nsddata_stimuli/stimuli/nsd/'
         stim_files = os.listdir(stim_dir)
 
         with h5py.File(f'{stim_dir}{stim_files[0]}', 'r') as file:
@@ -2071,11 +2088,11 @@ class Stimuli():
     # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
     def features(self):
         feature_paths = [
-            './data/custom_files/all_visfeats_rms.pkl',
-            './data/custom_files/all_visfeats_rms_crop_prior.pkl',
-            '/home/rfpred/data/custom_files/all_visfeats_scce.pkl',
-            '/home/rfpred/data/custom_files/all_visfeats_scce_large.pkl',
-            '/home/rfpred/data/custom_files/subj01/pred/all_predestims.h5'
+            f'{self.nsp.own_datapath}/all_visfeats_rms.pkl',
+            f'{self.nsp.own_datapath}/all_visfeats_rms_crop_prior.pkl',
+            f'{self.nsp.own_datapath}/all_visfeats_scce.pkl',
+            f'{self.nsp.own_datapath}/all_visfeats_scce_large.pkl',
+            f'{self.nsp.own_datapath}/subj01/pred/all_predestims.h5'
         ]
         return {os.path.basename(file): self.nsp.datafetch.fetch_file(file) for file in feature_paths}
     
@@ -2160,7 +2177,7 @@ class Stimuli():
         - list_layers: list with values between 1 and 4 to indicate which layers to include
         """
         # Load all the matrices and store them in a list
-        matrices = [np.load(f'/home/rfpred/data/custom_files/subj01/pred/featmaps/Aunet_gt_feats_{layer}.npy') for layer in list_layers]
+        matrices = [np.load(f'{self.nsp.own_datapath}/subj01/pred/featmaps/Aunet_gt_feats_{layer}.npy') for layer in list_layers]
 
         # Horizontally stack the matrices
         Xcnn_stack = np.hstack(matrices)
@@ -2176,7 +2193,7 @@ class Stimuli():
         - cmap: string to define the matplotlib colour map used to plot the feature maps
         - subject: string to select the subject
         """
-        with open(f'/home/rfpred/data/custom_files/{subject}/pred/featmaps/feats_gt_np_{batch}.pkl', 'rb') as f:
+        with open(f'{self.nsp.own_datapath}/{subject}/pred/featmaps/feats_gt_np_{batch}.pkl', 'rb') as f:
             feats_gt_np = pickle.load(f)
             
         # Get the number of feature maps
@@ -2219,7 +2236,7 @@ class Stimuli():
             cut_off = pcs_per_layer
         
         for n_layer, layer in enumerate(layers):
-            this_X = np.load(f'/home/rfpred/data/custom_files/subj01/center_strict/alex_lay{layer}.npy')
+            this_X = np.load(f'{self.nsp.own_datapath}/subj01/center_strict/alex_lay{layer}.npy')
             if n_layer == 0:
                 if pcs_per_layer == 'all':
                     cut_off = this_X.shape[0]
@@ -2231,8 +2248,8 @@ class Stimuli():
     # Create design matrix containing ordered indices of stimulus presentation per subject
     def imgs_designmx(self):
         
-        subjects = os.listdir('/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata')
-        exp_design = '/home/rfpred/data/natural-scenes-dataset/nsddata/experiments/nsd/nsd_expdesign.mat'
+        subjects = os.listdir(f'{self.nsp.nsd_datapath}/nsddata/ppdata')
+        exp_design = f'{self.nsp.nsd_datapath}/nsddata/experiments/nsd/nsd_expdesign.mat'
         
         # Load MATLAB file
         mat_data = loadmat(exp_design)
@@ -2260,9 +2277,9 @@ class Stimuli():
         return stims_design_mx
     
     # Get random design matrix to test other fuctions
-    def random_designmx(idx_min = 0, idx_max = 40, n_img = 20):
+    def random_designmx(self, idx_min = 0, idx_max = 40, n_img = 20):
         
-        subjects = os.listdir('/home/rfpred/data/natural-scenes-dataset/nsddata/ppdata')
+        subjects = os.listdir(f'{self.nsp.nsd_datapath}/nsddata/ppdata')
         
         # Create design matrix for the subject-specific stimulus presentation order
         stims_design_mx = {}
@@ -2638,9 +2655,9 @@ class Analysis():
 
             # Load beta dictionaries for each session
             beta_sessions = []
-            for file_name in sorted(os.listdir(f'/home/rfpred/data/custom_files/{subject}/{prf_region}/')):
+            for file_name in sorted(os.listdir(f'{self.nsp.own_datapath}/{subject}/{prf_region}/')):
                 if file_name.startswith("beta_dict") and file_name.endswith(".pkl"):
-                    with open(f'/home/rfpred/data/custom_files/{subject}/{prf_region}/{file_name}', 'rb') as fp:
+                    with open(f'{self.nsp.own_datapath}/{subject}/{prf_region}/{file_name}', 'rb') as fp:
                         
                         beta_sessions.append(pickle.load(fp)[subject])
 
@@ -2828,7 +2845,7 @@ class Analysis():
         start_column = 0 if include_xyz else 3
         n_trials = 30000 if n_trials == 'all' else n_trials 
         
-        return (np.load(f'/home/rfpred/data/custom_files/{subject}/betas/{roi}/all_betas.npy')[voxelsieve.vox_pick, start_column:])[:, :n_trials]
+        return (np.load(f'{self.nsp.own_datapath}/{subject}/betas/{roi}/all_betas.npy')[voxelsieve.vox_pick, start_column:])[:, :n_trials]
                                 
     def run_ridge_regression(self, X:np.array, y:np.array, alpha=1.0):
         """Function to run a ridge regression model on the data.
@@ -3058,7 +3075,9 @@ class Analysis():
 
 class NatSpatPred():
     
-    def __init__(self, datapath:str='/home/rfpred/data'):
+    def __init__(self, 
+                 nsd_datapath:str='/home/rfpred/data/natural-scenes-dataset', 
+                 own_datapath:str='/home/rfpred/data/custom_files'):
         # Define the subclasses
         self.utils = None
         self.cortex = None
@@ -3067,8 +3086,9 @@ class NatSpatPred():
         self.explore = None
         self.analyse = None
         
-        self.datapath = datapath
-        self.subjects = sorted(os.listdir(f'{datapath}/natural-scenes-dataset/nsddata/ppdata'), key=lambda s: int(s.split('subj')[-1]))
+        self.nsd_datapath = nsd_datapath
+        self.own_datapath = own_datapath
+        self.subjects = sorted(os.listdir(f'{nsd_datapath}/nsddata/ppdata'), key=lambda s: int(s.split('subj')[-1]))
         self.attributes = None
         self.hidden_methods = None
 
