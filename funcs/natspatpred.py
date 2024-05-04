@@ -37,7 +37,6 @@ from sklearn.decomposition import PCA, IncrementalPCA
 from sklearn.impute import SimpleImputer
 from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
 from tqdm.notebook import tqdm
-
 from matplotlib.lines import Line2D
 from sklearn.model_selection import KFold
 from sklearn.linear_model import LinearRegression
@@ -47,9 +46,9 @@ from IPython.display import display
 from math import sqrt
 from scipy.special import softmax
 from matplotlib.ticker import MaxNLocator
+from multiprocessing import Pool
 from typing import Union, Dict, List, Tuple, Optional, Sequence
 
-# print(sys.path)
 print('soepstengesl')
 
 os.chdir('/home/rfpred')
@@ -59,7 +58,6 @@ sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
 
 from unet_recon.inpainting import UNet
 from funcs.analyses import univariate_regression
-
 
 class VoxelSieve:
     """
@@ -2046,7 +2044,7 @@ class Stimuli():
             
         return test_image, image_no
 
-    def get_rms_contrast_lab(self, rgb_image:np.ndarray, mask_w_in:np.ndarray, rf_mask_in:np.ndarray, 
+    def get_rms_contrast_lab(self, rgb_image:np.ndarray, img_idx:int, mask_w_in:np.ndarray, rf_mask_in:np.ndarray, 
                             normalise:bool=True, plot:bool=False, cmap:str='gist_gray', 
                             crop_post:bool=False, lab_idx:int=0) -> float:
         """"
@@ -2058,11 +2056,12 @@ class Stimuli():
             rgb_image (np.ndarray): Input RGB image
             mask_w_in (np.ndarray): Weighted mask
             rf_mask_in (np.ndarray): RF mask
-            normalise (bool): If True, normalise the input array
-            plot (bool): If True, plot the square contrast and weighted square contrast
-            cmap (str): Matplotlib colourmap for the plot
+            normalise (bool): If True, normalise the input array, default True
+            plot (bool): If True, plot the square contrast and weighted square contrast, default False
+            cmap (str): Matplotlib colourmap for the plot, default 'gist_gray'
             crop_post (bool): If True, crop the image after calculation (to enable comparison of
-                RMS values to images cropped prior to calculation)
+                RMS values to images cropped prior to calculation), default False
+            lab_idx (int): Optional selection of different LAB channels, default 0
 
         Returns:
             float: Root Mean Square visual contrast of input img
@@ -2079,21 +2078,76 @@ class Stimuli():
         square_contrast = np.square(ar_in - ar_in[rf_mask_in].mean())
         msquare_contrast = (mask_w_in * square_contrast).sum()
         
+        x_min, x_max, y_min, y_max = self.nsp.utils.get_bounding_box(rf_mask_in)
+
         if crop_post:     
-            x_min, x_max, y_min, y_max = self.nsp.utils.get_bounding_box(rf_mask_in)
             square_contrast = square_contrast[x_min:x_max, y_min:y_max]
             mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
         
         if plot:
-            _, axs = plt.subplots(1, 2, figsize=(10, 5))
+            _, axs = plt.subplots(1, 4, figsize=(20, 5))
             plt.subplots_adjust(wspace=0.01)
-            axs[1].set_title(f'RMS = {np.sqrt(msquare_contrast):.2f}')
-            axs[0].imshow(square_contrast, cmap=cmap)
-            axs[0].axis('off') 
-            axs[1].imshow(mask_w_in * square_contrast, cmap=cmap)
-            axs[1].axis('off') 
+            axs[0].imshow(self.nsp.stimuli.show_stim(img_no=img_idx,hide=True)[0])
+            axs[0].axis('off')
+            axs[0].set_title(f'Natural scene {img_idx}', fontsize=18)
+            axs[1].imshow(rgb_image[x_min:x_max, y_min:y_max])
+            axs[1].axis('off')
+            axs[3].set_title(f'RMS = {np.sqrt(msquare_contrast):.2f}', fontsize=18)
+            axs[2].imshow(square_contrast, cmap=cmap)
+            axs[2].axis('off') 
+            axs[3].imshow(mask_w_in * square_contrast, cmap=cmap)
+            axs[3].axis('off') 
             
         return np.sqrt(msquare_contrast)
+    
+    # These two functions are coupled to run the feature computations in parallel.
+    # This saves a lot of time. Should be combined with the feature_df function to assign
+    # the values to the corresponding trials.
+    def rms_single(self, args, ecc_max:int = 1, loc:str='center', plot_original:bool=False, plot_contrast:bool=False, 
+                   crop_prior:bool = False, crop_post:bool = False, save_plot:bool = False, cmap:str='gist_gray', normalise:bool=True,lab_idx:int=0):
+        
+        i, start, n, plot_original, plot_contrast, loc, crop_prior, crop_post, save_plot = args
+        dim = self.nsp.stimuli.show_stim(hide=True)[0].shape[0]
+        radius = ecc_max * (dim / 8.4)
+        if loc == 'center':
+            x = y = (dim + 1)/2
+        elif loc == 'irrelevant_patch':
+            x = y = radius + 10
+            
+        mask_w_in = self.nsp.utils.css_gaussian_cut(dim, x, y, radius).reshape((425,425))
+        rf_mask_in = self.nsp.utils.make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
+        ar_in = self.nsp.stimuli.show_stim(img_no=i, hide=bool(np.abs(plot_original-1)), small=True)[0]  
+        
+        if i % 100 == 0:
+            print(f"Processing image number: {i} out of {n + start}")
+            
+        if crop_prior:
+            
+            x_min, x_max, y_min, y_max = self.nsp.utils.get_bounding_box(rf_mask_in)
+            
+            ar_in = ar_in[x_min:x_max, y_min:y_max]
+            mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
+            rf_mask_in = rf_mask_in[x_min:x_max, y_min:y_max]
+            
+        return self.get_rms_contrast_lab(ar_in, i, mask_w_in, rf_mask_in, normalise=normalise, 
+                                    plot=plot_contrast, cmap=cmap, crop_post=crop_post, lab_idx=lab_idx)
+        
+    # This function is paired with rms_single to mass calculate the visual features using parallel computation.
+    def rms_all(self, start, n, ecc_max = 1, plot_original:bool=False, plot_contrast:bool=True, loc = 'center', crop_prior:bool = False, crop_post:bool = True, save_plot:bool = False):
+        img_vec = list(range(start, start + n))
+
+        # Create a pool of worker processes
+        with Pool() as p:
+            rms_vec = p.map(self.rms_single, [(i, start, n, plot_original, plot_contrast, loc, crop_prior, crop_post, save_plot) for i in img_vec])
+
+        rms_dict = pd.DataFrame({
+            'rms': rms_vec
+        })
+
+        rms_dict = rms_dict.set_index(np.array(img_vec))
+        return rms_dict
+
+
     
     # Function to get the visual contrast features and predictability estimates
     # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
