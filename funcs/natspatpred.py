@@ -88,8 +88,10 @@ class VoxelSieve:
     __init__(self, prf_dict: Dict, roi_masks: Dict, NSP, subject: str, roi: str, max_size: float, min_size: float, patchbound: float, min_nsd_R2: int, min_prf_R2: int)
         Initializes the VoxelSieve instance with the given parameters.
     """
-    def __init__(self, NSP, prf_dict: Dict, roi_masks: Dict, subject: str, roi: str, max_size: float, min_size: float, patchbound: float, min_nsd_R2: int, min_prf_R2: int):
+    def __init__(self, NSP, prf_dict:Dict, roi_masks:Dict, subject:str, roi:str, max_size:float, min_size:float, patchbound:float, min_nsd_R2:int, min_prf_R2:int, print_attributes:bool=True):
         self.patchbound = patchbound
+        
+        
         self.size = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:,3]
         self.ecc = prf_dict[subject]['proc'][f'{roi}_mask']['eccentricity'][:,3]
         self.angle = prf_dict[subject]['proc'][f'{roi}_mask']['angle'][:,3]
@@ -107,7 +109,17 @@ class VoxelSieve:
         self.sigmas = self.sigmas[self.vox_pick]
         self.ycoor = self.ycoor[self.vox_pick]
         self.xcoor = self.xcoor[self.vox_pick]
-        self.xyz = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:, :3][self.vox_pick]
+        self.xyz = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:, :3][self.vox_pick].astype(int)
+        
+        
+        self.attributes = [attr for attr in dir(self) if not attr.startswith('_')] # Filter out both the 'dunder' and hidden methods
+        
+        print(f'{roi} voxels that fulfill requirements: {Fore.LIGHTWHITE_EX}{len(self.size)}{Style.RESET_ALL} out of {Fore.LIGHTWHITE_EX}{len(prf_dict[subject]["proc"][f"{roi}_mask"]["size"])}{Style.RESET_ALL}.')
+        
+        if print_attributes:
+            print('\nClass contains the following attributes:')
+            for attr in self.attributes:
+                print(f"{Fore.BLUE} .{attr}{Style.RESET_ALL}")
 
 class DataFetch():
     
@@ -1304,7 +1316,7 @@ class Cortex():
         elif type == 'full_gaussian':
             prf_mask = self.nsp.utils.make_gaussian_2d(dim, x, y, prf_size * (dim / 8.4))
         elif type == 'cut_gaussian':
-            prf_mask = self.nsp.utils.css_gaussian_cut(dim, x, y, prf_size * (dim / 8.4))
+            prf_mask = self.nsp.utils.css_gaussian_cut(dim, x, y, prf_size * (dim / 8.4)).reshape((425,425))
         else:
             raise ValueError(f"Invalid type: {type}. Available mask types are 'gaussian','circle','full_gaussian','cut_gaussian'.")
         
@@ -1950,7 +1962,7 @@ class Cortex():
             
         widgets.interact(_update_plot, x=slice_flt.shape[0]-1, y=y_slider, z=slice_flt.shape[2]-1)
         
-        
+    # TODO: Add pRF, voxel information in the plot title as option.
     def plot_prfs(self, voxelsieve:VoxelSieve, which_voxels:Union[int, Sequence[int],str]='all', cmap:str='bone', enlarge:bool=True, sort_by:str='random') -> None:
         """Function to plot the pRFs of the voxels in a VoxelSieve class instance. 
 
@@ -1967,7 +1979,6 @@ class Cortex():
             sort_by (str, optional): Non-functional, still have to implement. Defaults to 'random'.
         """        
         n_voxels = np.sum(voxelsieve.vox_pick)
-        print(f'{n_voxels} voxels remain after filtering')
         
         if isinstance(which_voxels, int):
             which_voxels = [which_voxels]
@@ -2037,7 +2048,7 @@ class Stimuli():
 
     def get_rms_contrast_lab(self, rgb_image:np.ndarray, mask_w_in:np.ndarray, rf_mask_in:np.ndarray, 
                             normalise:bool=True, plot:bool=False, cmap:str='gist_gray', 
-                            crop_post:bool=False) -> float:
+                            crop_post:bool=False, lab_idx:int=0) -> float:
         """"
         Function that calculates Root Mean Square (RMS) contrast after converting RGB to LAB, 
         which follows the CIELAB colour space. This aligns better with how visual input is
@@ -2060,7 +2071,7 @@ class Stimuli():
         lab_image = color.rgb2lab(rgb_image)
         
         # First channel [0] is Luminance, second [1] is green-red, third [2] is blue-yellow
-        ar_in = lab_image[:, :, 0] # Extract the L channel for luminance values, assign to input array
+        ar_in = lab_image[:, :, lab_idx] # Extract the L channel for luminance values, assign to input array
             
         if normalise:
             ar_in /= ar_in.max()
@@ -2217,7 +2228,6 @@ class Stimuli():
         # If there are more subplots than feature maps, hide the extra subplots
         for j in range(num_feature_maps, len(axes)):
             axes[j].axis('off')
-
         plt.show()
         
     def alex_featmaps(self, layers:list, pcs_per_layer:Union[int, str]='all', subject:str='subj01'):
@@ -2310,7 +2320,8 @@ class Stimuli():
         # Compute correlation matrix
         corr_matrix = df.corr()
         ticks = [f'Layer {name.split("_")[2]}' for name in predfeatnames]
-        sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks)
+        # sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks)
+        sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks, vmin=0, vmax=1)
         plt.title(f'U-Net unpredictability estimates\n{type} loss {loss_calc} correlation matrix')
         plt.show()
         
@@ -2356,7 +2367,8 @@ class Stimuli():
         if include_sc_l:
             ticks.append('SC 5°')
         plt.figure(figsize=(9,7))
-        sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks)
+        # sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks)
+        sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks, vmin=0, vmax=1)
         plt.title(f'Correlation matrix for the MSE content loss values per\nlayer, and the baseline features')
         plt.show()
             
@@ -2431,7 +2443,8 @@ class Stimuli():
         return image_ids, dataset, pca, feature, this_layer, this_layer_name
         
     def plot_features(self, which_img:int, features, layer:str, layer_type:str, img_ids:list, num_cols=10, random_cmap:bool=False):
-        
+            
+
         feature_maps = features[layer][which_img].detach().numpy()
         
         # Number of feature maps
@@ -2458,7 +2471,6 @@ class Stimuli():
             plt.subplot(num_rows, num_cols, i+1)
             plt.imshow(feature_maps[i], cmap=this_cmap)
             plt.axis('off')
-
         # Show the plot
         plt.subplots_adjust(wspace=0.01, hspace=0.01)
         plt.tight_layout()
@@ -2633,6 +2645,8 @@ class Stimuli():
             plt.subplots_adjust(wspace=0.05)  # Adjust the spacing between subplots
             plt.show()
             
+        plt.style.use('default')  # Apply dark background theme
+
         return imgs, masks, img_nos, payload_full, payload_crop
         
 class Analysis():

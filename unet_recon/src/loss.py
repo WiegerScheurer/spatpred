@@ -54,7 +54,7 @@ class ReconLoss(nn.Module):
         # ADD PRINT STATEMENT HERE TO CHECK WHETHER IT IS THE FULL OR CROPPPED
         # THEN INCLUDE CONDITIONAL TO CHECK AND SAVE FILE ACCORDINGLY
         # It does it twice because one is for L1, the other for MSE, but I only need 1 
-        print(f'this is the size of the groundtruth patch: {gt.shape}')
+        # print(f'this is the size of the groundtruth patch: {gt.shape}')
         feats_comp = self.extractor(comp)
         feats_gt = self.extractor(gt)
         n_layers=len(feats_comp) # n_layers 
