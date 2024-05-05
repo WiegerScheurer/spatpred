@@ -2218,7 +2218,7 @@ class Stimuli():
         if not MSE:
             predfeatnames = [name for name in predfeatnames if 'MSE' not in name]
         
-        data = {name: self.nsp.stimuli.features()['all_predestims.h5'][name] for name in predfeatnames}
+        data = {name: self.nsp.utils.get_zscore(self.nsp.stimuli.features()['all_predestims.h5'][name], print_ars='n') for name in predfeatnames}
         
         # Convert the dictionary values to a list of lists
         data_list = list(data.values())
@@ -2242,7 +2242,7 @@ class Stimuli():
         - list_layers: list with values between 1 and 4 to indicate which layers to include
         """
         # Load all the matrices and store them in a list
-        matrices = [np.load(f'{self.nsp.own_datapath}/subj01/pred/featmaps/Aunet_gt_feats_{layer}.npy') for layer in list_layers]
+        matrices = [self.nsp.utils.get_zscore(np.load(f'{self.nsp.own_datapath}/subj01/pred/featmaps/Aunet_gt_feats_{layer}.npy'), print_ars='n') for layer in list_layers]
 
         # Horizontally stack the matrices
         Xcnn_stack = np.hstack(matrices)
@@ -2915,7 +2915,7 @@ class Analysis():
         
         return (np.load(f'{self.nsp.own_datapath}/{subject}/betas/{roi}/all_betas.npy')[voxelsieve.vox_pick, start_column:])[:, :n_trials]
                                 
-    def run_ridge_regression(self, X:np.array, y:np.array, alpha=1.0):
+    def run_ridge_regression(self, X:np.array, y:np.array, alpha:float=1.0, fit_icept:bool=False):
         """Function to run a ridge regression model on the data.
 
         Args:
@@ -2926,7 +2926,7 @@ class Analysis():
         Returns:
             sk.linear_model._ridge.Ridge: The model object
         """        
-        model = Ridge(alpha=alpha)
+        model = Ridge(alpha=alpha, fit_intercept=fit_icept)
         model.fit(X, y)
         return model
 
@@ -3032,42 +3032,44 @@ class Analysis():
         brainp = self.nsp.utils.coords2numpy(statmap, roi_masks[subject]['V1_mask'].shape, keep_vals=True)
         
         self.plot_brain(prf_dict, roi_masks, subject, brainp, glass_brain)
-        
-    def evaluate_model(self, X, y, alpha=1.0, cv=5, extra_stats:bool=True):
-        # Create and fit the model
-        model = self.run_ridge_regression(X, y, alpha)
+      
+      
+    # Deprecated, does not help  
+    # def evaluate_model(self, X, y, alpha=1.0, cv=5, extra_stats:bool=True):
+    #     # Create and fit the model
+    #     model = self.run_ridge_regression(X, y, alpha)
 
-        # Get the coefficients
-        coefs = self._get_coefs(model)
+    #     # Get the coefficients
+    #     coefs = self._get_coefs(model)
 
-        # Score the model with cross-validation
-        y_hat, scores = self.score_model(X, y, model, cv)
+    #     # Score the model with cross-validation
+    #     y_hat, scores = self.score_model(X, y, model, cv)
 
-        if extra_stats:
-            # Calculate the MAE, MSE, RMSE, and MAPE
-            mae = mean_absolute_error(y, y_hat)
-            mse = mean_squared_error(y, y_hat)
-            rmse = sqrt(mse)
-            mape = np.mean(np.abs((y - y_hat) / y)) * 100 # Mean abs percentage error
+    #     if extra_stats:
+    #         # Calculate the MAE, MSE, RMSE, and MAPE
+    #         mae = mean_absolute_error(y, y_hat)
+    #         mse = mean_squared_error(y, y_hat)
+    #         rmse = sqrt(mse)
+    #         mape = np.mean(np.abs((y - y_hat) / y)) * 100 # Mean abs percentage error
             
-            # Return all the results
-            return {
-                'model': model,
-                'coefficients': coefs,
-                'predicted_values': y_hat,
-                'cross_validation_scores': scores,
-                'mean_absolute_error': mae,
-                'mean_squared_error': mse,
-                'root_mean_squared_error': rmse,
-                'mean_absolute_percentage_error': mape
-            }
-        else:
-            return {
-                'model': model,
-                'coefficients': coefs,
-                'predicted_values': y_hat,
-                'cross_validation_scores': scores
-            }
+    #         # Return all the results
+    #         return {
+    #             'model': model,
+    #             'coefficients': coefs,
+    #             'predicted_values': y_hat,
+    #             'cross_validation_scores': scores,
+    #             'mean_absolute_error': mae,
+    #             'mean_squared_error': mse,
+    #             'root_mean_squared_error': rmse,
+    #             'mean_absolute_percentage_error': mape
+    #         }
+    #     else:
+    #         return {
+    #             'model': model,
+    #             'coefficients': coefs,
+    #             'predicted_values': y_hat,
+    #             'cross_validation_scores': scores
+    #         }
 
     def plot_learning_curve(self, X, y, model=None, alpha=1.0, cv=5):
         if model is None:
