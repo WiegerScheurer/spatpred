@@ -91,17 +91,23 @@ class VoxelSieve:
     __init__(self, prf_dict: Dict, roi_masks: Dict, NSP, subject: str, roi: str, max_size: float, min_size: float, patchbound: float, min_nsd_R2: int, min_prf_R2: int)
         Initializes the VoxelSieve instance with the given parameters.
     """
-    def __init__(self, NSP, prf_dict:Dict, roi_masks:Dict, subject:str, roi:str, max_size:float, min_size:float, patchbound:float, min_nsd_R2:int, min_prf_R2:int, print_attributes:bool=True):
+    def __init__(self, NSP, prf_dict:Dict, roi_masks:Dict, subject:str, roi:str, 
+                 max_size:Optional[float]=None, min_size:Optional[float]=None, patchbound:Optional[float]=None, 
+                 min_nsd_R2:Optional[int]=None, min_prf_R2:Optional[int]=None, print_attributes:bool=True, 
+                 all_voxels:bool=False):
+        
         self.patchbound = patchbound
-        
-        
         self.size = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:,3]
         self.ecc = prf_dict[subject]['proc'][f'{roi}_mask']['eccentricity'][:,3]
         self.angle = prf_dict[subject]['proc'][f'{roi}_mask']['angle'][:,3]
         self.prf_R2 = prf_dict[subject]['proc'][f'{roi}_mask']['R2'][:,3]
         self.nsd_R2 = NSP.cortex.nsd_R2_dict(roi_masks, glm_type='hrf')[subject]['R2_roi'][f'{roi}_mask'][:,3]
         self.sigmas, self.ycoor, self.xcoor = NSP.cortex.calculate_pRF_location(self.size, self.ecc, self.angle, (425,425))
-        self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
+        
+        if all_voxels: # If all_voxels is True, all ROI voxels are selected regardless of the other parameters
+            self.vox_pick = np.ones(len(self.size)).astype(bool)
+        else:
+            self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
         
         # Apply the vox_pick mask to all the attributes with voxel specific data
         self.size = self.size[self.vox_pick]
@@ -3141,7 +3147,7 @@ class Analysis():
         plt.show()  
         
     
-    def analysis_chain(self, ydict:Dict[str, np.ndarray], voxeldict:Dict[str, VoxelSieve], 
+    def analysis_chain(self, subject:str, ydict:Dict[str, np.ndarray], voxeldict:Dict[str, VoxelSieve], 
                        X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, 
                        fit_icept:bool=False, save_outs:bool=False, regname:Optional[str]='') -> np.ndarray:
         """Function to run a chain of analyses on the input data for each of the four regions of interest (ROIs).
@@ -3170,35 +3176,41 @@ class Analysis():
         """
         r_values = {}
         r_uninformative = {}
-        cor_scores_dict = {}  # Dictionary to store cor_scores
-
+        regcor_dict = {}  # Dictionary to store cor_scores
+        regcor_dict['X'] = {}
         # Calculate scores for the given X matrix
         for roi in rois:
             y = ydict[roi]
-            model = self.run_ridge_regression(X, y, alpha=alpha, fit_icept=False)
-            _, cor_scores = self.score_model(X, y, model, cv=cv)
+            model_og = self.run_ridge_regression(X, y, alpha=alpha, fit_icept=False)
+            _, cor_scores = self.score_model(X, y, model_og, cv=cv)
             r_values[roi] = np.mean(cor_scores, axis=0)
-            cor_scores_dict[roi] = cor_scores  # Save cor_scores to dictionary
+            regcor_dict['X'][roi] = cor_scores  # Save cor_scores to dictionary
 
             xyz = voxeldict[roi].xyz
             this_coords = np.hstack((xyz, np.array(r_values[roi]).reshape(-1,1)))
+            this_coefs = np.mean(model_og.coef_, axis=1).reshape(-1,1)
             if roi == 'V1':
                 coords = this_coords
+                beta_coefs = this_coefs
             else:
                 coords = np.vstack((coords, this_coords))
+                beta_coefs = np.vstack((beta_coefs, this_coefs))
 
+
+        regcor_dict['X_shuffled'] = {}
         # Calculate scores for the uninformative X matrix
         for roi in rois:
             y = ydict[roi]
-            model = self.run_ridge_regression(X_uninformative, y, alpha=alpha, fit_icept=fit_icept)
-            _, cor_scores = self.score_model(X_uninformative, y, model, cv=cv)
+            model_comp = self.run_ridge_regression(X_uninformative, y, alpha=alpha, fit_icept=fit_icept)
+            _, cor_scores = self.score_model(X_uninformative, y, model_comp, cv=cv)
             r_uninformative[roi] = np.mean(cor_scores, axis=0)
+            regcor_dict['X_shuffled'][roi] = cor_scores  # Save cor_scores to dictionary
             if roi == 'V1':
                 uninf_scores = r_uninformative[roi].reshape(-1,1)
             else:
                 uninf_scores = np.vstack((uninf_scores, r_uninformative[roi].reshape(-1,1)))
 
-        coords = np.hstack((coords, uninf_scores))
+        coords = np.hstack((coords, uninf_scores, beta_coefs)) # also added beta coefficients as last column. very rough but works
                 
         # Create a figure with 4 subplots
         fig, axs = plt.subplots(2, 2, figsize=(8, 8))
@@ -3212,7 +3224,7 @@ class Analysis():
             axs[i].hist(r_uninformative[roi], bins=40, edgecolor='black', alpha=0.5, label='Uninformative X')
             # Plot the histogram of r_values[roi] values in the i-th subplot
             axs[i].hist(r_values[roi], bins=40, edgecolor='black', alpha=0.5, label='X')
-            axs[i].set_title(f'R values for {roi}')
+            axs[i].set_title(f'Y to y_hat correlation R values {roi}\ndelta-R: {round(np.mean(r_values[roi]) - np.mean(r_uninformative[roi]), 5)}')
             axs[i].legend()
 
         # Display the figure
@@ -3220,11 +3232,16 @@ class Analysis():
         plt.show()
         
         if save_outs:
-            plt.savefig(f'{regname}_plot.png')  # Save the plot to a file
+            plt.savefig(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_plot.png')  # Save the plot to a file
             # Save cor_scores to a file
-            np.save(f'{regname}_regcor_scores.npy', coords)  # Save the coords to a file
+            np.save(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_regcor_scores.npy', coords)  # Save the coords to a file
             print(f'Succesfully saved the outputs to {regname}_plot.png and {regname}_regcor_scores.npy')
-        return coords  
+            
+            # Save the regcor_dict to a file
+            with open(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_regcor_dict.pkl', 'wb') as f:
+                pickle.dump(regcor_dict, f)
+            
+        return coords
 
 class NatSpatPred():
     
