@@ -1904,8 +1904,8 @@ class Cortex():
         return prfmask_dict_all, heatmaps
     
 
-    def viscortex_plot(self, prf_dict, vismask_dict, plot_param, subject, distinct_roi_colours:bool = True, inv_colour:bool = False, cmap = 'hot',
-                    lowcap = None, upcap = None):
+    def viscortex_plot(self, prf_dict, vismask_dict, subject,  plot_param:Optional[str]=None, distinct_roi_colours:bool = True, inv_colour:bool = False, cmap = 'hot',
+                    lowcap = None, upcap = None, regresult:Optional[np.ndarray]=None):
 
         mask_viscortex = np.zeros((vismask_dict[subject]['V1_mask'].shape))
         
@@ -1917,17 +1917,23 @@ class Cortex():
 
         mask_flat = self.nsp.utils.numpy2coords(mask_viscortex, keep_vals = True)
 
-        if plot_param == 'nsdR2':
-            R2_dict = self.nsd_R2_dict(vismask_dict, glm_type = 'hrf')
-            brain = self.nsp.utils.cap_values(np.nan_to_num(R2_dict[subject]['full_R2']['R2_ar']), lower_threshold = lowcap, upper_threshold = upcap)
-        else:
-            brain = self.nsp.utils.cap_values(np.nan_to_num(prf_dict[subject]['nsd_dat'][plot_param]['prf_ar']), lower_threshold = lowcap, upper_threshold = upcap)
-        brain_flat = self.nsp.utils.numpy2coords(brain, keep_vals = True)
+        if isinstance(plot_param, str):
 
-        comrows = self.nsp.utils.find_common_rows(brain_flat, mask_flat, keep_vals = True)
+            if plot_param == 'nsdR2':
+                R2_dict = self.nsd_R2_dict(vismask_dict, glm_type = 'hrf')
+                brain = self.nsp.utils.cap_values(np.nan_to_num(R2_dict[subject]['full_R2']['R2_ar']), lower_threshold = lowcap, upper_threshold = upcap)
+            else:
+                brain = self.nsp.utils.cap_values(np.nan_to_num(prf_dict[subject]['nsd_dat'][plot_param]['prf_ar']), lower_threshold = lowcap, upper_threshold = upcap)
+            
+            brain_flat = self.nsp.utils.numpy2coords(brain, keep_vals = True)
 
-        # slice_flt = cap_values(coords2numpy(coordinates = comrows, shape = brain.shape, keep_vals = True), threshold = 4)
-        slice_flt = self.nsp.utils.coords2numpy(coordinates = comrows, shape = brain.shape, keep_vals = True)
+            comrows = self.nsp.utils.find_common_rows(brain_flat, mask_flat, keep_vals = True)
+
+            # slice_flt = cap_values(coords2numpy(coordinates = comrows, shape = brain.shape, keep_vals = True), threshold = 4)
+            slice_flt = self.nsp.utils.coords2numpy(coordinates = comrows, shape = brain.shape, keep_vals = True)
+
+        elif plot_param is None:
+            slice_flt = self.nsp.utils.cap_values(regresult, lower_threshold = lowcap, upper_threshold = upcap)
 
         # Create sliders for each dimension
         z_slider = widgets.IntSlider(min=0, max=slice_flt.shape[2]-1, description='saggital')
@@ -1955,7 +1961,7 @@ class Cortex():
 
             # Plot the second image on the right subplot
             img2 = np.rot90(slice_flt[:x, y, :z])
-            im2 = axs[1].imshow(img2, cmap=f'{cmap}{rev}', vmin=np.min(brain), vmax=np.max(brain))
+            im2 = axs[1].imshow(img2, cmap=f'{cmap}{rev}', vmin=np.min(slice_flt), vmax=np.max(slice_flt))
             axs[1].set_title(f'{plot_param} across visual cortex')
             axs[1].axis('off')
             fig.colorbar(im2, ax=axs[1])
@@ -3111,7 +3117,7 @@ class Analysis():
         plt.show()  
         
     
-    def analysis_chain(self, ydict:np.ndarray, X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, fit_icept:bool=False, save_outs:bool=False) -> np.ndarray:
+    def analysis_chain(self, ydict:Dict[str, np.ndarray], voxeldict:Dict[str, VoxelSieve], X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, fit_icept:bool=False, save_outs:bool=False) -> np.ndarray:
         """Function to run a chain of analyses on the input data for each of the four regions of interest (ROIs).
             Includes comparisons with an uninformative dependent variable X matrix (such as a shuffled 
             version of the original X matrix), to assess the quality of the model in a relative way.
@@ -3143,8 +3149,8 @@ class Analysis():
         # Calculate scores for the given X matrix
         for roi in rois:
             y = ydict[roi]
-            model = NSP.analyse.run_ridge_regression(X, y, alpha=alpha, fit_icept=False)
-            _, cor_scores = NSP.analyse.score_model(X, y, model, cv=cv)
+            model = self.run_ridge_regression(X, y, alpha=alpha, fit_icept=False)
+            _, cor_scores = self.score_model(X, y, model, cv=cv)
             r_values[roi] = np.mean(cor_scores, axis=0)
             cor_scores_dict[roi] = cor_scores  # Save cor_scores to dictionary
 
@@ -3158,10 +3164,16 @@ class Analysis():
         # Calculate scores for the uninformative X matrix
         for roi in rois:
             y = ydict[roi]
-            model = NSP.analyse.run_ridge_regression(X_uninformative, y, alpha=alpha, fit_icept=fit_icept)
-            _, cor_scores = NSP.analyse.score_model(X_uninformative, y, model, cv=cv)
+            model = self.run_ridge_regression(X_uninformative, y, alpha=alpha, fit_icept=fit_icept)
+            _, cor_scores = self.score_model(X_uninformative, y, model, cv=cv)
             r_uninformative[roi] = np.mean(cor_scores, axis=0)
+            if roi == 'V1':
+                uninf_scores = r_uninformative[roi].reshape(-1,1)
+            else:
+                uninf_scores = np.vstack((uninf_scores, r_uninformative[roi].reshape(-1,1)))
 
+        coords = np.hstack((coords, uninf_scores))
+                
         # Create a figure with 4 subplots
         fig, axs = plt.subplots(2, 2, figsize=(8, 8))
 

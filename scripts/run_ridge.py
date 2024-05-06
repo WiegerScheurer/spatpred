@@ -128,6 +128,13 @@ def plot_scores(ydict, X, alpha, cv, rois, X_uninformative, fit_icept:bool=False
 
     return coords
 
+
+
+# TODO: also return the cor_scores for the uninformative x matrix and create brainplots where
+# the r-values are plotted on the brain for both the informative and uninformative x matrices
+# Or well, more importantly find a way to visualise how they compare, because otherwise it's
+# badly interpretable.
+
 rois, roi_masks, viscortex_mask = NSP.cortex.visrois_dict(verbose=False)
 prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 
@@ -160,12 +167,16 @@ Xrms = NSP.stimuli.baseline_feats('rms')
 Xce = NSP.stimuli.baseline_feats('ce')
 Xsc = NSP.stimuli.baseline_feats('sc_l') # the _l attachment is for 'large' -> computed feature for 5° radius patch
 
-X = NSP.stimuli.unet_featmaps(list_layers=[3], scale='full')
+# X = NSP.stimuli.unet_featmaps(list_layers=[3], scale='full')
+X = Xrms
 
 X_shuf = np.copy(X)
 np.random.shuffle(X_shuf)
 
-obj = plot_scores(ydict, X, alpha=10, cv=5, rois=rois, X_uninformative=X_shuf, fit_icept=False)
+obj = NSP.analyse.analysis_chain(ydict=ydict, X=X, alpha=10, voxeldict=voxeldict, cv=5, rois=rois, X_uninformative=X_shuf, fit_icept=False, save_outs=True)
+
+
+rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
 
 
 
