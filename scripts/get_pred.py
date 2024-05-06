@@ -229,7 +229,7 @@ elif loc == 'irrelevant_patch':
     x = y = radius + 10
 
 # The in stands for inverse in this case. For the inpainting we need the np.bool_ non-inverse images
-mask_w_in = css_gaussian_cut(dim, x, y, radius)
+mask_w_in = css_gaussian_cut(dim, x, y, radius).reshape(425,425)
 rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
 full_ar_in = ar_in = show_stim(img_no = welke_plaat, hide = 'y')[0] 
 # Get the boolean version of the non-inverse mask
@@ -237,7 +237,11 @@ rf_mask_nsd = rf_mask_in == 0
 xmin,xmax,ymin,ymax = list(get_bounding_box(rf_mask_in))
 crop_mask = rf_mask_in[ymin:ymax, xmin:xmax] == 1
 
-eval_fact=np.sqrt(1.2) # This needs to be in correspondence with the min_size (original eval_fact = 1.5, min_size = 100)
+# THIS IS THE ORIGINAL ONE, THE CORRECT CROP
+# eval_fact=np.sqrt(1.2) # This needs to be in correspondence with the min_size (original eval_fact = 1.5, min_size = 100)
+
+# THIS IS THE FULL IMG FEATUREMAP EVALMASK
+eval_fact=np.sqrt(18)
 eval_mask=scale_square_mask(~np.array(masks[0]), min_size=80, scale_fact= eval_fact)
 
 

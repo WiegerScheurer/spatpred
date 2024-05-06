@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# This is an old script, likely doesn't work anymore and is also not needed as it leverages outdated regression approaches
+
 import os
 import sys
 os.environ["OMP_NUM_THREADS"] = "10"

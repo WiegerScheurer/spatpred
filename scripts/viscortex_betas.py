@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# This script efficiently pulls the betas from the NSD files using the updated get_betas method.
+
 import os
 import sys
 import numpy as np

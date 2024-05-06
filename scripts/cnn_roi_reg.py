@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+# This is that weird plot with the coloured lines that showed R2 goodness of fit
 import os
 import sys
 os.environ["OMP_NUM_THREADS"] = "10"

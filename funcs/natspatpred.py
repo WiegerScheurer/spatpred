@@ -16,6 +16,7 @@ import scipy.stats.mstats as mstats
 import copy
 import ipywidgets as widgets
 import sklearn as sk
+import yaml
 
 from skimage import color
 from nilearn import plotting
@@ -49,6 +50,7 @@ from matplotlib.ticker import MaxNLocator
 from multiprocessing import Pool
 from typing import Union, Dict, List, Tuple, Optional, Sequence
 
+
 print('soepstengesl')
 
 os.chdir('/home/rfpred')
@@ -56,8 +58,10 @@ sys.path.append('/home/rfpred/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
 
+import lgnpy.CEandSC.lgn_statistics
 from unet_recon.inpainting import UNet
 from funcs.analyses import univariate_regression
+from lgnpy.CEandSC.lgn_statistics import lgn_statistics, loadmat, LGN
 
 class VoxelSieve:
     """
@@ -2147,8 +2151,6 @@ class Stimuli():
         rms_dict = rms_dict.set_index(np.array(img_vec))
         return rms_dict
 
-
-    
     # Function to get the visual contrast features and predictability estimates
     # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
     def features(self):
@@ -2235,21 +2237,22 @@ class Stimuli():
         return X
     
         
-    def unet_featmaps(self, list_layers:list):
+    def unet_featmaps(self, list_layers:list, scale:str='cropped'):
         """
         Load in the UNet extracted feature maps
         Input:
         - list_layers: list with values between 1 and 4 to indicate which layers to include
+        - scale: string to select either 'cropped' for cropped images, or 'full' for full images
         """
         # Load all the matrices and store them in a list
-        matrices = [self.nsp.utils.get_zscore(np.load(f'{self.nsp.own_datapath}/subj01/pred/featmaps/Aunet_gt_feats_{layer}.npy'), print_ars='n') for layer in list_layers]
+        matrices = [self.nsp.utils.get_zscore(np.load(f'{self.nsp.own_datapath}/subj01/pred/featmaps/{scale}_unet_gt_feats_{layer}.npy'), print_ars='n') for layer in list_layers]
 
         # Horizontally stack the matrices
         Xcnn_stack = np.hstack(matrices)
 
         return Xcnn_stack
     
-    def plot_unet_feats(self, layer:int, batch:int, cmap:str='bone', subject:str='subj01'):
+    def plot_unet_feats(self, layer:int, batch:int, cmap:str='bone', subject:str='subj01', scale:str='cropped'):
         """
         Function to plot a selection of feature maps extracted from the U-Net class.
         Input:
@@ -2257,8 +2260,9 @@ class Stimuli():
         - batch: integer to select batch
         - cmap: string to define the matplotlib colour map used to plot the feature maps
         - subject: string to select the subject
+        - scale: string to select either 'cropped' for cropped images, or 'full' for full images
         """
-        with open(f'{self.nsp.own_datapath}/{subject}/pred/featmaps/feats_gt_np_{batch}.pkl', 'rb') as f:
+        with open(f'{self.nsp.own_datapath}/{subject}/pred/featmaps/{scale}/feats_gt_np_{batch}.pkl', 'rb') as f:
             feats_gt_np = pickle.load(f)
             
         # Get the number of feature maps
@@ -2892,7 +2896,7 @@ class Analysis():
         """
         Loads the y values for a given subject and region of interest (ROI).
 
-        Parameters:
+        Args:
         - subject (str): The subject.
         - roi (str): The region of interest.
         - voxelsieve (VoxelSieve class): VoxelSieve instance used to select voxels.
@@ -2919,12 +2923,12 @@ class Analysis():
         """Function to run a ridge regression model on the data.
 
         Args:
-            X (np.array): The independent variables with shape (n_trials, n_features)
-            y (np.array): The dependent variable with shape (n_trials, n_outputs)
-            alpha (float, optional): Regularisation parameter of Ridge regression, larger values penalise stronger. Defaults to 1.0.
+        - X (np.array): The independent variables with shape (n_trials, n_features)
+        - y (np.array): The dependent variable with shape (n_trials, n_outputs)
+        - alpha (float, optional): Regularisation parameter of Ridge regression, larger values penalise stronger. Defaults to 1.0.
 
         Returns:
-            sk.linear_model._ridge.Ridge: The model object
+        - sk.linear_model._ridge.Ridge: The model object
         """        
         model = Ridge(alpha=alpha, fit_intercept=fit_icept)
         model.fit(X, y)
@@ -2938,11 +2942,11 @@ class Analysis():
         """Function to get the correlation between the predicted and actual HRF signal betas.
 
         Args:
-            y (np.ndarray): The original HRF signal betas from the NSD
-            y_hat (np.ndarray): The predicted HRF signal betas
+        - y (np.ndarray): The original HRF signal betas from the NSD
+        - y_hat (np.ndarray): The predicted HRF signal betas
 
         Returns:
-            float: The correlation between the two sets of betas as a measure of fit
+        - float: The correlation between the two sets of betas as a measure of fit
         """        
         return np.mean(y * y_hat, axis=0)
 
@@ -2950,13 +2954,13 @@ class Analysis():
         """This function evaluates the performance of the model using cross-validation.
 
         Args:
-            X (np.ndarray): X-matrix, independent variables with shape (n_trials, n_features)
-            y (np.ndarray): y-matrix, dependent variable with shape (n_trials, n_outputs)
-            model (sk.linear_model._ridge.Ridge): The ridge model to score
-            cv (int, optional): The number of cross validation folds. Defaults to 5.
+        - X (np.ndarray): X-matrix, independent variables with shape (n_trials, n_features)
+        - y (np.ndarray): y-matrix, dependent variable with shape (n_trials, n_outputs)
+        - model (sk.linear_model._ridge.Ridge): The ridge model to score
+        - cv (int, optional): The number of cross validation folds. Defaults to 5.
 
         Returns:
-            tuple: A tuple containing:
+        - tuple: A tuple containing:
                 - y_hat (np.ndarray): The predicted values for y, with shape (n_trials, n_outputs)
                 - scores (np.ndarray): The R^2 scores for each output, with shape (n_outputs,)
         """        
@@ -2999,11 +3003,11 @@ class Analysis():
         """Function to plot a 3D np.ndarray with voxel-specific values on an anatomical brain template of that subject.
 
         Args:
-            prf_dict (dict): The pRF dictionary
-            roi_masks (dict): The dictionary with the 3D np.ndarray boolean brain masks
-            subject (str): The subject ID
-            brain_numpy (np.ndarray): The 3D np.ndarray with voxel-specific values
-            glass_brain (bool, optional): Optional argument to plot a glass brain instead of a static map. Defaults to False.
+        - prf_dict (dict): The pRF dictionary
+        - roi_masks (dict): The dictionary with the 3D np.ndarray boolean brain masks
+        - subject (str): The subject ID
+        - brain_numpy (np.ndarray): The 3D np.ndarray with voxel-specific values
+        - glass_brain (bool, optional): Optional argument to plot a glass brain instead of a static map. Defaults to False.
         """        
         brain_nii = nib.Nifti1Image(brain_numpy, self.nsp.cortex.anat_templates(prf_dict)[subject].affine)
         if glass_brain:
@@ -3015,12 +3019,12 @@ class Analysis():
         """Function to create a brain plot based on a specific statistic and the corresponding voxel coordinates.
 
         Args:
-            prf_dict (dict): The pRF dictionary
-            roi_masks (dict): The dictionary with the 3D np.ndarray boolean brain masks
-            subject (str): The subject ID
-            stat (np.ndarray): The statistic to plot on the brain
-            xyzs (np.ndarray): The voxel coordinates
-            glass_brain (bool, optional): Optional argument to plot a glass brain instead of a static map. Defaults to False.
+        - prf_dict (dict): The pRF dictionary
+        - roi_masks (dict): The dictionary with the 3D np.ndarray boolean brain masks
+        - subject (str): The subject ID
+        - stat (np.ndarray): The statistic to plot on the brain
+        - xyzs (np.ndarray): The voxel coordinates
+        - glass_brain (bool, optional): Optional argument to plot a glass brain instead of a static map. Defaults to False.
         """        
         n_voxels = len(xyzs)
         statmap = np.zeros((n_voxels, 4))
@@ -3033,44 +3037,6 @@ class Analysis():
         
         self.plot_brain(prf_dict, roi_masks, subject, brainp, glass_brain)
       
-      
-    # Deprecated, does not help  
-    # def evaluate_model(self, X, y, alpha=1.0, cv=5, extra_stats:bool=True):
-    #     # Create and fit the model
-    #     model = self.run_ridge_regression(X, y, alpha)
-
-    #     # Get the coefficients
-    #     coefs = self._get_coefs(model)
-
-    #     # Score the model with cross-validation
-    #     y_hat, scores = self.score_model(X, y, model, cv)
-
-    #     if extra_stats:
-    #         # Calculate the MAE, MSE, RMSE, and MAPE
-    #         mae = mean_absolute_error(y, y_hat)
-    #         mse = mean_squared_error(y, y_hat)
-    #         rmse = sqrt(mse)
-    #         mape = np.mean(np.abs((y - y_hat) / y)) * 100 # Mean abs percentage error
-            
-    #         # Return all the results
-    #         return {
-    #             'model': model,
-    #             'coefficients': coefs,
-    #             'predicted_values': y_hat,
-    #             'cross_validation_scores': scores,
-    #             'mean_absolute_error': mae,
-    #             'mean_squared_error': mse,
-    #             'root_mean_squared_error': rmse,
-    #             'mean_absolute_percentage_error': mape
-    #         }
-    #     else:
-    #         return {
-    #             'model': model,
-    #             'coefficients': coefs,
-    #             'predicted_values': y_hat,
-    #             'cross_validation_scores': scores
-    #         }
-
     def plot_learning_curve(self, X, y, model=None, alpha=1.0, cv=5):
         if model is None:
             # Create and fit the model
@@ -3117,14 +3083,15 @@ class Analysis():
 
         plt.show()
                 
+                
     def plot_residuals(self, X, y, model=None, alpha=1.0):
         """Plot the residuals of the model, which is the difference between the actual y and the predicted y (y_hat)
 
         Args:
-            X (_type_): _description_
-            y (_type_): _description_
-            model (_type_, optional): _description_. Defaults to None.
-            alpha (float, optional): _description_. Defaults to 1.0.
+        - X (_type_): _description_
+        - y (_type_): _description_
+        - model (_type_, optional): _description_. Defaults to None.
+        - alpha (float, optional): _description_. Defaults to 1.0.
         """        
         if model is None:
             # Create and fit the model
@@ -3141,7 +3108,86 @@ class Analysis():
         plt.xlabel('Predicted Values')
         plt.ylabel('Residuals')
         plt.title('Residual Plot')
-        plt.show()    
+        plt.show()  
+        
+    
+    def analysis_chain(self, ydict:np.ndarray, X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, fit_icept:bool=False, save_outs:bool=False) -> np.ndarray:
+        """Function to run a chain of analyses on the input data for each of the four regions of interest (ROIs).
+            Includes comparisons with an uninformative dependent variable X matrix (such as a shuffled 
+            version of the original X matrix), to assess the quality of the model in a relative way.
+            Returns an array of which the first 3 columns contain the voxel coordinates (xyz) and the 
+            fourth contains the across cross validation fold mean correlation R scores between the actual
+            and predicted dependent variables (y vs. y_hat).
+
+        Args:
+        - ydict (np.ndarray): The dictionary containing the dependent variables y-matrices for each ROI.
+        - X (np.ndarray): The independent variables X-matrix.
+        - alpha (float): The regularisation parameter of the Ridge regression model.
+        - cv (int): The number of cross-validation folds.
+        - rois (list): The list of regions of interest (ROIs) to analyse.
+        - X_uninformative (np.ndarray): The uninformative X-matrix to compare the model against.
+        - fit_icept (bool, optional): Whether or not to fit an intercept. If both X and y matrices are z-scored
+                It is highly recommended to set it to False, otherwise detecting effects becomes difficult. Defaults to False.
+        - save_outs (bool, optional): Whether or not to save the outputs. Defaults to False.
+
+        Returns:
+        - np.ndarray: Object containing the voxel coordinates and the mean R scores for each ROI. This can be
+                efficiently turned into a numpy array using NSP.utils.coords2numpy, which in turn can be converted 
+                into a nifti file using nib.Nifti1Image(np.array, affine), in which the affine can be extracted
+                from a readily available nifti file from the specific subject (using your_nifti.affine).
+        """
+        r_values = {}
+        r_uninformative = {}
+        cor_scores_dict = {}  # Dictionary to store cor_scores
+
+        # Calculate scores for the given X matrix
+        for roi in rois:
+            y = ydict[roi]
+            model = NSP.analyse.run_ridge_regression(X, y, alpha=alpha, fit_icept=False)
+            _, cor_scores = NSP.analyse.score_model(X, y, model, cv=cv)
+            r_values[roi] = np.mean(cor_scores, axis=0)
+            cor_scores_dict[roi] = cor_scores  # Save cor_scores to dictionary
+
+            xyz = voxeldict[roi].xyz
+            this_coords = np.hstack((xyz, np.array(r_values[roi]).reshape(-1,1)))
+            if roi == 'V1':
+                coords = this_coords
+            else:
+                coords = np.vstack((coords, this_coords))
+
+        # Calculate scores for the uninformative X matrix
+        for roi in rois:
+            y = ydict[roi]
+            model = NSP.analyse.run_ridge_regression(X_uninformative, y, alpha=alpha, fit_icept=fit_icept)
+            _, cor_scores = NSP.analyse.score_model(X_uninformative, y, model, cv=cv)
+            r_uninformative[roi] = np.mean(cor_scores, axis=0)
+
+        # Create a figure with 4 subplots
+        fig, axs = plt.subplots(2, 2, figsize=(8, 8))
+
+        # Flatten the axs array for easy iteration
+        axs = axs.flatten()
+
+        # Assuming rois is a list with at least 4 elements
+        for i, roi in enumerate(rois[:4]):
+            # Underlay with the histogram of r_uninformative[roi] values
+            axs[i].hist(r_uninformative[roi], bins=40, edgecolor='black', alpha=0.5, label='Uninformative X')
+            # Plot the histogram of r_values[roi] values in the i-th subplot
+            axs[i].hist(r_values[roi], bins=40, edgecolor='black', alpha=0.5, label='X')
+            axs[i].set_title(f'R values for {roi}')
+            axs[i].legend()
+
+        # Display the figure
+        plt.tight_layout()
+        plt.show()
+        
+        if save_outs:
+            plt.savefig('HEREplot.png')  # Save the plot to a file
+            # Save cor_scores to a file
+            with open('HEREcor_scores.pkl', 'wb') as f:
+                pickle.dump(cor_scores_dict, f)
+
+        return coords  
 
 class NatSpatPred():
     
