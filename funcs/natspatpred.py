@@ -20,6 +20,7 @@ import yaml
 
 from skimage import color
 from nilearn import plotting
+from sklearn.base import clone
 from scipy.ndimage import binary_dilation
 from PIL import Image
 from importlib import reload
@@ -1905,7 +1906,7 @@ class Cortex():
     
 
     def viscortex_plot(self, prf_dict, vismask_dict, subject,  plot_param:Optional[str]=None, distinct_roi_colours:bool = True, inv_colour:bool = False, cmap = 'hot',
-                    lowcap = None, upcap = None, regresult:Optional[np.ndarray]=None):
+                    lowcap:Optional[float]=None, upcap:Optional[float]=None, regresult:Optional[np.ndarray]=None):
 
         mask_viscortex = np.zeros((vismask_dict[subject]['V1_mask'].shape))
         
@@ -1917,24 +1918,35 @@ class Cortex():
 
         mask_flat = self.nsp.utils.numpy2coords(mask_viscortex, keep_vals = True)
 
+
         if isinstance(plot_param, str):
 
             if plot_param == 'nsdR2':
                 R2_dict = self.nsd_R2_dict(vismask_dict, glm_type = 'hrf')
-                brain = self.nsp.utils.cap_values(np.nan_to_num(R2_dict[subject]['full_R2']['R2_ar']), lower_threshold = lowcap, upper_threshold = upcap)
+                # brain = self.nsp.utils.cap_values(np.nan_to_num(R2_dict[subject]['full_R2']['R2_ar']), lower_threshold = lowcap, upper_threshold = upcap)
+                brain = np.nan_to_num(R2_dict[subject]['full_R2']['R2_ar'])
             else:
-                brain = self.nsp.utils.cap_values(np.nan_to_num(prf_dict[subject]['nsd_dat'][plot_param]['prf_ar']), lower_threshold = lowcap, upper_threshold = upcap)
+                # brain = self.nsp.utils.cap_values(np.nan_to_num(prf_dict[subject]['nsd_dat'][plot_param]['prf_ar']), lower_threshold = lowcap, upper_threshold = upcap)
+                brain = np.nan_to_num(prf_dict[subject]['nsd_dat'][plot_param]['prf_ar'])
             
+                
+            if lowcap is None:
+                lowcap = np.min(brain)
+            if upcap is None:
+                upcap = np.max(brain)
+                
             brain_flat = self.nsp.utils.numpy2coords(brain, keep_vals = True)
-
-            comrows = self.nsp.utils.find_common_rows(brain_flat, mask_flat, keep_vals = True)
+            
+            comrows = self.nsp.utils.find_common_rows(brain_flat, mask_flat, keep_vals=True)
 
             # slice_flt = cap_values(coords2numpy(coordinates = comrows, shape = brain.shape, keep_vals = True), threshold = 4)
-            slice_flt = self.nsp.utils.coords2numpy(coordinates = comrows, shape = brain.shape, keep_vals = True)
+            slice_flt = self.nsp.utils.cap_values(self.nsp.utils.coords2numpy(coordinates=comrows, shape=brain.shape, keep_vals=True), lower_threshold=lowcap, upper_threshold=upcap)
+
+            plot_str = plot_param
 
         elif plot_param is None:
-            slice_flt = self.nsp.utils.cap_values(regresult, lower_threshold = lowcap, upper_threshold = upcap)
-
+            slice_flt = self.nsp.utils.cap_values(np.copy(regresult), lower_threshold=lowcap, upper_threshold=upcap)
+            plot_str = 'Ridge regression y to y-hat correlation R-\nvalues averaged over cross-validation folds,\nshuffled X-matrix R correlation results\nsubtractedfrom actual results to get\nrelative score'
         # Create sliders for each dimension
         z_slider = widgets.IntSlider(min=0, max=slice_flt.shape[2]-1, description='saggital')
         x_slider = widgets.IntSlider(min=0, max=slice_flt.shape[0]-1, description='horizontal:')
@@ -1962,7 +1974,7 @@ class Cortex():
             # Plot the second image on the right subplot
             img2 = np.rot90(slice_flt[:x, y, :z])
             im2 = axs[1].imshow(img2, cmap=f'{cmap}{rev}', vmin=np.min(slice_flt), vmax=np.max(slice_flt))
-            axs[1].set_title(f'{plot_param} across visual cortex')
+            axs[1].set_title(f'{plot_str} across visual cortex.\n', fontsize=16)
             axs[1].axis('off')
             fig.colorbar(im2, ax=axs[1])
 
@@ -2983,11 +2995,18 @@ class Analysis():
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
             
+            
+            # Clone the model to ensure it's fresh for each fold
+            model_clone = clone(model)
+        
             # Fit the model on the training data
-            model.fit(X_train, y_train)
+            model_clone.fit(X_train, y_train)
+            
+            # Fit the model on the training data
+            # model.fit(X_train, y_train)
             
             # Predict the values for the testing data
-            y_hat_fold = model.predict(X_test)
+            y_hat_fold = model_clone.predict(X_test)
             
             # Calculate the R^2 score for each column, no multi output
             # scores_fold = [r2_score(y_test[:, i], y_hat_fold[:, i]) for i in range(y_test.shape[1])]
@@ -3005,7 +3024,7 @@ class Analysis():
         
         return y_hat, cor_scores
     
-    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, glass_brain=False):
+    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, glass_brain:bool=False, save_img:bool=False, img_path:str='brain_image.png'):
         """Function to plot a 3D np.ndarray with voxel-specific values on an anatomical brain template of that subject.
 
         Args:
@@ -3014,13 +3033,18 @@ class Analysis():
         - subject (str): The subject ID
         - brain_numpy (np.ndarray): The 3D np.ndarray with voxel-specific values
         - glass_brain (bool, optional): Optional argument to plot a glass brain instead of a static map. Defaults to False.
+        - save_img (bool, optional): Optional argument to save the image to a file. Defaults to False.
+        - img_path (str, optional): The path where the image will be saved. Defaults to 'brain_image.png'.
         """        
         brain_nii = nib.Nifti1Image(brain_numpy, self.nsp.cortex.anat_templates(prf_dict)[subject].affine)
         if glass_brain:
-            plotting.plot_glass_brain(brain_nii, display_mode='ortho', colorbar=True)
+            display = plotting.plot_glass_brain(brain_nii, display_mode='ortho', colorbar=True)
         else:
-            plotting.plot_stat_map(brain_nii, bg_img=self.nsp.cortex.anat_templates(prf_dict)[subject], display_mode='ortho', colorbar=True)
-            
+            display = plotting.plot_stat_map(brain_nii, bg_img=self.nsp.cortex.anat_templates(prf_dict)[subject], display_mode='ortho', colorbar=True)
+        
+        if save_img:
+            display.savefig(img_path)  # save figure to file
+        
     def stat_on_brain(self, prf_dict:dict, roi_masks:dict, subject:str, stat:np.ndarray, xyzs:np.ndarray, glass_brain=False):
         """Function to create a brain plot based on a specific statistic and the corresponding voxel coordinates.
 
@@ -3117,7 +3141,9 @@ class Analysis():
         plt.show()  
         
     
-    def analysis_chain(self, ydict:Dict[str, np.ndarray], voxeldict:Dict[str, VoxelSieve], X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, fit_icept:bool=False, save_outs:bool=False) -> np.ndarray:
+    def analysis_chain(self, ydict:Dict[str, np.ndarray], voxeldict:Dict[str, VoxelSieve], 
+                       X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, 
+                       fit_icept:bool=False, save_outs:bool=False, regname:Optional[str]='') -> np.ndarray:
         """Function to run a chain of analyses on the input data for each of the four regions of interest (ROIs).
             Includes comparisons with an uninformative dependent variable X matrix (such as a shuffled 
             version of the original X matrix), to assess the quality of the model in a relative way.
@@ -3194,11 +3220,10 @@ class Analysis():
         plt.show()
         
         if save_outs:
-            plt.savefig('HEREplot.png')  # Save the plot to a file
+            plt.savefig(f'{regname}_plot.png')  # Save the plot to a file
             # Save cor_scores to a file
-            with open('HEREcor_scores.pkl', 'wb') as f:
-                pickle.dump(cor_scores_dict, f)
-
+            np.save(f'{regname}_regcor_scores.npy', coords)  # Save the coords to a file
+            print(f'Succesfully saved the outputs to {regname}_plot.png and {regname}_regcor_scores.npy')
         return coords  
 
 class NatSpatPred():

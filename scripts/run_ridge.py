@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 
@@ -75,58 +77,58 @@ NSP.initialise()
 import pickle
 import matplotlib.pyplot as plt
 
-def plot_scores(ydict, X, alpha, cv, rois, X_uninformative, fit_icept:bool=False):
-    r_values = {}
-    r_uninformative = {}
-    cor_scores_dict = {}  # Dictionary to store cor_scores
+# def plot_scores(ydict, X, alpha, cv, rois, X_uninformative, fit_icept:bool=False):
+#     r_values = {}
+#     r_uninformative = {}
+#     cor_scores_dict = {}  # Dictionary to store cor_scores
 
-    # Calculate scores for the given X
-    for roi in rois:
-        y = ydict[roi]
-        model = NSP.analyse.run_ridge_regression(X, y, alpha=alpha, fit_icept=False)
-        _, cor_scores = NSP.analyse.score_model(X, y, model, cv=cv)
-        r_values[roi] = np.mean(cor_scores, axis=0)
-        cor_scores_dict[roi] = cor_scores  # Save cor_scores to dictionary
+#     # Calculate scores for the given X
+#     for roi in rois:
+#         y = ydict[roi]
+#         model = NSP.analyse.run_ridge_regression(X, y, alpha=alpha, fit_icept=False)
+#         _, cor_scores = NSP.analyse.score_model(X, y, model, cv=cv)
+#         r_values[roi] = np.mean(cor_scores, axis=0)
+#         cor_scores_dict[roi] = cor_scores  # Save cor_scores to dictionary
 
-        xyz = voxeldict[roi].xyz
-        this_coords = np.hstack((xyz, np.array(r_values[roi]).reshape(-1,1)))
-        if roi == 'V1':
-            coords = this_coords
-        else:
-            coords = np.vstack((coords, this_coords))
+#         xyz = voxeldict[roi].xyz
+#         this_coords = np.hstack((xyz, np.array(r_values[roi]).reshape(-1,1)))
+#         if roi == 'V1':
+#             coords = this_coords
+#         else:
+#             coords = np.vstack((coords, this_coords))
 
-    # Calculate scores for the uninformative X
-    for roi in rois:
-        y = ydict[roi]
-        model = NSP.analyse.run_ridge_regression(X_uninformative, y, alpha=alpha, fit_icept=fit_icept)
-        _, cor_scores = NSP.analyse.score_model(X_uninformative, y, model, cv=cv)
-        r_uninformative[roi] = np.mean(cor_scores, axis=0)
+#     # Calculate scores for the uninformative X
+#     for roi in rois:
+#         y = ydict[roi]
+#         model = NSP.analyse.run_ridge_regression(X_uninformative, y, alpha=alpha, fit_icept=fit_icept)
+#         _, cor_scores = NSP.analyse.score_model(X_uninformative, y, model, cv=cv)
+#         r_uninformative[roi] = np.mean(cor_scores, axis=0)
 
-    # Create a figure with 4 subplots
-    fig, axs = plt.subplots(2, 2, figsize=(8, 8))
+#     # Create a figure with 4 subplots
+#     fig, axs = plt.subplots(2, 2, figsize=(8, 8))
 
-    # Flatten the axs array for easy iteration
-    axs = axs.flatten()
+#     # Flatten the axs array for easy iteration
+#     axs = axs.flatten()
 
-    # Assuming rois is a list with at least 4 elements
-    for i, roi in enumerate(rois[:4]):
-        # Underlay with the histogram of r_uninformative[roi] values
-        axs[i].hist(r_uninformative[roi], bins=40, edgecolor='black', alpha=0.5, label='Uninformative X')
-        # Plot the histogram of r_values[roi] values in the i-th subplot
-        axs[i].hist(r_values[roi], bins=40, edgecolor='black', alpha=0.5, label='X')
-        axs[i].set_title(f'R values for {roi}')
-        axs[i].legend()
+#     # Assuming rois is a list with at least 4 elements
+#     for i, roi in enumerate(rois[:4]):
+#         # Underlay with the histogram of r_uninformative[roi] values
+#         axs[i].hist(r_uninformative[roi], bins=40, edgecolor='black', alpha=0.5, label='Uninformative X')
+#         # Plot the histogram of r_values[roi] values in the i-th subplot
+#         axs[i].hist(r_values[roi], bins=40, edgecolor='black', alpha=0.5, label='X')
+#         axs[i].set_title(f'R values for {roi}')
+#         axs[i].legend()
 
-    # Display the figure
-    plt.tight_layout()
-    plt.savefig('HEREplot.png')  # Save the plot to a file
-    plt.show()
+#     # Display the figure
+#     plt.tight_layout()
+#     plt.savefig('HEREplot.png')  # Save the plot to a file
+#     plt.show()
 
-    # Save cor_scores to a file
-    with open('HEREcor_scores.pkl', 'wb') as f:
-        pickle.dump(cor_scores_dict, f)
+#     # Save cor_scores to a file
+#     with open('HEREcor_scores.pkl', 'wb') as f:
+#         pickle.dump(cor_scores_dict, f)
 
-    return coords
+#     return coords
 
 
 
@@ -141,7 +143,7 @@ prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 subject = 'subj01'
 max_size = 1000
 min_size = 0
-patchbound = 1000
+patchbound = 10000
 min_nsd_R2 = 0
 min_prf_R2 = 0
 
@@ -163,20 +165,71 @@ for roi in rois:
     ydict[roi] = NSP.analyse.load_y(subject=subject, roi=roi, voxelsieve=voxeldict[roi], n_trials='all').T
     print(f'{roi} y-matrix has dimensions: {ydict[roi].shape}')
     
-Xrms = NSP.stimuli.baseline_feats('rms')
-Xce = NSP.stimuli.baseline_feats('ce')
-Xsc = NSP.stimuli.baseline_feats('sc_l') # the _l attachment is for 'large' -> computed feature for 5° radius patch
+    
+baseline_strings = ['rms', 'ce', 'sc_l']
 
-# X = NSP.stimuli.unet_featmaps(list_layers=[3], scale='full')
-X = Xrms
+for feat in baseline_strings:
+    print(f'Running regression for baseline feature: {feat}')
+    X = NSP.stimuli.baseline_feats(feat)
+    
+    X_shuf = np.copy(X)
+    np.random.shuffle(X_shuf)
+
+    obj = NSP.analyse.analysis_chain(ydict=ydict, 
+                                     X=X, 
+                                     alpha=10, 
+                                     voxeldict=voxeldict, 
+                                     cv=5, 
+                                     rois=rois, 
+                                     X_uninformative=X_shuf, 
+                                     fit_icept=False, 
+                                     save_outs=True,
+                                     regname=feat)
+    rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
+    del rel_obj
+    rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+
+    rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
+
+    rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+
+    NSP.analyse.plot_brain(prf_dict, roi_masks, subject, NSP.utils.cap_values(np.copy(rel_scores_np), 0, 2), False, save_img=True, img_path=f'/home/rfpred/imgs/{feat}_regcorplot.png')
+
+
+
+X = np.hstack((NSP.stimuli.baseline_feats(baseline_strings[0]), 
+               NSP.stimuli.baseline_feats(baseline_strings[1]), 
+               NSP.stimuli.baseline_feats(baseline_strings[2])))
 
 X_shuf = np.copy(X)
 np.random.shuffle(X_shuf)
 
 obj = NSP.analyse.analysis_chain(ydict=ydict, X=X, alpha=10, voxeldict=voxeldict, cv=5, rois=rois, X_uninformative=X_shuf, fit_icept=False, save_outs=True)
 
+rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
+del rel_obj
+rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
 
 rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
+
+rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+
+NSP.analyse.plot_brain(prf_dict, roi_masks, subject, NSP.utils.cap_values(np.copy(rel_scores_np), 0, 2), False, save_img=True, img_path='/home/rfpred/imgs/bl_triple_regcorplot.png')
+
+
+# NSP.analyse.plot_brain(prf_dict, roi_masks, subject, NSP.utils.cap_values(np.copy(all_np), 0, 2), False, )
+
+
+print('Het zit er weer op kameraad')
+
+# Xrms = NSP.stimuli.baseline_feats('rms')
+# Xce = NSP.stimuli.baseline_feats('ce')
+# Xsc = NSP.stimuli.baseline_feats('sc_l') # the _l attachment is for 'large' -> computed feature for 5° radius patch
+
+# # X = NSP.stimuli.unet_featmaps(list_layers=[3], scale='full')
+# X = Xrms
+
+
 
 
 
