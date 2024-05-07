@@ -2312,14 +2312,20 @@ class Stimuli():
             axes[j].axis('off')
         plt.show()
         
-    def alex_featmaps(self, layers:list, pcs_per_layer:Union[int, str]='all', subject:str='subj01'):
+    def alex_featmaps(self, layers:list, pcs_per_layer:Union[int, str]='all', subject:str='subj01',
+                      plot_corrmx:bool=True):
         """
         Load in the feature maps from the AlexNet model for a specific layer and subject
-        Input:
-        layers: list of integers representing the layers of the AlexNet model to include in the X-matrix
-        pcs_per_layer: integer value indicating the top amount of principal components to which the feature map should be reduced to, or 
+        
+        Args:
+        - layers: list of integers representing the layers of the AlexNet model to include in the X-matrix
+        - pcs_per_layer: integer value indicating the top amount of principal components to which the feature map should be reduced to, or 
             'all' if all components should be included.
         - subject: string value representing the subject for which the feature maps should be loaded in
+        - plot_corrmx: boolean value indicating whether a correlation matrix should be plotted for the top 500 principal components of the AlexNet model
+        
+        Out:
+        - X_all: np.array containing the feature maps extracted at the specified layers of the AlexNet model
         """
         # Load in the feature maps extracted by the AlexNet model
         X_all = []
@@ -2334,6 +2340,44 @@ class Stimuli():
                     cut_off = this_X.shape[0]
                 X_all = this_X[:, :cut_off]
             else: X_all = np.hstack((X_all, this_X[:, :cut_off]))
+            
+        if plot_corrmx:
+            # Correlation matrix for the 5 AlexNet layers
+            # Split X_all into separate arrays for each layer
+            X_split = np.hsplit(X_all, len(layers)) # Amazing function, splits the array into n arrays along the columns
+
+            # Initialize an empty matrix for the correlations
+            corr_matrix = np.empty((len(layers), len(layers)))
+
+            # Calculate the correlation between each pair of layers
+            for i in range(len(layers)):
+                for j in range(len(layers)):
+                    corr_matrix[i, j] = np.corrcoef(X_split[i].flatten(), X_split[j].flatten())[0, 1]
+
+            print(corr_matrix)
+
+            # Create a heatmap from the correlation matrix
+            plt.imshow(corr_matrix, cmap='Greens_r', interpolation='nearest')
+            plt.colorbar(label='Correlation coefficient')
+
+            # Add annotations to each cell
+            for i in range(corr_matrix.shape[0]):
+                for j in range(corr_matrix.shape[1]):
+                    plt.text(j, i, format(corr_matrix[i, j], '.2f'),
+                            ha="center", va="center",
+                            color="black")
+
+            relu_nos = [no for no in range(1,6)]
+            # Set the tick labels
+            plt.xticks(np.arange(len(layers)), relu_nos)
+            plt.yticks(np.arange(len(layers)), relu_nos)
+
+            # Set the title and labels
+            plt.title('Correlation matrix of\ntop 500 principal components of AlexNet')
+            plt.xlabel('ReLU layer')
+            plt.ylabel('ReLU layer')
+
+            plt.show()
         
         return X_all    
     

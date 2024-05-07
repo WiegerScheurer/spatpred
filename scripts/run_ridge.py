@@ -206,7 +206,7 @@ for roi in rois:
     ydict[roi] = NSP.analyse.load_y(subject=subject, roi=roi, voxelsieve=voxeldict[roi], n_trials='all').T
     print(f'{roi} y-matrix has dimensions: {ydict[roi].shape}')
     
-for layer in range(1, 2):
+for layer in range(2, 5):
     print(f'Running regression for layer: {layer}')
     
     X = NSP.stimuli.unet_featmaps(list_layers=[layer], scale='full') # Get X matrix
