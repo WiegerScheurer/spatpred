@@ -50,7 +50,7 @@ from scipy.special import softmax
 from matplotlib.ticker import MaxNLocator
 from multiprocessing import Pool
 from typing import Union, Dict, List, Tuple, Optional, Sequence
-
+from scipy.stats import zscore as zs
 
 print('soepstengesl')
 
@@ -413,6 +413,27 @@ class Utilities():
 
         return array
 
+    #     return data
+    def std_dev_cap(self, data, num_std_dev=3):
+        """
+        Cap values at a certain number of standard deviations from the mean.
+
+        This function identifies values that are more than a certain number of standard deviations from the mean and replaces them with the value at that distance from the mean.
+
+        Args:
+            data (numpy.ndarray): A 1D numpy array.
+            num_std_dev (float, optional): The number of standard deviations from the mean at which to cap the values. Defaults to 3.
+
+        Returns:
+            numpy.ndarray: A 1D numpy array with values capped at the given number of standard deviations from the mean.
+        """
+        mean = np.mean(data)
+        std_dev = np.std(data)
+        lower_cap = mean - num_std_dev * std_dev
+        upper_cap = mean + num_std_dev * std_dev
+        return np.where(data < lower_cap, lower_cap, np.where(data > upper_cap, upper_cap, data))
+
+
     def mean_center(self, data, print_ars = 'y'):
         mean_value = np.mean(data)
 
@@ -424,6 +445,60 @@ class Utilities():
             print("Centered data:", centered_data)
             
         return centered_data
+    
+    def replace_outliers(self, data, m:float=2.5):
+        """
+        Replace outliers in a 2D numpy array with the nearest non-outlier value.
+
+        This function identifies outliers as values that are more than `m` percentiles away from the median. 
+        It replaces each outlier with the nearest non-outlier value in the same column. 
+        If the outlier is the first or last data point in a column, it is replaced with the next or previous data point, respectively.
+
+        Args:
+            data (numpy.ndarray): A 2D numpy array of shape (n_samples, n_features) where n_samples is the number of samples 
+                                and n_features is the number of features. Each column of the array is processed separately.
+            m (float, optional): The percentile difference from the median a value must be to be considered an outlier. 
+                                Defaults to 2.5.
+
+        Returns:
+            numpy.ndarray: A 2D numpy array of the same shape as `data` with outliers replaced by the nearest non-outlier value.
+        """
+        # Initialize an empty list to store the processed columns
+        processed_data = []
+
+        # Process each column separately
+        for column in data.T:
+            # Convert the column to a pandas Series for easier outlier replacement
+            data_series = pd.Series(column)
+
+            # Identify the outliers
+            outliers = (column < np.percentile(column, m)) | (column > np.percentile(column, 100 - m))
+
+            # Print the number of outliers
+            print(f"Number of outliers: {np.sum(outliers)}")
+
+            # Get the indices of the outliers
+            outlier_indices = np.where(outliers)[0]
+
+            # Replace each outlier with the nearest non-outlier value
+            for index in outlier_indices:
+                if index == 0:
+                    # If the outlier is the first data point, replace it with the next data point
+                    data_series.iloc[index] = data_series.iloc[index + 1]
+                elif index == len(column) - 1:
+                    # If the outlier is the last data point, replace it with the previous data point
+                    data_series.iloc[index] = data_series.iloc[index - 1]
+                else:
+                    # Otherwise, replace the outlier with the nearest non-outlier value
+                    data_series.iloc[index] = min(data_series.iloc[index - 1], data_series.iloc[index + 1], key=lambda x: abs(x - data_series.iloc[index]))
+
+            # Add the processed column to the list
+            processed_data.append(data_series.values)
+
+        # Convert the list of processed columns back to a 2-dimensional numpy array
+        return np.array(processed_data).T
+
+
 
     # Function to generate a bell-shaped vector
     def generate_bell_vector(self, n, width, location, kurtosis=0, plot = 'y'):
@@ -2187,7 +2262,7 @@ class Stimuli():
         ]
         return {os.path.basename(file): self.nsp.datafetch.fetch_file(file) for file in feature_paths}
     
-    def baseline_feats(self, feat_type:str):
+    def baseline_feats(self, feat_type:str, outlier_bound:float=.3):
         """
         Input options:
         - 'rms' for Root Mean Square
@@ -2213,10 +2288,10 @@ class Stimuli():
         else:
             raise ValueError(f"Unknown feature type: {feat_type}")
 
-        X = np.array(self.nsp.stimuli.features()[file_name]['subj01'][category][key]).reshape(-1,1)
-        return X
+        X = self.nsp.utils.replace_outliers(np.array(self.nsp.stimuli.features()[file_name]['subj01'][category][key]).reshape(-1,1), m=outlier_bound)
+        return zs(X)
         
-    def unpred_feats(self, content:bool, style:bool, ssim:bool, pixel_loss:bool, L1:bool, MSE:bool, verbose:bool):
+    def unpred_feats(self, content:bool, style:bool, ssim:bool, pixel_loss:bool, L1:bool, MSE:bool, verbose:bool, outlier_sd_bound:float=5):
         """
         Function to create an X matrix based on the exclusion criteria defined in the arguments.
         Input:
@@ -2244,7 +2319,9 @@ class Stimuli():
         if not MSE:
             predfeatnames = [name for name in predfeatnames if 'MSE' not in name]
         
-        data = {name: self.nsp.utils.get_zscore(self.nsp.stimuli.features()['all_predestims.h5'][name], print_ars='n') for name in predfeatnames}
+        # data = {name: zs(self.nsp.utils.replace_outliers(self.nsp.stimuli.features()['all_predestims.h5'][name], m=outlier_bound)) for name in predfeatnames}
+        
+        data = {name: zs(self.nsp.utils.std_dev_cap(self.nsp.stimuli.features()['all_predestims.h5'][name],num_std_dev=outlier_sd_bound)) for name in predfeatnames}
         
         # Convert the dictionary values to a list of lists
         data_list = list(data.values())
@@ -2259,7 +2336,6 @@ class Stimuli():
             print(predfeatnames)
         
         return X
-    
         
     def unet_featmaps(self, list_layers:list, scale:str='cropped'):
         """
@@ -2781,185 +2857,6 @@ class Analysis():
         self.nsp = NSPobj
         pass
     
-    # A terrible function
-    # Okay this one is the actual good function. The other should be deleted and never be used again. 
-    def get_hrf_dict(self, subjects, voxels, prf_region='center_strict', min_size=0.1, max_size=1,
-                    prf_proc_dict=None, max_voxels=None, plot_sizes='n', verbose:bool=False,
-                    vismask_dict=None, minimumR2:int=100, in_perc_signal_change:bool=False):
-        hrf_dict = {}
-        R2_dict_hrf = self.nsp.cortex.nsd_R2_dict(vismask_dict, glm_type = 'hrf')
-        
-        
-        for subject in [subjects]:
-            hrf_dict[subject] = {}
-
-            # Load beta dictionaries for each session
-            beta_sessions = []
-            for file_name in sorted(os.listdir(f'{self.nsp.own_datapath}/{subject}/{prf_region}/')):
-                if file_name.startswith("beta_dict") and file_name.endswith(".pkl"):
-                    with open(f'{self.nsp.own_datapath}/{subject}/{prf_region}/{file_name}', 'rb') as fp:
-                        
-                        beta_sessions.append(pickle.load(fp)[subject])
-
-            rois = list(beta_sessions[0].keys())
-
-            for n_roi, roi in enumerate(rois):
-                hrf_dict[subject][roi] = {}
-                
-                # Determine the subject, roi specific optimal top number of R2 values to filter the voxels for
-                optimal_top_n_R2 = self.nsp.cortex.optimize_rsquare(R2_dict_hrf, 'subj01','nsd', roi, minimumR2, False, 250)
-                print(f'Voxels in {roi[:2]} with a minimum R2 of {minimumR2} is approximately {optimal_top_n_R2}')
-                # Fetch this specific number of selected top R2 values for this roi
-                highR2 = self.nsp.cortex.rsquare_selection(R2_dict_hrf, optimal_top_n_R2, n_subjects = 8, dataset = 'nsd')[subject][roi]
-                # print(f'The average R2 value for {roi}') # This does not make sense, because not filtered yet.
-                voxel_mask = voxels[subject][roi] # So this is not the binary mask, but the prf-selection made with the heatmap function
-                
-                # if max_voxels is None or n_roi > 0:
-                    # vox_n_cutoff = numpy2coords(voxel_mask).shape[0]
-                    
-                # This if statement is to allow for a size-based selection of voxels
-                if min_size is not None and max_size is not None:
-                    preselect_voxels = self.nsp.utils.numpy2coords(voxel_mask, keep_vals = True) # Get the voxel coordinates based on the prf selection
-                    # This is another array with coordinates on the first 3 columns and then a selected size on the 4th column
-                    size_selected_voxels = self.nsp.utils.filter_array_by_size(prf_proc_dict[subject]['proc'][roi]['size'], min_size, max_size)
-                    
-                    joint_ar_prf = self.nsp.utils.find_common_rows(size_selected_voxels, preselect_voxels, keep_vals = True) # Keep_vals keeps the values of the first array
-                    joint_ar_R2 = self.nsp.utils.find_common_rows(joint_ar_prf, highR2, keep_vals = True) # Select based on the top R2 values
-                    if verbose:
-                        print(f'This is joint_ar_R2 {joint_ar_R2[10:15,:]}')
-                    available_voxels = joint_ar_R2.shape[0] # Check how many voxels we end up with
-                    print(f'Found {available_voxels} voxels in {roi[:2]} with pRF sizes between {min_size} and {max_size}')
-                    
-                    selected_R2_vals = self.nsp.utils.find_common_rows(highR2, joint_ar_R2, keep_vals = True)#[:,3] # Get a list of the R2 values for the selected voxels
-                    if verbose:
-                        print(f'This is the final r2 vals {selected_R2_vals[10:15,:]}')
-
-                    # Check whether the amount of voxels available is more than a potential predetermined limit
-                    if max_voxels is not None and available_voxels > max_voxels:
-                        
-                        top_n_R2_voxels = self.nsp.utils.sort_by_column(selected_R2_vals, 3, top_n = 1000)[:max_voxels, :] # Sort the R2 values and select the top n
-                        size_selected_voxels_cut = self.nsp.utils.find_common_rows(joint_ar_R2, top_n_R2_voxels, keep_vals = True) # Get the pRF sizes of these voxels
-                        print(f'The amount of voxels are manually restricted to {max_voxels} out of {available_voxels}')
-                    else: size_selected_voxels_cut = joint_ar_R2                
-                    
-                    final_R2_vals = self.nsp.utils.find_common_rows(highR2, size_selected_voxels_cut, keep_vals = True) # Get a list of the R2 values for the selected voxels
-                    
-                    print(f'of which the average R2 value is {np.mean(final_R2_vals[:,3])}\n')
-
-                    # size_slct = size_selected_voxels_cut
-                    hrf_dict[subject][roi]['roi_sizes'] = size_selected_voxels_cut # This is to be able to plot them later on
-                    hrf_dict[subject][roi]['R2_vals'] = final_R2_vals # Idem dito for the r squared values
-
-                    n_voxels = size_selected_voxels_cut.shape[0]
-                    if verbose:
-                        print(f'\tAmount of voxels in {roi[:2]}: {n_voxels}')
-
-                    # And the first three columns are the voxel indices
-                    array_vox_indices = size_selected_voxels_cut[:, :3]
-
-                    # Convert array of voxel indices to a set of tuples for faster lookup
-                    array_vox_indices_set = set(map(tuple, array_vox_indices))
-
-                    # Create a new column filled with zeros, to later fill with the voxelnames in the betasession files, and meanbeta values
-                    new_column = unscaled_betas = np.zeros((size_selected_voxels_cut.shape[0], 1))
-
-                    # Add the new column to the right of size_selected_voxels_cut
-                    find_vox_ar = np.c_[size_selected_voxels_cut, new_column].astype(object)
-
-                    # Iterate over the dictionary
-                    for this_roi, roi_data in beta_sessions[0].items():
-                        for voxel, voxel_data in roi_data.items():
-                            # Check if the voxel's vox_idx is in the array
-                            if voxel_data['vox_idx'] in array_vox_indices_set:
-                                if verbose:
-                                    print(f"Found {voxel_data['vox_idx']} in array for {this_roi}, {voxel}")
-
-                                # Find the row in find_vox_ar where the first three values match voxel_data['vox_idx']
-                                matching_rows = np.all(find_vox_ar[:, :3] == voxel_data['vox_idx'], axis=1)
-
-                                # Set the last column of the matching row to voxel
-                                find_vox_ar[matching_rows, -1] = voxel
-
-                mean_betas = np.zeros((final_R2_vals.shape))
-                
-                xyz_to_name_roi = np.hstack((find_vox_ar[:,:3].astype('int'), find_vox_ar[:,4].reshape(-1,1)))
-                if n_roi == 0:
-                    xyz_to_name = xyz_to_name_roi
-                else: xyz_to_name = np.vstack((xyz_to_name, xyz_to_name_roi))
-                
-                # Check whether the entire fourth column is now non-zero:
-                if verbose:
-                    print(f'\tChecking if all selected voxels are present in beta session file: {np.all(find_vox_ar[:, 4] != 0)}\n')
-                for vox_no in range(n_voxels):
-                    # Get the xyz coordinates of the voxel
-                    vox_xyz = find_vox_ar[vox_no, :3]
-                    vox_name = find_vox_ar[vox_no, 4]
-                    
-                    if verbose:
-                        print(f'This is voxel numero: {vox_no}')
-                        print(f'The voxel xyz are {vox_xyz}')
-                    
-                    hrf_betas = []
-                    for session_data in beta_sessions:
-                        if verbose:
-                            print(f"There are {len(session_data[roi]['voxel1']['beta_values'])} in this beta batch")
-                        these_betas = session_data[roi][vox_name]['beta_values']
-                        # Flatten the numpy array and convert it to a list before extending hrf_betas
-                        hrf_betas.extend(these_betas.flatten().tolist())
-                    
-                    # Reshape hrf betas into 40 batches of 750 values
-                    betas_reshaped = np.array(hrf_betas).reshape(-1, 750) #, np.array(hrf_betas).shape[1])
-
-                    # Initialize an empty array to store the z-scores
-                    betas_normalised = np.empty_like(betas_reshaped)
-
-                    if in_perc_signal_change:
-                        # Calculate the z-scores for each batch
-                        for i in range(betas_reshaped.shape[0]):
-                            betas_mean = np.mean(betas_reshaped[i])
-                            betas_normalised[i] = self.nsp.utils.get_zscore(((betas_reshaped[i] / betas_mean) * 100), print_ars='n')
-                    else: 
-                        betas_normalised = betas_reshaped * 300
-                        for i in range(betas_reshaped.shape[0]):
-                            betas_normalised[i] = self.nsp.utils.get_zscore(betas_reshaped[i], print_ars='n')
-                        
-                    # Flatten z_scores back into original shape
-                    hrf_betas_z = betas_normalised.flatten()
-                    mean_beta = np.mean(hrf_betas_z)
-                    hrf_dict[subject][roi][vox_name] = {
-                        'xyz': list(vox_xyz.astype('int')),
-                        'size': size_selected_voxels_cut[vox_no,3],
-                        'R2': final_R2_vals[vox_no,3],
-                        'hrf_betas': hrf_betas,
-                        'hrf_betas_z': hrf_betas_z,
-                        'mean_beta': mean_beta
-                        }
-                    unscaled_betas[vox_no] = mean_beta
-                mean_betas[:, :3] = size_selected_voxels_cut[:,:3]
-                mean_betas[:, 3] = self.nsp.utils.get_zscore(unscaled_betas, print_ars='n').flatten()
-                
-                hrf_dict[subject][roi]['mean_betas'] = mean_betas # Store the mean_beta values for each voxel in the roi
-
-
-                n_betas = len(hrf_dict[subject][roi][vox_name]['hrf_betas'])
-                if verbose:
-                    print(f'\tProcessed images: {n_betas}')
-                
-        plt.style.use('default')
-
-        if plot_sizes == 'y':
-            _, axs = plt.subplots(2, 2, figsize=(10, 8))  # Create a figure with 2x2 subplots
-            axs = axs.flatten()  # Flatten the 2D array of axes to 1D for easier indexing
-            cmap = plt.get_cmap('gist_heat')  # Get the 'viridis' color map
-            for i, roi in enumerate(rois):
-                sizes = hrf_dict[subject][roi]['roi_sizes'][:,3]
-                color = cmap(i / len(rois))  # Get a color from the color map
-                sns.histplot(sizes, kde=True, ax=axs[i], color=color, bins = 10)  # Plot on the i-th subplot
-                axs[i].set_title(f'RF sizes for {roi[:2]} (n={sizes.shape[0]})')  # Include the number of voxels in the title
-                axs[i].set_xlim([min_size-.1, max_size+.1])  # Set the x-axis limit from 0 to 2
-              
-        return hrf_dict, xyz_to_name
-
     def load_y(self, subject:str, roi:str, voxelsieve=VoxelSieve, n_trials:Union[int,str]=30000, include_xyz:bool=False) -> np.ndarray:
         """
         Loads the y values for a given subject and region of interest (ROI).
@@ -3006,17 +2903,59 @@ class Analysis():
     def _get_coefs(self, model:sk.linear_model._ridge.Ridge):
         return model.coef_
 
-    def _get_r(self, y:np.ndarray, y_hat:np.ndarray):
-        """Function to get the correlation between the predicted and actual HRF signal betas.
+    # def _get_r(self, y:np.ndarray, y_hat:np.ndarray):
+    #     """Function to get the correlation between the predicted and actual HRF signal betas.
 
+    #     Args:
+    #     - y (np.ndarray): The original HRF signal betas from the NSD
+    #     - y_hat (np.ndarray): The predicted HRF signal betas
+
+    #     Returns:
+    #     - float: The correlation between the two sets of betas as a measure of fit
+    #     """        
+    #     return np.mean(y * self.nsp.utils.get_zscore(y_hat, print_ars='n'), axis=0)
+    
+    
+    def _get_r(self, y_true:np.ndarray, y_pred:np.ndarray):
+        """correlation coefficient between the **columns** of a matrix as goodness of fit metric
+        
+        in:
+        y_true: ndarray, shape(n_samlpes,n_responses)
+            true target/response vector
+        y_pred: ndarray, shape(n_samples,n_responses)
+            predicted target or response vector
+        out:
+        rscores: ndarray, shape(n_responses)
+            correlation coefficient for every response 
+        """
+        zs = lambda v: (v-v.mean(0))/v.std(0) # z-score 
+        return((zs(y_pred)*zs(y_true)).mean(0))
+    
+    def get_r_numpy(self, y_true: np.ndarray, y_pred: np.ndarray):
+        """Correlation coefficient between the **columns** of a matrix as goodness of fit metric
+        
         Args:
-        - y (np.ndarray): The original HRF signal betas from the NSD
-        - y_hat (np.ndarray): The predicted HRF signal betas
+            y_true: ndarray, shape(n_samples, n_responses)
+                True target/response vector
+            y_pred: ndarray, shape(n_samples, n_responses)
+                Predicted target or response vector
 
         Returns:
-        - float: The correlation between the two sets of betas as a measure of fit
-        """        
-        return np.mean(y * y_hat, axis=0)
+            rscores: ndarray, shape(n_responses)
+                Correlation coefficient for every response 
+        """
+        # Transpose the input matrices and compute the correlation coefficient
+        r = np.corrcoef(zs(y_true).T, zs(y_pred).T)
+
+        # np.corrcoef returns a 2D array, where the diagonal elements represent the correlation coefficients of each column with itself
+        # and the off-diagonal elements represent the correlation coefficients between different columns.
+        # Since we're only interested in the correlation between corresponding columns of y_true and y_pred, we only need the diagonal elements.
+        # Since the input to np.corrcoef was [y_true.T, y_pred.T], the correlation between y_true and y_pred is on the off-diagonal.
+        # Therefore, we need to take one off-diagonal from the 2x2 correlation matrix for each response.
+        # This can be achieved by taking the elements with indices (i, n_responses + i) for all i in range(n_responses).
+        n_responses = y_true.shape[1]
+        return np.array([r[i, n_responses + i] for i in range(n_responses)])
+    
 
     def score_model(self, X:np.ndarray, y:np.ndarray, model:sk.linear_model._ridge.Ridge, cv:int=5):
         """This function evaluates the performance of the model using cross-validation.
@@ -3044,7 +2983,6 @@ class Analysis():
             # Split the data into training and testing sets
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
-            
             
             # Clone the model to ensure it's fresh for each fold
             model_clone = clone(model)
@@ -3265,13 +3203,14 @@ class Analysis():
         # Assuming rois is a list with at least 4 elements
         for i, roi in enumerate(rois[:4]):
             # Underlay with the histogram of r_uninformative[roi] values
-            axs[i].hist(r_uninformative[roi], bins=40, edgecolor='black', alpha=0.5, label='Uninformative X')
+            axs[i].hist(r_uninformative[roi], bins=40, edgecolor='black', alpha=0.5, label='Baseline X')
             # Plot the histogram of r_values[roi] values in the i-th subplot
             axs[i].hist(r_values[roi], bins=40, edgecolor='black', alpha=0.5, label='X')
-            axs[i].set_title(f'Y to y_hat correlation R values {roi}\ndelta-R: {round(np.mean(r_values[roi]) - np.mean(r_uninformative[roi]), 5)}')
+            axs[i].set_title(f'{roi} delta-R: {round(np.mean(r_values[roi]) - np.mean(r_uninformative[roi]), 5)}')
             axs[i].legend()
 
-        # Display the figure
+        # Add title and display the figure
+        plt.suptitle(f'Ridge reg results for baseline with and without {regname}', fontsize=16)
         plt.tight_layout()
         plt.show()
         

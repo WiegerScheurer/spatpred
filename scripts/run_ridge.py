@@ -82,92 +82,12 @@ prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 ############ CONSTRAINED VOXEL SELECTION Y-MATRIX ################
 ##### ALSO RUN THIS FOR THE PRED FEATS SEPARATELY WITHOUT THE BASELINE #########
 
-# subject = 'subj01'
-# max_size = 2
-# min_size = .2
-# patchbound = 1.5
-# min_nsd_R2 = 20
-# min_prf_R2 = 0
-
-# voxeldict = {}
-# for roi in rois:
-#     print_attr = True if roi == rois[len(rois)-1] else False
-#     voxeldict[roi] = VoxelSieve(NSP, prf_dict, roi_masks,
-#                                 subject=subject, 
-#                                 roi=roi, 
-#                                 max_size=max_size, 
-#                                 min_size=min_size, 
-#                                 patchbound=patchbound, 
-#                                 min_nsd_R2=min_nsd_R2, 
-#                                 min_prf_R2=min_prf_R2,
-#                                 print_attributes=print_attr,
-#                                 all_voxels=False)
-
-# ydict = {}
-# for roi in rois:
-#     ydict[roi] = NSP.analyse.load_y(subject=subject, roi=roi, voxelsieve=voxeldict[roi], n_trials='all').T
-#     print(f'{roi} y-matrix has dimensions: {ydict[roi].shape}')
-
-# # Define the baseline model, which is the rms, ce and sc_l features.
-# # TODO: Also include alexnet featmaps?
-# baseline_strings = ['rms', 'ce', 'sc_l']
-
-# Xbl = np.hstack((NSP.stimuli.baseline_feats(baseline_strings[0]), 
-#                NSP.stimuli.baseline_feats(baseline_strings[1]), 
-#                NSP.stimuli.baseline_feats(baseline_strings[2])))
-
-    
-# Xpred = NSP.stimuli.unpred_feats(content=True, style=False, ssim=False, pixel_loss=False, L1=False, MSE=True, verbose=True)
-
-# for layer in range(0, 5):
-#     Xalex = Xpred[:,layer].reshape(-1,1)
-#     X = np.hstack((Xbl, Xalex))
-#     print(f'X has these dimensions: {X.shape}')
-#     X_shuf = np.copy(X)
-#     np.random.shuffle(X_shuf)
-
-#     obj = NSP.analyse.analysis_chain(subject=subject,
-#                                      ydict=ydict, 
-#                                      X=X, # The baseline model + current unpredictability layer
-#                                      alpha=10, 
-#                                      voxeldict=voxeldict, 
-#                                      cv=5, 
-#                                      rois=rois, 
-#                                      X_uninformative=Xbl, # The baseline model
-#                                      fit_icept=False, 
-#                                      save_outs=True,
-#                                      regname=f'unpred_lay{layer}')
-    
-#     # This is for the relative R scores.
-#     rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
-#     rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
-
-#     # plot the relative R scores
-#     NSP.analyse.plot_brain(prf_dict, 
-#                            roi_masks, 
-#                            subject, 
-#                            NSP.utils.cap_values(np.copy(rel_scores_np), 0, 10), 
-#                            False, 
-#                            save_img=True, 
-#                            img_path=f'/home/rfpred/imgs/reg/unpred_lay{layer}_regcorplot.png')
-
-#     # This is for the betas
-#     plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))
-#     plot_bets_np = NSP.utils.coords2numpy(plot_bets, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
-
-#     # plot the betas
-#     NSP.analyse.plot_brain(prf_dict, 
-#                            roi_masks, 
-#                            subject, 
-#                            NSP.utils.cap_values(np.copy(plot_bets_np), 0, 10), 
-#                            False, 
-#                            save_img=True, 
-#                            img_path=f'/home/rfpred/imgs/reg/unpred_lay{layer}_regbetaplot.png')
-
-
-################### FULL VISUAL CORTEX (V1, V2, V3, V4) REGRESSIONS ###############
-
 subject = 'subj01'
+max_size = 2
+min_size = .15
+patchbound = 1.5
+min_nsd_R2 = 25
+min_prf_R2 = 0
 
 voxeldict = {}
 for roi in rois:
@@ -175,16 +95,79 @@ for roi in rois:
     voxeldict[roi] = VoxelSieve(NSP, prf_dict, roi_masks,
                                 subject=subject, 
                                 roi=roi, 
+                                max_size=max_size, 
+                                min_size=min_size, 
+                                patchbound=patchbound, 
+                                min_nsd_R2=min_nsd_R2, 
+                                min_prf_R2=min_prf_R2,
                                 print_attributes=print_attr,
-                                all_voxels=True)
+                                all_voxels=False)
 
+ydict = {}
+for roi in rois:
+    ydict[roi] = NSP.analyse.load_y(subject=subject, roi=roi, voxelsieve=voxeldict[roi], n_trials='all').T
+    print(f'{roi} y-matrix has dimensions: {ydict[roi].shape}')
+
+# Define the baseline model, which is the rms, ce and sc_l features.
+# TODO: Also include alexnet featmaps?
+baseline_strings = ['rms', 'ce', 'sc_l']
+
+Xbl = np.hstack((NSP.stimuli.baseline_feats(baseline_strings[0]), 
+               NSP.stimuli.baseline_feats(baseline_strings[1]), 
+               NSP.stimuli.baseline_feats(baseline_strings[2])))
+
+    
+Xpred = NSP.stimuli.unpred_feats(content=True, style=False, ssim=False, pixel_loss=False, L1=False, MSE=True, verbose=True, outlier_sd_bound=5)
+
+for layer in range(0, 5):
+    Xalex = Xpred[:,layer].reshape(-1,1)
+    X = np.hstack((Xbl, Xalex))
+    print(f'X has these dimensions: {X.shape}')
+    X_shuf = np.copy(X)
+    np.random.shuffle(X_shuf)
+
+    obj = NSP.analyse.analysis_chain(subject=subject,
+                                     ydict=ydict, 
+                                     X=X, # The baseline model + current unpredictability layer
+                                     alpha=10, 
+                                     voxeldict=voxeldict, 
+                                     cv=5, 
+                                     rois=rois, 
+                                     X_uninformative=Xbl, # The baseline model
+                                     fit_icept=False, 
+                                     save_outs=True,
+                                     regname=f'unpred_lay{layer}NEW')
+    
+    # This is for the relative R scores.
+    rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
+    rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+
+    # plot the relative R scores
+    NSP.analyse.plot_brain(prf_dict, 
+                           roi_masks, 
+                           subject, 
+                           NSP.utils.cap_values(np.copy(rel_scores_np), 0, 10), 
+                           False, 
+                           save_img=True, 
+                           img_path=f'/home/rfpred/imgs/reg/unpred_lay{layer}_regcorplotNEWER.png')
+
+    # This is for the betas
+    plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))
+    plot_bets_np = NSP.utils.coords2numpy(plot_bets, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+
+    # plot the betas
+    NSP.analyse.plot_brain(prf_dict, 
+                           roi_masks, 
+                           subject, 
+                           NSP.utils.cap_values(np.copy(plot_bets_np), 0, 10), 
+                           False, 
+                           save_img=True, 
+                           img_path=f'/home/rfpred/imgs/reg/unpred_lay{layer}_regbetaplotNEWER.png')
+
+
+################### FULL VISUAL CORTEX (V1, V2, V3, V4) REGRESSIONS ###############
 
 # subject = 'subj01'
-# max_size = 2
-# min_size = .5
-# patchbound = 1.5
-# min_nsd_R2 = 20
-# min_prf_R2 = 0
 
 # voxeldict = {}
 # for roi in rois:
@@ -192,65 +175,43 @@ for roi in rois:
 #     voxeldict[roi] = VoxelSieve(NSP, prf_dict, roi_masks,
 #                                 subject=subject, 
 #                                 roi=roi, 
-#                                 max_size=max_size, 
-#                                 min_size=min_size, 
-#                                 patchbound=patchbound, 
-#                                 min_nsd_R2=min_nsd_R2, 
-#                                 min_prf_R2=min_prf_R2,
 #                                 print_attributes=print_attr,
-#                                 all_voxels=False)
+#                                 all_voxels=True)
 
-ydict = {}
 
-for roi in rois:
-    ydict[roi] = NSP.analyse.load_y(subject=subject, roi=roi, voxelsieve=voxeldict[roi], n_trials='all').T
-    print(f'{roi} y-matrix has dimensions: {ydict[roi].shape}')
+# # subject = 'subj01'
+# # max_size = 2
+# # min_size = .5
+# # patchbound = 1.5
+# # min_nsd_R2 = 20
+# # min_prf_R2 = 0
+
+# # voxeldict = {}
+# # for roi in rois:
+# #     print_attr = True if roi == rois[len(rois)-1] else False
+# #     voxeldict[roi] = VoxelSieve(NSP, prf_dict, roi_masks,
+# #                                 subject=subject, 
+# #                                 roi=roi, 
+# #                                 max_size=max_size, 
+# #                                 min_size=min_size, 
+# #                                 patchbound=patchbound, 
+# #                                 min_nsd_R2=min_nsd_R2, 
+# #                                 min_prf_R2=min_prf_R2,
+# #                                 print_attributes=print_attr,
+# #                                 all_voxels=False)
+
+# ydict = {}
+
+# for roi in rois:
+#     ydict[roi] = NSP.analyse.load_y(subject=subject, roi=roi, voxelsieve=voxeldict[roi], n_trials='all').T
+#     print(f'{roi} y-matrix has dimensions: {ydict[roi].shape}')
     
-for layer in range(2, 5):
-    print(f'Running regression for layer: {layer}')
+# for layer in range(2, 5):
+#     print(f'Running regression for layer: {layer}')
     
-    X = NSP.stimuli.unet_featmaps(list_layers=[layer], scale='full') # Get X matrix
-    print(f'X has these dimensions: {X.shape}')
-    X_shuf = np.copy(X) # Get control X matrix which is a shuffled version of original X matrix
-    np.random.shuffle(X_shuf)
-
-    obj = NSP.analyse.analysis_chain(subject=subject,
-                                     ydict=ydict, 
-                                     X=X, 
-                                     alpha=10, 
-                                     voxeldict=voxeldict, 
-                                     cv=5, 
-                                     rois=rois, 
-                                     X_uninformative=X_shuf, 
-                                     fit_icept=False, 
-                                     save_outs=True,
-                                     regname=f'alexunet_layer{layer}')
-    
-    rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
-
-    rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
-
-    NSP.analyse.plot_brain(prf_dict, 
-                           roi_masks, 
-                           subject, 
-                           NSP.utils.cap_values(np.copy(rel_scores_np), None, None), 
-                           False, 
-                           save_img=True, 
-                           img_path=f'/home/rfpred/imgs/reg/alexunet_layer{layer}_regcorplot.png')
-
-
-
-
-
-
-
-# baseline_strings = ['rms', 'ce', 'sc_l']
-    
-# for feat in baseline_strings:
-#     print(f'Running regression for baseline feature: {feat}')
-#     X = NSP.stimuli.baseline_feats(feat)
+#     X = NSP.stimuli.unet_featmaps(list_layers=[layer], scale='full') # Get X matrix
 #     print(f'X has these dimensions: {X.shape}')
-#     X_shuf = np.copy(X)
+#     X_shuf = np.copy(X) # Get control X matrix which is a shuffled version of original X matrix
 #     np.random.shuffle(X_shuf)
 
 #     obj = NSP.analyse.analysis_chain(subject=subject,
@@ -263,43 +224,78 @@ for layer in range(2, 5):
 #                                      X_uninformative=X_shuf, 
 #                                      fit_icept=False, 
 #                                      save_outs=True,
-#                                      regname=feat)
+#                                      regname=f'alexunet_layer{layer}')
     
-#     # This is for the relative R scores.
 #     rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
+
 #     rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
 
+#     NSP.analyse.plot_brain(prf_dict, 
+#                            roi_masks, 
+#                            subject, 
+#                            NSP.utils.cap_values(np.copy(rel_scores_np), None, None), 
+#                            False, 
+#                            save_img=True, 
+#                            img_path=f'/home/rfpred/imgs/reg/alexunet_layer{layer}_regcorplot.png')
 
-#     # This is for the betas
-#     plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))
-#     plot_bets_np = NSP.utils.coords2numpy(plot_bets, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+
+
+# # baseline_strings = ['rms', 'ce', 'sc_l']
     
-#     NSP.analyse.plot_brain(prf_dict, roi_masks, subject, NSP.utils.cap_values(np.copy(plot_bets_np), 0, 10), False, save_img=True, img_path=f'/home/rfpred/imgs/reg/{feat}_regcorplot.png')
+# # for feat in baseline_strings:
+# #     print(f'Running regression for baseline feature: {feat}')
+# #     X = NSP.stimuli.baseline_feats(feat)
+# #     print(f'X has these dimensions: {X.shape}')
+# #     X_shuf = np.copy(X)
+# #     np.random.shuffle(X_shuf)
 
-# X = np.hstack((NSP.stimuli.baseline_feats(baseline_strings[0]), 
-#                NSP.stimuli.baseline_feats(baseline_strings[1]), 
-#                NSP.stimuli.baseline_feats(baseline_strings[2])))
+# #     obj = NSP.analyse.analysis_chain(subject=subject,
+# #                                      ydict=ydict, 
+# #                                      X=X, 
+# #                                      alpha=10, 
+# #                                      voxeldict=voxeldict, 
+# #                                      cv=5, 
+# #                                      rois=rois, 
+# #                                      X_uninformative=X_shuf, 
+# #                                      fit_icept=False, 
+# #                                      save_outs=True,
+# #                                      regname=feat)
+    
+# #     # This is for the relative R scores.
+# #     rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
+# #     rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
 
-# X_shuf = np.copy(X)
-# np.random.shuffle(X_shuf)
 
-# obj = NSP.analyse.analysis_chain(subject=subject,
-#                                  ydict=ydict, 
-#                                  X=X, 
-#                                  alpha=10, 
-#                                  voxeldict=voxeldict, 
-#                                  cv=5, 
-#                                  rois=rois, 
-#                                  X_uninformative=X_shuf, 
-#                                  fit_icept=False, 
-#                                  save_outs=True,
-#                                  regname='')
+# #     # This is for the betas
+# #     plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))
+# #     plot_bets_np = NSP.utils.coords2numpy(plot_bets, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+    
+# #     NSP.analyse.plot_brain(prf_dict, roi_masks, subject, NSP.utils.cap_values(np.copy(plot_bets_np), 0, 10), False, save_img=True, img_path=f'/home/rfpred/imgs/reg/{feat}_regcorplot.png')
 
-# rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
+# # X = np.hstack((NSP.stimuli.baseline_feats(baseline_strings[0]), 
+# #                NSP.stimuli.baseline_feats(baseline_strings[1]), 
+# #                NSP.stimuli.baseline_feats(baseline_strings[2])))
 
-# rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+# # X_shuf = np.copy(X)
+# # np.random.shuffle(X_shuf)
 
-# NSP.analyse.plot_brain(prf_dict, roi_masks, subject, NSP.utils.cap_values(np.copy(rel_scores_np), 0, 2), False, save_img=True, img_path='/home/rfpred/imgs/reg/bl_triple_regcorplot.png')
+# # obj = NSP.analyse.analysis_chain(subject=subject,
+# #                                  ydict=ydict, 
+# #                                  X=X, 
+# #                                  alpha=10, 
+# #                                  voxeldict=voxeldict, 
+# #                                  cv=5, 
+# #                                  rois=rois, 
+# #                                  X_uninformative=X_shuf, 
+# #                                  fit_icept=False, 
+# #                                  save_outs=True,
+# #                                  regname='')
+
+# # rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
+
+# # rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+
+# # NSP.analyse.plot_brain(prf_dict, roi_masks, subject, NSP.utils.cap_values(np.copy(rel_scores_np), 0, 2), False, save_img=True, img_path='/home/rfpred/imgs/reg/bl_triple_regcorplot.png')
 
 print('Het zit er weer op kameraad')
 

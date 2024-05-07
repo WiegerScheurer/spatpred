@@ -646,6 +646,186 @@ def regression_dict_multivariate(subject, feat_type, voxels, hrfs, feat_vals, n_
     
     return reg_dict, X
 
+
+    # A terrible function
+    # Okay this one is the actual good function. The other should be deleted and never be used again. 
+    def get_hrf_dict(self, subjects, voxels, prf_region='center_strict', min_size=0.1, max_size=1,
+                    prf_proc_dict=None, max_voxels=None, plot_sizes='n', verbose:bool=False,
+                    vismask_dict=None, minimumR2:int=100, in_perc_signal_change:bool=False):
+        hrf_dict = {}
+        R2_dict_hrf = self.nsp.cortex.nsd_R2_dict(vismask_dict, glm_type = 'hrf')
+        
+        
+        for subject in [subjects]:
+            hrf_dict[subject] = {}
+
+            # Load beta dictionaries for each session
+            beta_sessions = []
+            for file_name in sorted(os.listdir(f'{self.nsp.own_datapath}/{subject}/{prf_region}/')):
+                if file_name.startswith("beta_dict") and file_name.endswith(".pkl"):
+                    with open(f'{self.nsp.own_datapath}/{subject}/{prf_region}/{file_name}', 'rb') as fp:
+                        
+                        beta_sessions.append(pickle.load(fp)[subject])
+
+            rois = list(beta_sessions[0].keys())
+
+            for n_roi, roi in enumerate(rois):
+                hrf_dict[subject][roi] = {}
+                
+                # Determine the subject, roi specific optimal top number of R2 values to filter the voxels for
+                optimal_top_n_R2 = self.nsp.cortex.optimize_rsquare(R2_dict_hrf, 'subj01','nsd', roi, minimumR2, False, 250)
+                print(f'Voxels in {roi[:2]} with a minimum R2 of {minimumR2} is approximately {optimal_top_n_R2}')
+                # Fetch this specific number of selected top R2 values for this roi
+                highR2 = self.nsp.cortex.rsquare_selection(R2_dict_hrf, optimal_top_n_R2, n_subjects = 8, dataset = 'nsd')[subject][roi]
+                # print(f'The average R2 value for {roi}') # This does not make sense, because not filtered yet.
+                voxel_mask = voxels[subject][roi] # So this is not the binary mask, but the prf-selection made with the heatmap function
+                
+                # if max_voxels is None or n_roi > 0:
+                    # vox_n_cutoff = numpy2coords(voxel_mask).shape[0]
+                    
+                # This if statement is to allow for a size-based selection of voxels
+                if min_size is not None and max_size is not None:
+                    preselect_voxels = self.nsp.utils.numpy2coords(voxel_mask, keep_vals = True) # Get the voxel coordinates based on the prf selection
+                    # This is another array with coordinates on the first 3 columns and then a selected size on the 4th column
+                    size_selected_voxels = self.nsp.utils.filter_array_by_size(prf_proc_dict[subject]['proc'][roi]['size'], min_size, max_size)
+                    
+                    joint_ar_prf = self.nsp.utils.find_common_rows(size_selected_voxels, preselect_voxels, keep_vals = True) # Keep_vals keeps the values of the first array
+                    joint_ar_R2 = self.nsp.utils.find_common_rows(joint_ar_prf, highR2, keep_vals = True) # Select based on the top R2 values
+                    if verbose:
+                        print(f'This is joint_ar_R2 {joint_ar_R2[10:15,:]}')
+                    available_voxels = joint_ar_R2.shape[0] # Check how many voxels we end up with
+                    print(f'Found {available_voxels} voxels in {roi[:2]} with pRF sizes between {min_size} and {max_size}')
+                    
+                    selected_R2_vals = self.nsp.utils.find_common_rows(highR2, joint_ar_R2, keep_vals = True)#[:,3] # Get a list of the R2 values for the selected voxels
+                    if verbose:
+                        print(f'This is the final r2 vals {selected_R2_vals[10:15,:]}')
+
+                    # Check whether the amount of voxels available is more than a potential predetermined limit
+                    if max_voxels is not None and available_voxels > max_voxels:
+                        
+                        top_n_R2_voxels = self.nsp.utils.sort_by_column(selected_R2_vals, 3, top_n = 1000)[:max_voxels, :] # Sort the R2 values and select the top n
+                        size_selected_voxels_cut = self.nsp.utils.find_common_rows(joint_ar_R2, top_n_R2_voxels, keep_vals = True) # Get the pRF sizes of these voxels
+                        print(f'The amount of voxels are manually restricted to {max_voxels} out of {available_voxels}')
+                    else: size_selected_voxels_cut = joint_ar_R2                
+                    
+                    final_R2_vals = self.nsp.utils.find_common_rows(highR2, size_selected_voxels_cut, keep_vals = True) # Get a list of the R2 values for the selected voxels
+                    
+                    print(f'of which the average R2 value is {np.mean(final_R2_vals[:,3])}\n')
+
+                    # size_slct = size_selected_voxels_cut
+                    hrf_dict[subject][roi]['roi_sizes'] = size_selected_voxels_cut # This is to be able to plot them later on
+                    hrf_dict[subject][roi]['R2_vals'] = final_R2_vals # Idem dito for the r squared values
+
+                    n_voxels = size_selected_voxels_cut.shape[0]
+                    if verbose:
+                        print(f'\tAmount of voxels in {roi[:2]}: {n_voxels}')
+
+                    # And the first three columns are the voxel indices
+                    array_vox_indices = size_selected_voxels_cut[:, :3]
+
+                    # Convert array of voxel indices to a set of tuples for faster lookup
+                    array_vox_indices_set = set(map(tuple, array_vox_indices))
+
+                    # Create a new column filled with zeros, to later fill with the voxelnames in the betasession files, and meanbeta values
+                    new_column = unscaled_betas = np.zeros((size_selected_voxels_cut.shape[0], 1))
+
+                    # Add the new column to the right of size_selected_voxels_cut
+                    find_vox_ar = np.c_[size_selected_voxels_cut, new_column].astype(object)
+
+                    # Iterate over the dictionary
+                    for this_roi, roi_data in beta_sessions[0].items():
+                        for voxel, voxel_data in roi_data.items():
+                            # Check if the voxel's vox_idx is in the array
+                            if voxel_data['vox_idx'] in array_vox_indices_set:
+                                if verbose:
+                                    print(f"Found {voxel_data['vox_idx']} in array for {this_roi}, {voxel}")
+
+                                # Find the row in find_vox_ar where the first three values match voxel_data['vox_idx']
+                                matching_rows = np.all(find_vox_ar[:, :3] == voxel_data['vox_idx'], axis=1)
+
+                                # Set the last column of the matching row to voxel
+                                find_vox_ar[matching_rows, -1] = voxel
+
+                mean_betas = np.zeros((final_R2_vals.shape))
+                
+                xyz_to_name_roi = np.hstack((find_vox_ar[:,:3].astype('int'), find_vox_ar[:,4].reshape(-1,1)))
+                if n_roi == 0:
+                    xyz_to_name = xyz_to_name_roi
+                else: xyz_to_name = np.vstack((xyz_to_name, xyz_to_name_roi))
+                
+                # Check whether the entire fourth column is now non-zero:
+                if verbose:
+                    print(f'\tChecking if all selected voxels are present in beta session file: {np.all(find_vox_ar[:, 4] != 0)}\n')
+                for vox_no in range(n_voxels):
+                    # Get the xyz coordinates of the voxel
+                    vox_xyz = find_vox_ar[vox_no, :3]
+                    vox_name = find_vox_ar[vox_no, 4]
+                    
+                    if verbose:
+                        print(f'This is voxel numero: {vox_no}')
+                        print(f'The voxel xyz are {vox_xyz}')
+                    
+                    hrf_betas = []
+                    for session_data in beta_sessions:
+                        if verbose:
+                            print(f"There are {len(session_data[roi]['voxel1']['beta_values'])} in this beta batch")
+                        these_betas = session_data[roi][vox_name]['beta_values']
+                        # Flatten the numpy array and convert it to a list before extending hrf_betas
+                        hrf_betas.extend(these_betas.flatten().tolist())
+                    
+                    # Reshape hrf betas into 40 batches of 750 values
+                    betas_reshaped = np.array(hrf_betas).reshape(-1, 750) #, np.array(hrf_betas).shape[1])
+
+                    # Initialize an empty array to store the z-scores
+                    betas_normalised = np.empty_like(betas_reshaped)
+
+                    if in_perc_signal_change:
+                        # Calculate the z-scores for each batch
+                        for i in range(betas_reshaped.shape[0]):
+                            betas_mean = np.mean(betas_reshaped[i])
+                            betas_normalised[i] = self.nsp.utils.get_zscore(((betas_reshaped[i] / betas_mean) * 100), print_ars='n')
+                    else: 
+                        betas_normalised = betas_reshaped * 300
+                        for i in range(betas_reshaped.shape[0]):
+                            betas_normalised[i] = self.nsp.utils.get_zscore(betas_reshaped[i], print_ars='n')
+                        
+                    # Flatten z_scores back into original shape
+                    hrf_betas_z = betas_normalised.flatten()
+                    mean_beta = np.mean(hrf_betas_z)
+                    hrf_dict[subject][roi][vox_name] = {
+                        'xyz': list(vox_xyz.astype('int')),
+                        'size': size_selected_voxels_cut[vox_no,3],
+                        'R2': final_R2_vals[vox_no,3],
+                        'hrf_betas': hrf_betas,
+                        'hrf_betas_z': hrf_betas_z,
+                        'mean_beta': mean_beta
+                        }
+                    unscaled_betas[vox_no] = mean_beta
+                mean_betas[:, :3] = size_selected_voxels_cut[:,:3]
+                mean_betas[:, 3] = self.nsp.utils.get_zscore(unscaled_betas, print_ars='n').flatten()
+                
+                hrf_dict[subject][roi]['mean_betas'] = mean_betas # Store the mean_beta values for each voxel in the roi
+
+
+                n_betas = len(hrf_dict[subject][roi][vox_name]['hrf_betas'])
+                if verbose:
+                    print(f'\tProcessed images: {n_betas}')
+                
+        plt.style.use('default')
+
+        if plot_sizes == 'y':
+            _, axs = plt.subplots(2, 2, figsize=(10, 8))  # Create a figure with 2x2 subplots
+            axs = axs.flatten()  # Flatten the 2D array of axes to 1D for easier indexing
+            cmap = plt.get_cmap('gist_heat')  # Get the 'viridis' color map
+            for i, roi in enumerate(rois):
+                sizes = hrf_dict[subject][roi]['roi_sizes'][:,3]
+                color = cmap(i / len(rois))  # Get a color from the color map
+                sns.histplot(sizes, kde=True, ax=axs[i], color=color, bins = 10)  # Plot on the i-th subplot
+                axs[i].set_title(f'RF sizes for {roi[:2]} (n={sizes.shape[0]})')  # Include the number of voxels in the title
+                axs[i].set_xlim([min_size-.1, max_size+.1])  # Set the x-axis limit from 0 to 2
+              
+        return hrf_dict, xyz_to_name
+
 ################################# USEFUL SCHEISSE
 
 # Saving dictionary with visual feats
