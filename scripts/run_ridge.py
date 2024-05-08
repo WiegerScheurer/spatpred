@@ -84,10 +84,11 @@ prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 
 subject = 'subj01'
 max_size = 2
-min_size = .15
+min_size = .2
 patchbound = 1.5
-min_nsd_R2 = 25
+min_nsd_R2 = 50
 min_prf_R2 = 0
+fixed_n_voxels = 300
 
 voxeldict = {}
 for roi in rois:
@@ -101,7 +102,7 @@ for roi in rois:
                                 min_nsd_R2=min_nsd_R2, 
                                 min_prf_R2=min_prf_R2,
                                 print_attributes=print_attr,
-                                all_voxels=False)
+                                fixed_n_voxels=fixed_n_voxels)
 
 ydict = {}
 for roi in rois:
@@ -117,7 +118,7 @@ Xbl = np.hstack((NSP.stimuli.baseline_feats(baseline_strings[0]),
                NSP.stimuli.baseline_feats(baseline_strings[2])))
 
     
-Xpred = NSP.stimuli.unpred_feats(content=True, style=False, ssim=False, pixel_loss=False, L1=False, MSE=True, verbose=True, outlier_sd_bound=5)
+Xpred = NSP.stimuli.unpred_feats(content=True, style=False, ssim=False, pixel_loss=False, L1=True, MSE=False, verbose=True, outlier_sd_bound=5)
 
 for layer in range(0, 5):
     Xalex = Xpred[:,layer].reshape(-1,1)
@@ -163,6 +164,41 @@ for layer in range(0, 5):
                            False, 
                            save_img=True, 
                            img_path=f'/home/rfpred/imgs/reg/unpred_lay{layer}_regbetaplotNEWER.png')
+
+
+for layer in range(0,5):
+    delta_r_layer = pd.read_pickle(f'{NSP.own_datapath}/{subject}/brainstats/unpred_lay{layer}NEW_delta_r.pkl').values[0].flatten()
+    if layer == 0:
+        all_delta_r = delta_r_layer
+    else:
+        all_delta_r = np.vstack((all_delta_r, delta_r_layer))
+        
+df = (pd.DataFrame(all_delta_r, columns = rois))
+print(df)
+
+plt.clf()
+
+# Reset the index of the DataFrame to use it as x-axis
+df.reset_index(inplace=True)
+
+# Melt the DataFrame to long-form or tidy format
+df_melted = df.melt('index', var_name='ROI', value_name='b')
+
+
+# Create the line plot
+sns.lineplot(x='index', y='b', hue='ROI', data=df_melted, marker='o')
+
+plt.xticks(range(5))  # Set x-axis ticks to be integers from 0 to 4
+plt.xlabel('Alexnet Layer')
+plt.ylabel('Delta R Value')
+plt.title('Delta R Value per Alexnet Layer')
+
+
+# Save the plot
+plt.savefig(f'{NSP.own_datapath}/{subject}/brainstats/unpred_delta_r_plot.png')
+
+plt.show()
+
 
 
 ################### FULL VISUAL CORTEX (V1, V2, V3, V4) REGRESSIONS ###############

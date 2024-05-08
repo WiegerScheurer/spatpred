@@ -117,7 +117,8 @@ def scce_all(start, n, plot:bool=False, save_plot:bool=False):
 
 ######### COMPUTATIONS
 
-start = list(range(0, 73000, 1000))
+# start = list(range(0, 73000, 1000)) # Part 1, got up to 34000, run other half tonight
+start = list(range(34000, 73000, 1000))
 steps = [1000] * len(start)
 
 # steps = [10, 10, 10, 10]

@@ -85,6 +85,11 @@ class VoxelSieve:
         Boolean array indicating which voxels meet the criteria.
     xyz : ndarray
         The x, y, z coordinates of the selected voxels.
+    r2mask : ndarray
+        A boolean array that sets the top n NSD R2 voxels to True in case 
+            fixed_n_voxels is an integer. This is used in situations where
+            a fixed amount of voxels is wanted for each ROI, for example to
+            check whether differences in effect are due to the amount of voxels.
 
     Methods
     -------
@@ -94,7 +99,23 @@ class VoxelSieve:
     def __init__(self, NSP, prf_dict:Dict, roi_masks:Dict, subject:str, roi:str, 
                  max_size:Optional[float]=None, min_size:Optional[float]=None, patchbound:Optional[float]=None, 
                  min_nsd_R2:Optional[int]=None, min_prf_R2:Optional[int]=None, print_attributes:bool=True, 
-                 all_voxels:bool=False):
+                 fixed_n_voxels:Optional[Union[str, int]]=None):
+        """Method to initialise the VoxelSieve class.
+                    TODO: COMPLETE THIS
+        Args:
+            NSP (_type_): _description_
+            prf_dict (Dict): _description_
+            roi_masks (Dict): _description_
+            subject (str): _description_
+            roi (str): _description_
+            fixed_n_voxels (Optional[Union[str, int]]): _description_
+            max_size (Optional[float], optional): _description_. Defaults to None.
+            min_size (Optional[float], optional): _description_. Defaults to None.
+            patchbound (Optional[float], optional): _description_. Defaults to None.
+            min_nsd_R2 (Optional[int], optional): _description_. Defaults to None.
+            min_prf_R2 (Optional[int], optional): _description_. Defaults to None.
+            print_attributes (bool, optional): _description_. Defaults to True.
+        """        
         
         self.patchbound = patchbound
         self.size = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:,3]
@@ -104,22 +125,33 @@ class VoxelSieve:
         self.nsd_R2 = NSP.cortex.nsd_R2_dict(roi_masks, glm_type='hrf')[subject]['R2_roi'][f'{roi}_mask'][:,3]
         self.sigmas, self.ycoor, self.xcoor = NSP.cortex.calculate_pRF_location(self.size, self.ecc, self.angle, (425,425))
         
-        if all_voxels: # If all_voxels is True, all ROI voxels are selected regardless of the other parameters
+        if fixed_n_voxels == 'all': # If all_voxels is True, all ROI voxels are selected regardless of the other parameters
             self.vox_pick = np.ones(len(self.size)).astype(bool)
         else:
             self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
         
-        # Apply the vox_pick mask to all the attributes with voxel specific data
-        self.size = self.size[self.vox_pick]
-        self.ecc = self.ecc[self.vox_pick]
-        self.angle = self.angle[self.vox_pick]
-        self.prf_R2 = self.prf_R2[self.vox_pick]
-        self.nsd_R2 = self.nsd_R2[self.vox_pick]
-        self.sigmas = self.sigmas[self.vox_pick]
-        self.ycoor = self.ycoor[self.vox_pick]
-        self.xcoor = self.xcoor[self.vox_pick]
-        self.xyz = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:, :3][self.vox_pick].astype(int)
+        if type(fixed_n_voxels) == int:
+            r2raw_arr = self.nsd_R2[self.vox_pick]
+            # Adjust the mask based on the top n NSD R2 voxels, so cutoffs don't cut off good voxels
+            top_n = fixed_n_voxels
+            indices = np.argsort(r2raw_arr)
+            topices = indices[-top_n:]
+            r2mask = np.zeros_like(r2raw_arr, dtype=bool)
+            r2mask[topices] = True
+            
+        else: r2mask = np.ones(len(self.vox_pick)).astype(bool)
         
+        # Apply the vox_pick mask to all the attributes with voxel specific data
+        self.size = self.size[self.vox_pick][r2mask]
+        self.ecc = self.ecc[self.vox_pick][r2mask]
+        self.angle = self.angle[self.vox_pick][r2mask]
+        self.prf_R2 = self.prf_R2[self.vox_pick][r2mask]
+        self.nsd_R2 = self.nsd_R2[self.vox_pick][r2mask]
+        self.sigmas = self.sigmas[self.vox_pick][r2mask]
+        self.ycoor = self.ycoor[self.vox_pick][r2mask]
+        self.xcoor = self.xcoor[self.vox_pick][r2mask]
+        self.xyz = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:, :3][self.vox_pick].astype(int)[r2mask]
+        self.r2mask = r2mask
         
         self.attributes = [attr for attr in dir(self) if not attr.startswith('_')] # Filter out both the 'dunder' and hidden methods
         
@@ -446,7 +478,7 @@ class Utilities():
             
         return centered_data
     
-    def replace_outliers(self, data, m:float=2.5):
+    def replace_outliers(self, data, m:float=2.5, verbose:bool=False):
         """
         Replace outliers in a 2D numpy array with the nearest non-outlier value.
 
@@ -474,8 +506,9 @@ class Utilities():
             # Identify the outliers
             outliers = (column < np.percentile(column, m)) | (column > np.percentile(column, 100 - m))
 
-            # Print the number of outliers
-            print(f"Number of outliers: {np.sum(outliers)}")
+            if verbose:
+                # Print the number of outliers
+                print(f"Number of outliers: {np.sum(outliers)}")
 
             # Get the indices of the outliers
             outlier_indices = np.where(outliers)[0]
@@ -2882,7 +2915,7 @@ class Analysis():
         start_column = 0 if include_xyz else 3
         n_trials = 30000 if n_trials == 'all' else n_trials 
         
-        return (np.load(f'{self.nsp.own_datapath}/{subject}/betas/{roi}/all_betas.npy')[voxelsieve.vox_pick, start_column:])[:, :n_trials]
+        return (np.load(f'{self.nsp.own_datapath}/{subject}/betas/{roi}/all_betas.npy')[voxelsieve.vox_pick, start_column:][voxelsieve.r2mask])[:, :n_trials]
                                 
     def run_ridge_regression(self, X:np.array, y:np.array, alpha:float=1.0, fit_icept:bool=False):
         """Function to run a ridge regression model on the data.
@@ -3180,7 +3213,7 @@ class Analysis():
 
 
         regcor_dict['X_shuffled'] = {}
-        # Calculate scores for the uninformative X matrix
+        # Calculate scores for the uninformative/baseline X matrix
         for roi in rois:
             y = ydict[roi]
             model_comp = self.run_ridge_regression(X_uninformative, y, alpha=alpha, fit_icept=fit_icept)
@@ -3200,14 +3233,22 @@ class Analysis():
         # Flatten the axs array for easy iteration
         axs = axs.flatten()
 
+        delta_r_df = pd.DataFrame()
         # Assuming rois is a list with at least 4 elements
         for i, roi in enumerate(rois[:4]):
+            # Calculate and store the delta-R values 
+            this_delta_r = round(np.mean(r_values[roi]) - np.mean(r_uninformative[roi]), 5)
+            delta_r_df[roi] = [this_delta_r]
+            
             # Underlay with the histogram of r_uninformative[roi] values
             axs[i].hist(r_uninformative[roi], bins=40, edgecolor='black', alpha=0.5, label='Baseline X')
             # Plot the histogram of r_values[roi] values in the i-th subplot
             axs[i].hist(r_values[roi], bins=40, edgecolor='black', alpha=0.5, label='X')
-            axs[i].set_title(f'{roi} delta-R: {round(np.mean(r_values[roi]) - np.mean(r_uninformative[roi]), 5)}')
+            axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
             axs[i].legend()
+        
+        delta_r_df.to_pickle(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_delta_r.pkl')
+
 
         # Add title and display the figure
         plt.suptitle(f'Ridge reg results for baseline with and without {regname}', fontsize=16)
