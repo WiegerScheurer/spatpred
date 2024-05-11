@@ -118,9 +118,9 @@ class UNet():
             #                                 recon_pld['out_raw'],recon_pld['input_gt'])
 
             loss_dict_1=self.loss_obj_l1.forward(recon_pld['input_masked'],recon_pld['masks'],
-                                                 recon_pld['out_raw'],recon_pld['input_gt'])
+                                                 recon_pld['out_raw'],recon_pld['input_gt'],False) # This False is for saving the gt featmaps
             loss_dict_2=self.loss_obj_l2.forward(recon_pld['input_masked'],recon_pld['masks'],
-                                            recon_pld['out_raw'],recon_pld['input_gt'])
+                                            recon_pld['out_raw'],recon_pld['input_gt'],False) # This False is for saving the gt featmaps
             
             ssims=np.array([ssim(to_np(recon_pld['input_gt'][img_ix]),
                          to_np(recon_pld['out_composite'][img_ix]),multichannel=True, channel_axis = 2)

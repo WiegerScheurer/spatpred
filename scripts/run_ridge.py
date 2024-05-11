@@ -3,7 +3,7 @@
 import os
 import sys
 
-from regex import F
+# from regex import F
 
 os.environ["OMP_NUM_THREADS"] = "5"
 import os
@@ -24,6 +24,7 @@ import scipy.stats.mstats as mstats
 import copy
 
 from nilearn import plotting
+from scipy import stats
 from scipy.ndimage import binary_dilation
 from PIL import Image
 from importlib import reload
@@ -86,9 +87,9 @@ subject = 'subj01'
 max_size = 2
 min_size = .2
 patchbound = 1.5
-min_nsd_R2 = 50
+min_nsd_R2 = 25
 min_prf_R2 = 0
-fixed_n_voxels = 300
+fixed_n_voxels = 515
 
 voxeldict = {}
 for roi in rois:
@@ -193,12 +194,72 @@ plt.xlabel('Alexnet Layer')
 plt.ylabel('Delta R Value')
 plt.title('Delta R Value per Alexnet Layer')
 
-
 # Save the plot
 plt.savefig(f'{NSP.own_datapath}/{subject}/brainstats/unpred_delta_r_plot.png')
 
 plt.show()
+plt.clf()
 
+voxel_assignment = {}
+
+for layer in range(0,5): # Loop over the layers of the alexnet
+    cordict, coords = NSP.analyse.load_regresults(subject, prf_dict, roi_masks, 'unpred', f'{str(layer)}NEW', plot_on_viscortex=False, plot_result='r', verbose=False)
+    if layer == 0:
+        all_betas = np.hstack((np.array(coords)[:,:3], np.array(coords)[:,5].reshape(-1,1)))
+    else:
+        all_betas = np.hstack((all_betas, np.array(coords)[:,5].reshape(-1,1)))
+        
+for n_roi, roi in enumerate(rois):
+    n_roivoxels = len(cordict['X'][roi][0])
+    
+    if roi == 'V1':
+        vox_of_roi = np.ones((n_roivoxels, 1))
+    else:
+        vox_of_roi = (np.vstack((vox_of_roi, (np.ones((n_roivoxels, 1))* (n_roi + 1))))).astype(int)
+
+all_betas_voxroi = np.hstack((all_betas, vox_of_roi))[:,3:]
+all_betas_voxroi[:,:5] = stats.zscore(all_betas_voxroi[:,:5], axis=0)
+
+# Get the index of the maximum value in each row, excluding the last column
+max_indices = np.argmax(all_betas_voxroi[:, :-1], axis=1)
+
+# print(max_indices)
+
+# Create a DataFrame from the array
+df = pd.DataFrame(all_betas_voxroi, columns=[f'col_{i}' for i in range(all_betas_voxroi.shape[1])])
+
+# Rename the last column to 'ROI'
+df.rename(columns={df.columns[-1]: 'ROI'}, inplace=True)
+
+# Add the max_indices as a new column
+df['AlexNet layer'] = max_indices
+
+# Convert the 'ROI' column to int for plotting
+df['ROI'] = df['ROI'].astype(int)
+
+# # Plot the distribution of max_indices for each ROI
+# sns.countplot(x='max_index', hue='ROI', data=df)
+
+# plt.show()
+
+# # Plot the distribution of ROIs for each max_index
+# sns.countplot(x='ROI', hue='max_index', data=df)
+
+# plt.show()
+
+# Calculate the proportions of max_indices within each ROI
+df_prop = (df.groupby('ROI')['AlexNet layer']
+             .value_counts(normalize=True)
+             .unstack(fill_value=0))
+
+# Plot the proportions using a stacked bar plot
+df_prop.plot(kind='bar', stacked=True)
+
+
+# Save the plot
+plt.savefig(f'{NSP.own_datapath}/{subject}/brainstats/unpred_layassign.png')
+
+plt.show()
 
 
 ################### FULL VISUAL CORTEX (V1, V2, V3, V4) REGRESSIONS ###############

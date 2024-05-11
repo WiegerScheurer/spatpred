@@ -139,7 +139,7 @@ class VoxelSieve:
             r2mask = np.zeros_like(r2raw_arr, dtype=bool)
             r2mask[topices] = True
             
-        else: r2mask = np.ones(len(self.vox_pick)).astype(bool)
+        else: r2mask = np.ones(np.sum(self.vox_pick)).astype(bool)
         
         # Apply the vox_pick mask to all the attributes with voxel specific data
         self.size = self.size[self.vox_pick][r2mask]
@@ -216,20 +216,20 @@ class DataFetch():
         dict_list = []
 
         # Get a list of files in the directory
-        files = os.listdir(f'{self.nsp.own_datapath}/{subject}/pred/')
+        files = os.listdir(f'{self.nsp.own_datapath}/')
 
         # Filter files that start with "beta_dict" and end with ".pkl"
-        filtered_files = [file for file in files if file.startswith('light_payloads') and file.endswith(".h5")]
+        filtered_files = [file for file in files if file.startswith('pred_payloads') and file.endswith("vgg-b.h5")]
         
         # Sort files based on the first number after 'beta_dict'
-        sorted_files = sorted(filtered_files, key=lambda x: int(''.join(filter(str.isdigit, x.split('light_payloads')[1]))))
+        sorted_files = sorted(filtered_files, key=lambda x: int(''.join(filter(str.isdigit, x.split('pred_payloads')[1]))))
 
         # Load in the .h5 files
         for file_no, file in enumerate(sorted_files):
             if verbose:
                 print(f'Now loading file {file_no + 1} of {len(sorted_files)}')
             # load in back dictionary
-            with h5py.File(f'{self.nsp.own_datapath}/{subject}/pred/{file}', 'r') as hf:
+            with h5py.File(f'{self.nsp.own_datapath}/{file}', 'r') as hf:
                 data = hf.keys()
                     
                 dict = {key: np.array(hf[key]) for key in data}
@@ -3266,6 +3266,70 @@ class Analysis():
                 pickle.dump(regcor_dict, f)
             
         return coords
+
+    def load_regresults(self, subject:str, prf_dict:dict, roi_masks:dict, feattype:str, cnn_layer:Optional[int]=None, 
+                    plot_on_viscortex:bool=True, plot_result:Optional[str]='r', lowcap:float=0, upcap:float=None,
+                    verbose:bool=True):
+        """Function to load in the results from the regressions.
+
+        Args:
+        - subject (str): The subject for which the regression results are to be loaded
+        - feattype (str): options: 'rms', 'ce', 'sc', 'unpred', 'alexunet', 'alexown'
+        - cnn_layer (int): Optional, only necessary for the 'unpred, 'alexunet', and 'alexown' feature types
+            
+        Out:
+        - cor_scores_dict (Dict): The dictionary that contains for both the actual X matrix and the shuffled X matrix the
+            r correlation scores for every separate cv fold.
+        - coords (pd.DataFrame): This dataframe contains the mean r and beta scores over all of the cross-validation folds
+        """    
+        
+        reg_str = f'{feattype}'
+        if feattype in ['unpred', 'alexunet', 'alexown']:
+            if cnn_layer is None:
+                raise ValueError('Please provide a cnn_layer number for the feature type you have chosen')
+            reg_str = f'{feattype}_lay{cnn_layer}'
+        
+        # This is the dictionary that contains for both the actual X matrix and the shuffled X matrix the
+        # r correlation scores for every separate cv fold.
+        with open (f'{self.nsp.own_datapath}/subj01/brainstats/{feattype}_lay{cnn_layer}_regcor_dict.pkl', 'rb') as f:
+            # Structure: cor_scores_dict['X' or 'X_uninformative'][roi][cross-validation fold]
+            cor_scores_dict = pickle.load(f)
+            
+        # This dataframe contains the mean scores over all of the cross-validation folds
+        coords = pd.DataFrame(np.load(f'{self.nsp.own_datapath}/subj01/brainstats/{reg_str}_regcor_scores.npy'), 
+                            columns=['x', 'y', 'z', 'r', 'r_shuf', 'beta'])
+        
+        
+        if plot_result == 'r':
+            plot_val = 3
+        elif plot_result == 'r_shuf':
+            plot_val = 4
+        elif plot_result == 'r_rel':
+            plot_val = 6
+            coords['r_rel'] = coords['r'] - coords['r_shuf']
+        elif plot_result == 'betas':
+            plot_val = 5
+            
+        if verbose:
+            print(coords)
+
+        if plot_on_viscortex:
+            brain_np = self.nsp.utils.coords2numpy(np.hstack((np.array(coords)[:,:3],np.array(coords)[:,plot_val].reshape(-1,1))), roi_masks[subject]['V1_mask'].shape, keep_vals=True)
+
+            self.plot_brain(prf_dict, roi_masks, subject, self.nsp.utils.cap_values(np.copy(brain_np), lowcap, upcap), False, save_img=False, img_path='/home/rfpred/imgs/rel_scores_np.png')
+
+
+            self.nsp.cortex.viscortex_plot(prf_dict=prf_dict, 
+                                    vismask_dict=roi_masks, 
+                                    plot_param=None, 
+                                    subject=subject, 
+                                    upcap=upcap, 
+                                    lowcap=lowcap, 
+                                    inv_colour=False, 
+                                    cmap='RdGy_r',
+                                    regresult= brain_np)
+        
+        return cor_scores_dict, coords
 
 class NatSpatPred():
     

@@ -7,7 +7,7 @@
 
 # Iterate over the first argument from 0 to 29750 in steps of 500
 # for arg1 in $(seq 0 750 29750); do
-for arg1 in $(seq 0 500 29500); do
+for arg1 in $(seq 30000 500 72500); do
     # Calculate arg2 as arg1 + 250
     arg2=$((arg1 + 500))
     # Run the Python script with the current arguments

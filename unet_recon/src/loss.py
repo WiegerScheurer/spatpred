@@ -37,7 +37,7 @@ class ReconLoss(nn.Module):
         else:
             raise ValueError('expecting "vgg" or "alex"')
 
-    def forward(self, input, mask, output, gt):
+    def forward(self, input, mask, output, gt, save_gt_featmaps:bool=False):
         """todo: IF L1 vs L2 matters more than trivially, 
         include content_loss_str and include it in the name
         eg.
@@ -77,22 +77,22 @@ class ReconLoss(nn.Module):
         if self.add_loss_suff:
             loss_dict = {key+f'_{self.loss_str}': value for key, value in loss_dict.items()}
 
+        if save_gt_featmaps:
+            # feats_comp_np = [feat.detach().cpu().numpy() for feat in feats_comp] # WADDITION
+            feats_gt_np = [feat.detach().cpu().numpy() for feat in feats_gt] # WADDITION
+            
+            if self.loss_str == 'L1':
 
-        # feats_comp_np = [feat.detach().cpu().numpy() for feat in feats_comp] # WADDITION
-        feats_gt_np = [feat.detach().cpu().numpy() for feat in feats_gt] # WADDITION
-        
-        if self.loss_str == 'L1':
+                filename = '/home/rfpred/data/custom_files/subj01/pred/featmaps/feats_gt_npTESTERITUS.pkl'
+                base_filename, ext = os.path.splitext(filename)
+                i = 0
 
-            filename = '/home/rfpred/data/custom_files/subj01/pred/featmaps/feats_gt_np.pkl'
-            base_filename, ext = os.path.splitext(filename)
-            i = 0
+                while os.path.exists(filename):
+                    i += 1
+                    filename = f"{base_filename}_{i}{ext}"
 
-            while os.path.exists(filename):
-                i += 1
-                filename = f"{base_filename}_{i}{ext}"
-
-            with open(filename, 'wb') as f:
-                pickle.dump(feats_gt_np, f)
+                with open(filename, 'wb') as f:
+                    pickle.dump(feats_gt_np, f)
             
         
         # with open('/home/rfpred/data/custom_files/subj01/pred/featmaps/feats_gt_np.pkl', 'wb') as f:
@@ -264,11 +264,11 @@ class AlexNetFeatureExtractor(nn.Module):
         # Define each feature extractor
         self.enc_1 = nn.Sequential(normalization, *alexnet.features[:3]) # Conv + ReLU + MaxPool
         # self.enc_1 = nn.Sequential(normalization, *alexnet.features[:2]) # Conv + ReLU + MaxPool
-        self.enc_2 = nn.Sequential(*alexnet.features[3:6]) # Conv + ReLU + MaxPool
+        self.enc_2 = nn.Sequential(*alexnet.features[3:5]) # Conv + ReLU 
         # self.enc_2 = nn.Sequential(*alexnet.features[3:5]) # Conv + ReLU + MaxPool
         self.enc_3 = nn.Sequential(*alexnet.features[6:8]) # Conv + ReLU
         self.enc_4 = nn.Sequential(*alexnet.features[8:10]) # Conv + ReLU
-        self.enc_5 = nn.Sequential(*alexnet.features[10:]) # Conv + ReLU + MaxPool
+        self.enc_5 = nn.Sequential(*alexnet.features[10:12]) # Conv + ReLU 
         # self.enc_5 = nn.Sequential(*alexnet.features[10:11]) # Conv + ReLU + MaxPool
 #         self.enc_6 = nn.Sequential(*alexnet.classifier[:2]) # Dropout + FC
 #         self.enc_7 = nn.Sequential(*alexnet.classifier[2:5]) # ReLU + Dropout + FC

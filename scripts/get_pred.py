@@ -1,5 +1,10 @@
+#!/usr/bin/env python3
+
 import os
 import sys
+
+os.environ["OMP_NUM_THREADS"] = "20"
+
 os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/')
@@ -162,7 +167,8 @@ def _make_img_3d(mask_in,):
     """for 2d array, copy to make 3-dimensional"""
     return(np.repeat(mask_in[:,:,np.newaxis],3,axis=2))
 
-unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
+# unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
+unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-b')
 
 # NSD adapted:
 mask_radius=100
@@ -210,10 +216,13 @@ def rand_img_list(n_imgs, asPIL:bool = True, add_masks:bool = True, mask_loc = '
 specific_imgs = [26282, 22273, 12338, 475, 18591, 22664, 27038, 11549, 27931, 26183, 26435, 2685, 8749, 3712, 20457, 7464, 6057]
 # specific_imgs = list(range(0, 10, 1))
 dmx = get_imgs_designmx()
-subj01_imgs = list(dmx[args.subject])[args.start:args.end]
+# subj01_imgs = list(dmx[args.subject])[args.start:args.end] # Subject specific images
+all_imgs = list(range(args.start,args.end))
 
-n_imgs = len(subj01_imgs)
-imgs, masks, img_nos = rand_img_list(n_imgs, asPIL = True, add_masks = True, mask_loc = 'center', ecc_max = 1, select_ices = subj01_imgs, in_3d = False)
+# n_imgs = len(subj01_imgs) # Subject specific imgs
+n_imgs = len(all_imgs)
+# imgs, masks, img_nos = rand_img_list(n_imgs, asPIL = True, add_masks = True, mask_loc = 'center', ecc_max = 1, select_ices = subj01_imgs, in_3d = False) # Subject specific images
+imgs, masks, img_nos = rand_img_list(n_imgs, asPIL = True, add_masks = True, mask_loc = 'center', ecc_max = 1, select_ices = all_imgs, in_3d = False)
 
 welke_plaat = random.randint(0, 73000)
 plaatje = show_stim(img_no = welke_plaat, small = 'y', hide = 'y')
@@ -238,10 +247,10 @@ xmin,xmax,ymin,ymax = list(get_bounding_box(rf_mask_in))
 crop_mask = rf_mask_in[ymin:ymax, xmin:xmax] == 1
 
 # THIS IS THE ORIGINAL ONE, THE CORRECT CROP
-# eval_fact=np.sqrt(1.2) # This needs to be in correspondence with the min_size (original eval_fact = 1.5, min_size = 100)
+eval_fact=np.sqrt(1.2) # This needs to be in correspondence with the min_size (original eval_fact = 1.5, min_size = 100)
 
 # THIS IS THE FULL IMG FEATUREMAP EVALMASK
-eval_fact=np.sqrt(18)
+# eval_fact=np.sqrt(18)
 eval_mask=scale_square_mask(~np.array(masks[0]), min_size=80, scale_fact= eval_fact)
 
 
@@ -270,10 +279,11 @@ payload_light = {k: v for k, v in payload_nsd_crop.items() if k not in excl}
 
 
 print("succeeded")
-# with h5py.File(f'/home/rfpred/data/custom_files/subj01/pred/light_payloads{args.start}_{args.end}.h5', 'w') as hf:
-#     for key, value in payload_light.items():
-#         hf.create_dataset(key, data=value)
-#         print('Light payload saved succesfully')
+
+with h5py.File(f'/home/rfpred/data/custom_files/pred_payloads{args.start}_{args.end}_vgg-b.h5', 'w') as hf:
+    for key, value in payload_light.items():
+        hf.create_dataset(key, data=value)
+    print('Light payload saved succesfully')
 
 # with open(f'/home/rfpred/data/custom_files/{args.subject}/pred/pred_payloads{args.start}_{args.end}.pkl', 'wb') as fp:
 #     pickle.dump(payloads, fp)
