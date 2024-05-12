@@ -65,6 +65,105 @@ from unet_recon.inpainting import UNet
 from funcs.analyses import univariate_regression
 from lgnpy.CEandSC.lgn_statistics import lgn_statistics, loadmat, LGN
 
+# class VoxelSieve:
+#     """
+#     A class used to represent a Voxel Sieve, filtering out all voxels that do not
+#     meet all requirements defined in the VoxelSieve initiation method.
+
+#     Attributes
+#     ----------
+#     size : ndarray
+#         The size of the pRFs.
+#     ecc : ndarray
+#         The eccentricity of the pRFs.
+#     angle : ndarray
+#         The angle of the pRFs.
+#     prf_R2 : ndarray
+#         The R2 value of the voxel from pRF.
+#     nsd_R2 : ndarray
+#         The R2 value of the voxel from NSD.
+#     vox_pick : ndarray
+#         Boolean array indicating which voxels meet the criteria.
+#     xyz : ndarray
+#         The x, y, z coordinates of the selected voxels.
+#     r2mask : ndarray
+#         A boolean array that sets the top n NSD R2 voxels to True in case 
+#             fixed_n_voxels is an integer. This is used in situations where
+#             a fixed amount of voxels is wanted for each ROI, for example to
+#             check whether differences in effect are due to the amount of voxels.
+
+#     Methods
+#     -------
+#     __init__(self, prf_dict: Dict, roi_masks: Dict, NSP, subject: str, roi: str, max_size: float, min_size: float, patchbound: float, min_nsd_R2: int, min_prf_R2: int)
+#         Initializes the VoxelSieve instance with the given parameters.
+#     """
+#     def __init__(self, NSP, prf_dict:Dict, roi_masks:Dict, subject:str, roi:str, 
+#                  max_size:Optional[float]=None, min_size:Optional[float]=None, patchbound:Optional[float]=None, 
+#                  min_nsd_R2:Optional[int]=None, min_prf_R2:Optional[int]=None, print_attributes:bool=True, 
+#                  fixed_n_voxels:Optional[Union[str, int]]=None):
+#         """Method to initialise the VoxelSieve class.
+#                     TODO: COMPLETE THIS
+#         Args:
+#             NSP (_type_): _description_
+#             prf_dict (Dict): _description_
+#             roi_masks (Dict): _description_
+#             subject (str): _description_
+#             roi (str): _description_
+#             fixed_n_voxels (Optional[Union[str, int]]): _description_
+#             max_size (Optional[float], optional): _description_. Defaults to None.
+#             min_size (Optional[float], optional): _description_. Defaults to None.
+#             patchbound (Optional[float], optional): _description_. Defaults to None.
+#             min_nsd_R2 (Optional[int], optional): _description_. Defaults to None.
+#             min_prf_R2 (Optional[int], optional): _description_. Defaults to None.
+#             print_attributes (bool, optional): _description_. Defaults to True.
+#         """        
+        
+#         self.patchbound = patchbound
+#         self.size = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:,3]
+#         self.ecc = prf_dict[subject]['proc'][f'{roi}_mask']['eccentricity'][:,3]
+#         self.angle = prf_dict[subject]['proc'][f'{roi}_mask']['angle'][:,3]
+#         self.prf_R2 = prf_dict[subject]['proc'][f'{roi}_mask']['R2'][:,3]
+#         self.nsd_R2 = NSP.cortex.nsd_R2_dict(roi_masks, glm_type='hrf')[subject]['R2_roi'][f'{roi}_mask'][:,3]
+#         self.sigmas, self.ycoor, self.xcoor = NSP.cortex.calculate_pRF_location(self.size, self.ecc, self.angle, (425,425))
+        
+#         if fixed_n_voxels == 'all': # If all_voxels is True, all ROI voxels are selected regardless of the other parameters
+#             self.vox_pick = np.ones(len(self.size)).astype(bool)
+#         else:
+#             self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
+        
+#         if type(fixed_n_voxels) == int:
+#             r2raw_arr = self.nsd_R2[self.vox_pick]
+#             # Adjust the mask based on the top n NSD R2 voxels, so cutoffs don't cut off good voxels
+#             top_n = fixed_n_voxels
+#             indices = np.argsort(r2raw_arr)
+#             topices = indices[-top_n:]
+#             r2mask = np.zeros_like(r2raw_arr, dtype=bool)
+#             r2mask[topices] = True
+            
+#         else: r2mask = np.ones(np.sum(self.vox_pick)).astype(bool)
+        
+#         # Apply the vox_pick mask to all the attributes with voxel specific data
+#         self.size = self.size[self.vox_pick][r2mask]
+#         self.ecc = self.ecc[self.vox_pick][r2mask]
+#         self.angle = self.angle[self.vox_pick][r2mask]
+#         self.prf_R2 = self.prf_R2[self.vox_pick][r2mask]
+#         self.nsd_R2 = self.nsd_R2[self.vox_pick][r2mask]
+#         self.sigmas = self.sigmas[self.vox_pick][r2mask]
+#         self.ycoor = self.ycoor[self.vox_pick][r2mask]
+#         self.xcoor = self.xcoor[self.vox_pick][r2mask]
+#         self.xyz = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:, :3][self.vox_pick].astype(int)[r2mask]
+#         self.r2mask = r2mask
+        
+#         self.attributes = [attr for attr in dir(self) if not attr.startswith('_')] # Filter out both the 'dunder' and hidden methods
+        
+#         print(f'{roi} voxels that fulfill requirements: {Fore.LIGHTWHITE_EX}{len(self.size)}{Style.RESET_ALL} out of {Fore.LIGHTWHITE_EX}{len(prf_dict[subject]["proc"][f"{roi}_mask"]["size"])}{Style.RESET_ALL}.')
+        
+#         if print_attributes:
+#             print('\nClass contains the following attributes:')
+#             for attr in self.attributes:
+#                 print(f"{Fore.BLUE} .{attr}{Style.RESET_ALL}")
+
+
 class VoxelSieve:
     """
     A class used to represent a Voxel Sieve, filtering out all voxels that do not
@@ -97,40 +196,87 @@ class VoxelSieve:
     __init__(self, prf_dict: Dict, roi_masks: Dict, NSP, subject: str, roi: str, max_size: float, min_size: float, patchbound: float, min_nsd_R2: int, min_prf_R2: int)
         Initializes the VoxelSieve instance with the given parameters.
     """
-    def __init__(self, NSP, prf_dict:Dict, roi_masks:Dict, subject:str, roi:str, 
+    def central_patch():
+        pass
+    
+    def _get_peri_bounds(self, patchbound:float, peripheral_center:Optional[tuple], peri_angle:Optional[float], peri_ecc:Optional[float], verbose:bool=True):
+        # Determine the center of the peripheral patch, if center is not given, but angle and eccentricity are
+        if peripheral_center == None and peri_angle != None and peri_ecc != None:
+            patchloc_triangle_s = peri_ecc
+            peri_y = round(peri_ecc * np.sin(np.radians(peri_angle)), 2)
+            peri_x = round(peri_ecc * np.cos(np.radians(peri_angle)), 2)
+            peripheral_center = (peri_x, peri_y)
+            if verbose:
+                print(f'Peripheral center at {peripheral_center}')
+        
+        if isinstance(peripheral_center, tuple):
+            # Determine the eccentricity of the patch using Pythagoras' theorem
+            patchloc_triangle_o = np.abs(peripheral_center[1])
+            patchloc_triangle_a = np.abs(peripheral_center[0])
+            patchloc_triangle_s = np.sqrt(patchloc_triangle_o**2 + patchloc_triangle_a**2) # Pythagoras triangle side s, patch center eccentricity
+            if verbose:
+                print(f'Patch localisation triangle with side lengths o: {round(patchloc_triangle_o, 2)}, a: {round(patchloc_triangle_a,2)}, s: {round(patchloc_triangle_s,2)}')
+            
+            # Determine the angle boundaries for the patch, also using Pythagoras
+            bound_triangle_a = patchloc_triangle_s
+            bound_triangle_o = patchbound
+        
+            patch_bound_angle = np.degrees(np.arctan(bound_triangle_o / bound_triangle_a))
+            patch_center_angle = np.degrees(np.arctan(np.abs(peripheral_center[1] / peripheral_center[0])))
+            
+            if peripheral_center[0] >= 0 and peripheral_center[1] > 0: # top right
+                patch_center_angle = patch_center_angle
+            elif peripheral_center[0] < 0 and peripheral_center[1] > 0: # top left
+                patch_center_angle = 180 - patch_center_angle
+            elif peripheral_center[0] >= 0 and peripheral_center[1] < 0: # bottom right
+                patch_center_angle = 360 - patch_center_angle
+            elif peripheral_center[0] < 0 and peripheral_center[1] < 0: # bottom left
+                patch_center_angle = 180 + patch_center_angle
+                
+            angle_min = patch_center_angle - patch_bound_angle
+            angle_max = patch_center_angle + patch_bound_angle
+            ecc_min = patchloc_triangle_s - bound_triangle_o
+            ecc_max = patchloc_triangle_s + bound_triangle_o
+            
+            if verbose:
+                print(f'ecc_min: {round(ecc_min,2)}, ecc_max: {round(ecc_max,2)}')
+                print(f'Peripheral patch at angle {round(patch_center_angle,2)} with boundary angles at min: {round(angle_min,2)}, max: {round(angle_max,2)}')
+            
+        return peripheral_center, angle_min, angle_max, ecc_min, ecc_max
+    
+    def __init__(self, NSP, prf_dict:Dict, roi_masks:Dict, subject:str, roi:str, patchloc:str='center',
                  max_size:Optional[float]=None, min_size:Optional[float]=None, patchbound:Optional[float]=None, 
                  min_nsd_R2:Optional[int]=None, min_prf_R2:Optional[int]=None, print_attributes:bool=True, 
-                 fixed_n_voxels:Optional[Union[str, int]]=None):
-        """Method to initialise the VoxelSieve class.
-                    TODO: COMPLETE THIS
-        Args:
-            NSP (_type_): _description_
-            prf_dict (Dict): _description_
-            roi_masks (Dict): _description_
-            subject (str): _description_
-            roi (str): _description_
-            fixed_n_voxels (Optional[Union[str, int]]): _description_
-            max_size (Optional[float], optional): _description_. Defaults to None.
-            min_size (Optional[float], optional): _description_. Defaults to None.
-            patchbound (Optional[float], optional): _description_. Defaults to None.
-            min_nsd_R2 (Optional[int], optional): _description_. Defaults to None.
-            min_prf_R2 (Optional[int], optional): _description_. Defaults to None.
-            print_attributes (bool, optional): _description_. Defaults to True.
-        """        
+                 fixed_n_voxels:Optional[Union[str, int]]=None, 
+                 
+                 peripheral_center:Optional[tuple]=None, peri_angle:Optional[float]=None, peri_ecc:Optional[float]=None, verbose:bool=True):
+        
         
         self.patchbound = patchbound
+        self.figdims = (425, 425) # Raw image size of NSD stimuli
+
         self.size = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:,3]
         self.ecc = prf_dict[subject]['proc'][f'{roi}_mask']['eccentricity'][:,3]
         self.angle = prf_dict[subject]['proc'][f'{roi}_mask']['angle'][:,3]
         self.prf_R2 = prf_dict[subject]['proc'][f'{roi}_mask']['R2'][:,3]
         self.nsd_R2 = NSP.cortex.nsd_R2_dict(roi_masks, glm_type='hrf')[subject]['R2_roi'][f'{roi}_mask'][:,3]
-        self.sigmas, self.ycoor, self.xcoor = NSP.cortex.calculate_pRF_location(self.size, self.ecc, self.angle, (425,425))
+        self.sigmas, self.ycoor, self.xcoor = NSP.cortex.calculate_pRF_location(self.size, self.ecc, self.angle, self.figdims)
         
         if fixed_n_voxels == 'all': # If all_voxels is True, all ROI voxels are selected regardless of the other parameters
             self.vox_pick = np.ones(len(self.size)).astype(bool)
-        else:
-            self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
-        
+        elif patchloc == 'central':
+            patch_x = patch_y = int((self.figdims[0] + 1) / 2)
+        #                      RF not too large    &     RF within patch boundary      &    RF not too small    &    NSD R2 high enough      &    pRF R2 high enough
+            self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) & (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
+            # self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2) # O.G.
+        elif patchloc == 'peripheral':
+            patch_x = peripheral_center[0] * (self.figdims[0]/8.4) # in pixels
+            patch_y = peripheral_center[0] * (self.figdims[0]/8.4) # in pixels
+            peripheral_center, angle_min, angle_max, ecc_min, ecc_max = self._get_peri_bounds(patchbound, peripheral_center, peri_angle, peri_ecc, verbose)
+            
+            self.vox_pick = (self.size < max_size) & (self.size > min_size) & (self.angle < angle_max) & (self.angle > angle_min) & (self.ecc < ecc_max) & (self.ecc > ecc_min) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
+            # self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size)
+
         if type(fixed_n_voxels) == int:
             r2raw_arr = self.nsd_R2[self.vox_pick]
             # Adjust the mask based on the top n NSD R2 voxels, so cutoffs don't cut off good voxels
@@ -143,6 +289,8 @@ class VoxelSieve:
         else: r2mask = np.ones(np.sum(self.vox_pick)).astype(bool)
         
         # Apply the vox_pick mask to all the attributes with voxel specific data
+        
+        self.patchcoords = (patch_x, patch_y) # Matrix indexing
         self.size = self.size[self.vox_pick][r2mask]
         self.ecc = self.ecc[self.vox_pick][r2mask]
         self.angle = self.angle[self.vox_pick][r2mask]
@@ -162,6 +310,10 @@ class VoxelSieve:
             print('\nClass contains the following attributes:')
             for attr in self.attributes:
                 print(f"{Fore.BLUE} .{attr}{Style.RESET_ALL}")
+
+
+
+
 
 class DataFetch():
     
@@ -401,28 +553,29 @@ class Utilities():
     #     return gaussian
     # import numpy as np
 
-    def css_gaussian_cut(self, size:np.ndarray, center_row:np.ndarray, center_col:np.ndarray, sigma:np.ndarray):
+    def css_gaussian_cut(self, figdim:np.ndarray, center_y:np.ndarray, center_x:np.ndarray, sigma:np.ndarray):
         # Ensure all inputs are numpy arrays and have the same shape
-        size = np.asarray(size).reshape(-1, 1, 1)
-        center_row = np.asarray(center_row).reshape(-1, 1, 1)
-        center_col = np.asarray(center_col).reshape(-1, 1, 1)
+        figdim = np.asarray(figdim).reshape(-1, 1, 1)
+        center_y = np.asarray(center_y).reshape(-1, 1, 1)
+        center_x = np.asarray(center_x).reshape(-1, 1, 1)
         sigma = np.asarray(sigma).reshape(-1, 1, 1)
 
         # Create a meshgrid for rows and cols
-        rows = np.arange(size.max())
-        cols = np.arange(size.max())
-        rows, cols = np.meshgrid(rows, cols)
+        rows = np.arange(figdim.max())
+        cols = np.arange(figdim.max())
+        # rows, cols = np.meshgrid(rows, cols)
+        rows, cols = np.meshgrid(rows, cols, indexing='ij')
 
         # Calculate distances, mask, and exponent for all inputs at once using broadcasting
-        distances = np.sqrt((rows - center_row)**2 + (cols - center_col)**2)
+        distances = np.sqrt((rows - center_y)**2 + (cols - center_x)**2)
         mask = np.where(distances <= sigma, 1, 0)
 
-        exponent = -((rows - center_row)**2 / (2 * sigma**2) + (cols - center_col)**2 / (2 * sigma**2))
+        exponent = -((rows - center_y)**2 / (2 * sigma**2) + (cols - center_x)**2 / (2 * sigma**2))
         gaussian = np.exp(exponent)
         gaussian *= mask
 
         # Trim each 2D array in the stack to its corresponding size
-        gaussian = np.array([gaussian[i, :s, :s] for i, s in enumerate(size.flatten())])
+        gaussian = np.array([gaussian[i, :s, :s] for i, s in enumerate(figdim.flatten())])
 
         return gaussian
     
@@ -2134,7 +2287,8 @@ class Cortex():
             enlarge (bool, optional): Whether or not to enlarge the plot. Defaults to True.
             sort_by (str, optional): Non-functional, still have to implement. Defaults to 'random'.
         """        
-        n_voxels = np.sum(voxelsieve.vox_pick)
+        n_voxels = np.sum(voxelsieve.r2mask) # Get the total amount of voxels, r2mask, because this is the final boolmask
+        print(f'this is nvoxels : {n_voxels}')
         
         if isinstance(which_voxels, int):
             which_voxels = [which_voxels]
@@ -2145,11 +2299,12 @@ class Cortex():
         
 
         prfs = np.sum(self.nsp.utils.css_gaussian_cut(dims,
-                                                      voxelsieve.xcoor.reshape(-1,1)[which_voxels], 
                                                       voxelsieve.ycoor.reshape(-1,1)[which_voxels], 
+                                                      voxelsieve.xcoor.reshape(-1,1)[which_voxels], 
                                                       voxelsieve.size.reshape(-1,1)[which_voxels] * (425 / 8.4)), axis=0)
-        central_patch = np.max(prfs) * self.nsp.utils.make_circle_mask(dims[0], ((dims[0]+2)/2), ((dims[0]+2)/2), voxelsieve.patchbound * (dims[0] / 8.4), fill = 'n')
-
+        central_patch = np.max(prfs) * self.nsp.utils.make_circle_mask(voxelsieve.figdims[0], voxelsieve.patchcoords[1], voxelsieve.patchcoords[0], voxelsieve.patchbound * (dims[0] / 8.4), fill = 'n')
+        # central_patch = np.max(prfs) * self.nsp.utils.make_circle_mask(dims[0], ((dims[0]+2)/2), ((dims[0]+2)/2), voxelsieve.patchbound * (dims[0] / 8.4), fill = 'n')
+# self.patchcoords
         figfactor = 1 if enlarge else 2
         _, ax = plt.subplots(figsize=((8/figfactor,8/figfactor)))
         
@@ -2164,6 +2319,7 @@ class Cortex():
         # Hide minor tick labels
         ax.xaxis.set_minor_formatter(NullFormatter())
         ax.yaxis.set_minor_formatter(NullFormatter())
+        plt.gca().invert_yaxis() # Go from Cartesian to matrix indexing
 
         plt.show()
         
@@ -3112,7 +3268,7 @@ class Analysis():
         
         return y_hat, cor_scores
     
-    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, glass_brain:bool=False, save_img:bool=False, img_path:str='brain_image.png', cmap:Union[str, LinearSegmentedColormap]='viridis'):
+    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, glass_brain:bool=False, save_img:bool=False, img_path:str='brain_image.png', cmap:Union[str, LinearSegmentedColormap]='plasma'):
         """Function to plot a 3D np.ndarray with voxel-specific values on an anatomical brain template of that subject.
 
         Args:
@@ -3133,7 +3289,7 @@ class Analysis():
         if save_img:
             display.savefig(img_path)  # save figure to file
         
-    def stat_on_brain(self, prf_dict:dict, roi_masks:dict, subject:str, stat:np.ndarray, xyzs:np.ndarray, glass_brain:bool=False, cmap:Union[str, LinearSegmentedColormap]='viridis'):
+    def stat_on_brain(self, prf_dict:dict, roi_masks:dict, subject:str, stat:np.ndarray, xyzs:np.ndarray, glass_brain:bool=False, cmap:Union[str, LinearSegmentedColormap]='plasma'):
         """Function to create a brain plot based on a specific statistic and the corresponding voxel coordinates.
 
         Args:
