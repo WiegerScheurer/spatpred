@@ -19,6 +19,7 @@ import sklearn as sk
 import yaml
 
 from skimage import color
+from scipy import stats
 from nilearn import plotting
 from sklearn.base import clone
 from scipy.ndimage import binary_dilation
@@ -181,6 +182,24 @@ class DataFetch():
         ]
         return {os.path.basename(file): self.fetch_file(file) for file in prf_selection_paths}
     
+    # # General file fetching function 
+    # def fetch_file(self, file_path:str):
+    #     """
+    #     General function to acquire saved data from various file types
+    #     file_type: str, the types of files to be fetched, either features or prf_selections
+    #     """
+    #     _, ext = os.path.splitext(file_path)
+        
+    #     # Check if file is of .h5 type
+    #     if ext == '.h5':
+    #         with h5py.File(file_path, 'r') as hf:
+    #             data = hf.keys()
+    #             return {key: np.array(hf[key]).flatten() for key in data}
+    #     # Check if file is of .pkl type
+    #     elif ext == '.pkl':
+    #         with open(file_path, 'rb') as fp:
+    #             return pickle.load(fp)
+            
     # General file fetching function 
     def fetch_file(self, file_path:str):
         """
@@ -198,7 +217,10 @@ class DataFetch():
         elif ext == '.pkl':
             with open(file_path, 'rb') as fp:
                 return pickle.load(fp)
-            
+        # Check if file is of .csv type
+        elif ext == '.csv':
+            return pd.read_csv(file_path)
+    
     # Function to load in nifti (.nii.gz) data and create some useful variables 
     def get_dat(self, path:str):
         full_dat = nib.load(path)
@@ -2291,8 +2313,9 @@ class Stimuli():
             f'{self.nsp.own_datapath}/all_visfeats_rms_crop_prior.pkl',
             f'{self.nsp.own_datapath}/all_visfeats_scce.pkl',
             f'{self.nsp.own_datapath}/all_visfeats_scce_large.pkl',
-            f'{self.nsp.own_datapath}/subj01/pred/all_predestims.h5'
-        ]
+            f'{self.nsp.own_datapath}/subj01/pred/all_predestims.h5',
+            f'{self.nsp.own_datapath}/all_predestims_vgg-b.csv'
+            ]
         return {os.path.basename(file): self.nsp.datafetch.fetch_file(file) for file in feature_paths}
     
     def baseline_feats(self, feat_type:str, outlier_bound:float=.3):
@@ -2324,21 +2347,44 @@ class Stimuli():
         X = self.nsp.utils.replace_outliers(np.array(self.nsp.stimuli.features()[file_name]['subj01'][category][key]).reshape(-1,1), m=outlier_bound)
         return zs(X)
         
-    def unpred_feats(self, content:bool, style:bool, ssim:bool, pixel_loss:bool, L1:bool, MSE:bool, verbose:bool, outlier_sd_bound:float=5):
+    def unpred_feats(self, cnn_type:str, content:bool, style:bool, ssim:bool, pixel_loss:bool, 
+                     L1:bool, MSE:bool, verbose:bool, outlier_sd_bound:Optional[Union[str, float]]='auto', 
+                     subject:Optional[str]=None):
         """
         Function to create an X matrix based on the exclusion criteria defined in the arguments.
         Input:
+        - cnn_type: string, which type of cnn to get the unpredictability features from, 'vgg-b' or 'alexnet' 
+            are currently available
         - content: boolean, whether to include content loss features
         - style: boolean, whether to include style loss features
         - ssim: boolean, whether to include structural similarity features
         - pixel_loss: boolean, whether to include pixel loss features
         - L1: boolean, whether to include L1 features
         - MSE: boolean, whether to include MSE or L2 features
+        - verbose: boolean, whether to print intermediate info
+        - outlier_sd_bound: float or 'auto', the number of standard deviations to use as a cutoff for outliers
+        - subject: string, the subject to get the features for
         Output:
         - X: np.array, the X matrix based on the exclusion criteria
         """
-        predfeatnames = [name for name in list(self.nsp.stimuli.features()['all_predestims.h5'].keys()) if name != 'img_ices']
+        if outlier_sd_bound == 'auto':
+            if cnn_type == 'vgg-b':
+                cutoff_bound = 10
+            elif cnn_type == 'alexnet':
+                cutoff_bound = 5
+        else: cutoff_bound = outlier_sd_bound
+                        
+        if cnn_type == 'alexnet':
+            file_str = 'all_predestims.h5'
+            predfeatnames = [name for name in list(self.features()[file_str].keys()) if name != 'img_ices']
+        elif cnn_type == 'vgg-b':
+            file_str = 'all_predestims_vgg-b.csv'
+            predfeatnames = [name for name in self.features()[file_str].columns if name != 'img_ices']
         
+        if subject is not None:    
+            indices = self.imgs_designmx()[subject]
+        else: indices = np.ones((30000,)).astype(bool)
+            
         if not content:
             predfeatnames = [name for name in predfeatnames if 'content' not in name]
         if not style:
@@ -2354,7 +2400,7 @@ class Stimuli():
         
         # data = {name: zs(self.nsp.utils.replace_outliers(self.nsp.stimuli.features()['all_predestims.h5'][name], m=outlier_bound)) for name in predfeatnames}
         
-        data = {name: zs(self.nsp.utils.std_dev_cap(self.nsp.stimuli.features()['all_predestims.h5'][name],num_std_dev=outlier_sd_bound)) for name in predfeatnames}
+        data = {name: zs(self.nsp.utils.std_dev_cap(self.features()[file_str][name],num_std_dev=cutoff_bound))[indices] for name in predfeatnames}
         
         # Convert the dictionary values to a list of lists
         data_list = list(data.values())
@@ -2536,7 +2582,7 @@ class Stimuli():
         return stims_design_mx
     
     # Plot a correlation matrix for specific loss value estimations of unpredictability estimates
-    def unpred_corrmatrix(self, subject='subj01', type:str='content', loss_calc:str='MSE', cmap:str='copper_r'):
+    def unpred_corrmatrix(self, subject='subj01', type:str='content', loss_calc:str='MSE', cmap:str='copper_r', cnn_type:str='alexnet'):
         """
         Plot a correlation matrix for specific loss value estimations of unpredictability estimates.
 
@@ -2546,10 +2592,18 @@ class Stimuli():
         loss_calc (str): The type of loss calculation to use. Default is 'MSE'.
         cmap (str): The colormap to use for the heatmap. Default is 'copper_r'.
         """
-        predfeatnames = [name for name in list(self.features()['all_predestims.h5'].keys()) if name.endswith(loss_calc) and name.startswith(type)]
+        
+        if cnn_type == 'alexnet':
+            file_str = 'all_predestims.h5'
+            predfeatnames = [name for name in list(self.features()[file_str].keys()) if name.endswith(loss_calc) and name.startswith(type)]
+        elif cnn_type == 'vgg-b':
+            file_str = 'all_predestims_vgg-b.csv'
+            predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith(type)]
+        
+        # predfeatnames = [name for name in list(self.features()['all_predestims.h5'].keys()) if name.endswith(loss_calc) and name.startswith(type)]
 
         # Build dataframe
-        data = {name: self.features()['all_predestims.h5'][name] for name in predfeatnames}
+        data = {name: self.features()[file_str][name] for name in predfeatnames}
         df = pd.DataFrame(data)
 
         # Compute correlation matrix
@@ -2557,10 +2611,11 @@ class Stimuli():
         ticks = [f'Layer {name.split("_")[2]}' for name in predfeatnames]
         # sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks)
         sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks, vmin=0, vmax=1)
-        plt.title(f'U-Net unpredictability estimates\n{type} loss {loss_calc} correlation matrix')
+        plt.title(f'U-Net unpredictability estimates\n{cnn_type} {type} loss {loss_calc} correlation matrix')
         plt.show()
         
-    def plot_correlation_matrix(self, include_rms:bool=True, include_ce:bool=True, include_ce_l:bool=True, include_sc:bool=True, include_sc_l:bool=True, cmap:str='copper_r'): 
+    def plot_correlation_matrix(self, subject:str='subj01', include_rms:bool=True, include_ce:bool=True, include_ce_l:bool=True, include_sc:bool=True, 
+                                include_sc_l:bool=True, cmap:str='copper_r', cnn_type:str='alexnet', loss_calc:str='MSE'): 
         """
         Plot a correlation matrix for the MSE content loss values per layer, and the baseline features.
 
@@ -2571,10 +2626,22 @@ class Stimuli():
         include_sc (bool): If True, include the 'sc' column in the correlation matrix.
         include_sc_l (bool): If True, include the 'sc_l' column in the correlation matrix.
         """
-        predfeatnames = [name for name in list(self.features()['all_predestims.h5'].keys()) if name.endswith('MSE') and name.startswith('content')]
+        # predfeatnames = [name for name in list(self.features()['all_predestims.h5'].keys()) if name.endswith('MSE') and name.startswith('content')]
+        # predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith(type)]
+        
+        # Get the subject specific-indices, only required as long as I haven't calculated all the features for all 73k
+        indices = self.imgs_designmx()[subject]
 
+        
+        if cnn_type == 'alexnet':
+            file_str = 'all_predestims.h5'
+            predfeatnames = [name for name in list(self.features()[file_str].keys()) if name.endswith(loss_calc) and name.startswith('content')]
+        elif cnn_type == 'vgg-b':
+            file_str = 'all_predestims_vgg-b.csv'
+            predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith('content')]
+        
         # Build dataframe
-        data = {name: self.features()['all_predestims.h5'][name] for name in predfeatnames}
+        data = {name: self.features()[file_str][name][indices] for name in predfeatnames}
         if include_rms:
             data['rms'] = self.baseline_feats('rms').flatten()
         if include_ce:
@@ -2604,7 +2671,7 @@ class Stimuli():
         plt.figure(figsize=(9,7))
         # sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks)
         sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks, vmin=0, vmax=1)
-        plt.title(f'Correlation matrix for the MSE content loss values per\nlayer, and the baseline features')
+        plt.title(f'Correlation matrix for the MSE content loss values per\n{cnn_type} layer, and the baseline features')
         plt.show()
             
         
@@ -3045,7 +3112,7 @@ class Analysis():
         
         return y_hat, cor_scores
     
-    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, glass_brain:bool=False, save_img:bool=False, img_path:str='brain_image.png'):
+    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, glass_brain:bool=False, save_img:bool=False, img_path:str='brain_image.png', cmap:Union[str, LinearSegmentedColormap]='viridis'):
         """Function to plot a 3D np.ndarray with voxel-specific values on an anatomical brain template of that subject.
 
         Args:
@@ -3059,14 +3126,14 @@ class Analysis():
         """        
         brain_nii = nib.Nifti1Image(brain_numpy, self.nsp.cortex.anat_templates(prf_dict)[subject].affine)
         if glass_brain:
-            display = plotting.plot_glass_brain(brain_nii, display_mode='ortho', colorbar=True)
+            display = plotting.plot_glass_brain(brain_nii, display_mode='ortho', colorbar=True, cmap=cmap)
         else:
-            display = plotting.plot_stat_map(brain_nii, bg_img=self.nsp.cortex.anat_templates(prf_dict)[subject], display_mode='ortho', colorbar=True)
+            display = plotting.plot_stat_map(brain_nii, bg_img=self.nsp.cortex.anat_templates(prf_dict)[subject], display_mode='ortho', colorbar=True, cmap=cmap)
         
         if save_img:
             display.savefig(img_path)  # save figure to file
         
-    def stat_on_brain(self, prf_dict:dict, roi_masks:dict, subject:str, stat:np.ndarray, xyzs:np.ndarray, glass_brain=False):
+    def stat_on_brain(self, prf_dict:dict, roi_masks:dict, subject:str, stat:np.ndarray, xyzs:np.ndarray, glass_brain:bool=False, cmap:Union[str, LinearSegmentedColormap]='viridis'):
         """Function to create a brain plot based on a specific statistic and the corresponding voxel coordinates.
 
         Args:
@@ -3086,7 +3153,7 @@ class Analysis():
 
         brainp = self.nsp.utils.coords2numpy(statmap, roi_masks[subject]['V1_mask'].shape, keep_vals=True)
         
-        self.plot_brain(prf_dict, roi_masks, subject, brainp, glass_brain)
+        self.plot_brain(prf_dict, roi_masks, subject, brainp, glass_brain, cmap)
       
     def plot_learning_curve(self, X, y, model=None, alpha=1.0, cv=5):
         if model is None:
@@ -3234,28 +3301,28 @@ class Analysis():
         axs = axs.flatten()
 
         delta_r_df = pd.DataFrame()
-        # Assuming rois is a list with at least 4 elements
         for i, roi in enumerate(rois[:4]):
             # Calculate and store the delta-R values 
             this_delta_r = round(np.mean(r_values[roi]) - np.mean(r_uninformative[roi]), 5)
             delta_r_df[roi] = [this_delta_r]
             
             # Underlay with the histogram of r_uninformative[roi] values
-            axs[i].hist(r_uninformative[roi], bins=40, edgecolor='black', alpha=0.5, label='Baseline X')
+            axs[i].hist(r_uninformative[roi], bins=25, edgecolor=None, alpha=1, label='Shuffled X', color='burlywood')
             # Plot the histogram of r_values[roi] values in the i-th subplot
-            axs[i].hist(r_values[roi], bins=40, edgecolor='black', alpha=0.5, label='X')
+            axs[i].hist(r_values[roi], bins=25, edgecolor='black', alpha=0.5, label='X', color='dodgerblue')
             axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
             axs[i].legend()
-        
-        delta_r_df.to_pickle(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_delta_r.pkl')
 
 
         # Add title and display the figure
-        plt.suptitle(f'Ridge reg results for baseline with and without {regname}', fontsize=16)
+        plt.suptitle(f'Ridge reg results for {regname}', fontsize=16)
         plt.tight_layout()
         plt.show()
         
         if save_outs:
+            # Save the delta_r_df to a file
+            delta_r_df.to_pickle(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_delta_r.pkl')
+
             plt.savefig(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_plot.png')  # Save the plot to a file
             # Save cor_scores to a file
             np.save(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_regcor_scores.npy', coords)  # Save the coords to a file
@@ -3284,18 +3351,19 @@ class Analysis():
         """    
         
         reg_str = f'{feattype}'
-        if feattype in ['unpred', 'alexunet', 'alexown']:
+        if feattype in ['unpred', 'alexunet', 'alexown'] or cnn_layer is not None:
             if cnn_layer is None:
                 raise ValueError('Please provide a cnn_layer number for the feature type you have chosen')
             reg_str = f'{feattype}_lay{cnn_layer}'
         
         # This is the dictionary that contains for both the actual X matrix and the shuffled X matrix the
         # r correlation scores for every separate cv fold.
-        with open (f'{self.nsp.own_datapath}/subj01/brainstats/{feattype}_lay{cnn_layer}_regcor_dict.pkl', 'rb') as f:
+        with open (f'{self.nsp.own_datapath}/subj01/brainstats/{reg_str}_regcor_dict.pkl', 'rb') as f:
             # Structure: cor_scores_dict['X' or 'X_uninformative'][roi][cross-validation fold]
             cor_scores_dict = pickle.load(f)
             
         # This dataframe contains the mean scores over all of the cross-validation folds
+        # coords = pd.DataFrame(np.load(f'{self.nsp.own_datapath}/subj01/brainstats/{reg_str}_regcor_scores.npy'), 
         coords = pd.DataFrame(np.load(f'{self.nsp.own_datapath}/subj01/brainstats/{reg_str}_regcor_scores.npy'), 
                             columns=['x', 'y', 'z', 'r', 'r_shuf', 'beta'])
         
@@ -3330,6 +3398,66 @@ class Analysis():
                                     regresult= brain_np)
         
         return cor_scores_dict, coords
+
+
+    def assign_layers(self, subject:str, prf_dict:dict, roi_masks:dict, rois:list, cnn_type:str='alex', plot_on_brain:bool=True):
+        """
+        Assigns layers to voxels based on the maximum beta value across layers for each voxel.
+
+        Args:
+            subject (str): The subject.
+            prf_dict (dict): Dictionary containing pRF model results.
+            roi_masks (dict): Dictionary containing ROI masks.
+            rois (list): List of ROIs to consider.
+            cnn_type (str, optional): The type of CNN model to use. Defaults to 'alex'.
+            plot_on_brain (bool, optional): Whether to plot the results on the brain. Defaults to True.
+        """    
+        for layer in range(0,5): # Loop over the layers of the alexnet
+            cordict, coords = self.load_regresults(subject, prf_dict, roi_masks, f'{cnn_type}_unpred', f'{str(layer)}', plot_on_viscortex=False, plot_result='r', verbose=False)
+            if layer == 0:
+                all_betas = np.hstack((np.array(coords)[:,:3], np.array(coords)[:,5].reshape(-1,1)))
+            else:
+                all_betas = np.hstack((all_betas, np.array(coords)[:,5].reshape(-1,1)))
+                
+        for n_roi, roi in enumerate(rois):
+            n_roivoxels = len(cordict['X'][roi][0])
+            
+            if roi == 'V1':
+                vox_of_roi = np.ones((n_roivoxels, 1))
+            else:
+                vox_of_roi = (np.vstack((vox_of_roi, (np.ones((n_roivoxels, 1))* (n_roi + 1))))).astype(int)
+
+        all_betas_voxroi = np.hstack((all_betas, vox_of_roi))[:,3:]
+        all_betas_voxroi[:,:5] = stats.zscore(all_betas_voxroi[:,:5], axis=0)
+
+        # Get the index of the maximum value in each row, excluding the last column
+        max_indices = np.argmax(all_betas_voxroi[:, :-1], axis=1)
+
+        cmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000080', '#CCCCCC', '#FFA500', '#FF0000'], N=5)
+
+        # Create a DataFrame from the array
+        df = pd.DataFrame(all_betas_voxroi, columns=[f'col_{i}' for i in range(all_betas_voxroi.shape[1])])
+
+        # Rename the last column to 'ROI'
+        df.rename(columns={df.columns[-1]: 'ROI'}, inplace=True)
+
+        # Add the max_indices as a new column
+        df['AlexNet layer'] = max_indices
+
+        # Convert the 'ROI' column to int for plotting
+        df['ROI'] = df['ROI'].astype(int)
+
+        # Calculate the proportions of max_indices within each ROI
+        df_prop = (df.groupby('ROI')['AlexNet layer']
+                    .value_counts(normalize=True)
+                    .unstack(fill_value=0))
+
+        # Plot the proportions using a stacked bar plot
+        df_prop.plot(kind='bar', stacked=True, colormap=cmap)
+
+        plt.show()
+        if plot_on_brain:    
+            self.stat_on_brain(prf_dict, roi_masks, 'subj01', max_indices, all_betas[:,:3].astype(int), True, cmap)
 
 class NatSpatPred():
     
