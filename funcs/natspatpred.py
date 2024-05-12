@@ -262,18 +262,19 @@ class VoxelSieve:
         self.nsd_R2 = NSP.cortex.nsd_R2_dict(roi_masks, glm_type='hrf')[subject]['R2_roi'][f'{roi}_mask'][:,3]
         self.sigmas, self.ycoor, self.xcoor = NSP.cortex.calculate_pRF_location(self.size, self.ecc, self.angle, self.figdims)
         
+        central_coords = int((self.figdims[0] + 1) / 2) # The x, and y for the central patch centre
+
         if fixed_n_voxels == 'all': # If all_voxels is True, all ROI voxels are selected regardless of the other parameters
             self.vox_pick = np.ones(len(self.size)).astype(bool)
         elif patchloc == 'central':
-            patch_x = patch_y = int((self.figdims[0] + 1) / 2)
+            patch_x = patch_y = central_coords
         #                      RF not too large    &     RF within patch boundary      &    RF not too small    &    NSD R2 high enough      &    pRF R2 high enough
             self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) & (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
             # self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2) # O.G.
         elif patchloc == 'peripheral':
-            patch_x = peripheral_center[0] * (self.figdims[0]/8.4) # in pixels
-            patch_y = peripheral_center[0] * (self.figdims[0]/8.4) # in pixels
             peripheral_center, angle_min, angle_max, ecc_min, ecc_max = self._get_peri_bounds(patchbound, peripheral_center, peri_angle, peri_ecc, verbose)
-            
+            patch_x = central_coords + peripheral_center[0] * (self.figdims[0]/8.4) # in pixels
+            patch_y = central_coords + peripheral_center[1] * (self.figdims[0]/8.4) # in pixels
             self.vox_pick = (self.size < max_size) & (self.size > min_size) & (self.angle < angle_max) & (self.angle > angle_min) & (self.ecc < ecc_max) & (self.ecc > ecc_min) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
             # self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size)
 
@@ -511,7 +512,7 @@ class Utilities():
     def make_gaussian_2d(self, size, center_row, center_col, sigma):
         rows = np.arange(size)
         cols = np.arange(size)
-        rows, cols = np.meshgrid(rows, cols)
+        rows, cols = np.meshgrid(rows, cols, indexing='ij')
         exponent = -((rows - center_row)**2 / (2 * sigma**2) + (cols - center_col)**2 / (2 * sigma**2))
         gaussian = np.exp(exponent)
         return gaussian        
@@ -520,7 +521,7 @@ class Utilities():
     def make_circle_mask(self, size, center_row, center_col, radius, fill='y', margin_width=1):
         rows = np.arange(size)
         cols = np.arange(size)
-        rows, cols = np.meshgrid(rows, cols)
+        rows, cols = np.meshgrid(rows, cols, indexing='ij')
 
         # Calculate the distance from each point to the center
         distances = np.sqrt((rows - center_row)**2 + (cols - center_col)**2)
@@ -538,21 +539,7 @@ class Utilities():
             return circle_mask
         elif fill == 'n':
             return -outline_circle_mask
-
-    # def css_gaussian_cut(self, size, center_row, center_col, sigma):
-    #     rows = np.arange(size)
-    #     cols = np.arange(size)
-    #     rows, cols = np.meshgrid(rows, cols)
-
-    #     distances = np.sqrt((rows - center_row)**2 + (cols - center_col)**2)
-    #     mask = np.where(distances <= sigma, 1, 0)
-
-    #     exponent = -((rows - center_row)**2 / (2 * sigma**2) + (cols - center_col)**2 / (2 * sigma**2))
-    #     gaussian = np.exp(exponent)
-    #     gaussian *= mask
-    #     return gaussian
-    # import numpy as np
-
+        
     def css_gaussian_cut(self, figdim:np.ndarray, center_y:np.ndarray, center_x:np.ndarray, sigma:np.ndarray):
         # Ensure all inputs are numpy arrays and have the same shape
         figdim = np.asarray(figdim).reshape(-1, 1, 1)
@@ -579,6 +566,7 @@ class Utilities():
 
         return gaussian
     
+    # REMOVE ONCE CHECKED DEPENDENCIES, ZS() IS MORE EFFICIIENT
     def get_zscore(self, data, print_ars = 'y'):
         mean_value = np.mean(data)
         std_dev = np.std(data)
@@ -2302,6 +2290,7 @@ class Cortex():
                                                       voxelsieve.ycoor.reshape(-1,1)[which_voxels], 
                                                       voxelsieve.xcoor.reshape(-1,1)[which_voxels], 
                                                       voxelsieve.size.reshape(-1,1)[which_voxels] * (425 / 8.4)), axis=0)
+        print(f'this is y: {voxelsieve.patchcoords[1]}, and this is x:{voxelsieve.patchcoords[0]}')
         central_patch = np.max(prfs) * self.nsp.utils.make_circle_mask(voxelsieve.figdims[0], voxelsieve.patchcoords[1], voxelsieve.patchcoords[0], voxelsieve.patchbound * (dims[0] / 8.4), fill = 'n')
         # central_patch = np.max(prfs) * self.nsp.utils.make_circle_mask(dims[0], ((dims[0]+2)/2), ((dims[0]+2)/2), voxelsieve.patchbound * (dims[0] / 8.4), fill = 'n')
 # self.patchcoords
