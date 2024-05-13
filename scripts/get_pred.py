@@ -9,6 +9,7 @@ os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
+
 print(sys.path)
 import torch
 import torchvision
@@ -23,6 +24,8 @@ import pickle
 import time
 import argparse
 import h5py
+import random
+
 
 predparser = argparse.ArgumentParser(description='Get the predictability estimates for a range of images of a subject')
 
@@ -59,6 +62,7 @@ def draw_circmask(dims, maskrad, offset=(0,0), invert=True):
     center_x, center_y = dims[1] // 2 + offset[0], dims[0] // 2 + offset[1]
     mask = (x - center_x)**2 + (y - center_y)**2 <= maskrad**2
     return ~mask if invert else mask
+
 def square_circle(mask_in,mask_val=1):
     """
     from a circular mask, get the square mask outlining the circle
@@ -167,14 +171,13 @@ def _make_img_3d(mask_in,):
     """for 2d array, copy to make 3-dimensional"""
     return(np.repeat(mask_in[:,:,np.newaxis],3,axis=2))
 
-# unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
-unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-b')
+unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
+# unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-b')
 
 # NSD adapted:
 mask_radius=100
 rf_mask=draw_circmask((425,425),mask_radius)
 
-import random
 def rand_img_list(n_imgs, asPIL:bool = True, add_masks:bool = True, mask_loc = 'center', ecc_max = 1, select_ices = None, in_3d:bool = False):
     imgs = []
     img_nos = []
@@ -280,7 +283,7 @@ payload_light = {k: v for k, v in payload_nsd_crop.items() if k not in excl}
 
 print("succeeded")
 
-with h5py.File(f'/home/rfpred/data/custom_files/pred_payloads{args.start}_{args.end}_vgg-b.h5', 'w') as hf:
+with h5py.File(f'/home/rfpred/data/custom_files/visfeats/pred/pred_payloads{args.start}_{args.end}_alexnet.h5', 'w') as hf:
     for key, value in payload_light.items():
         hf.create_dataset(key, data=value)
     print('Light payload saved succesfully')

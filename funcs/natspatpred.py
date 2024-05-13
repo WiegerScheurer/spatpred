@@ -17,6 +17,7 @@ import copy
 import ipywidgets as widgets
 import sklearn as sk
 import yaml
+import re
 
 from skimage import color
 from scipy import stats
@@ -266,6 +267,8 @@ class VoxelSieve:
 
         if fixed_n_voxels == 'all': # If all_voxels is True, all ROI voxels are selected regardless of the other parameters
             self.vox_pick = np.ones(len(self.size)).astype(bool)
+            patch_x = patch_y = central_coords
+
         elif patchloc == 'central':
             patch_x = patch_y = central_coords
         #                      RF not too large    &     RF within patch boundary      &    RF not too small    &    NSD R2 high enough      &    pRF R2 high enough
@@ -288,6 +291,7 @@ class VoxelSieve:
             r2mask[topices] = True
             
         else: r2mask = np.ones(np.sum(self.vox_pick)).astype(bool)
+        # else: r2mask = np.ones(len(self.size)).astype(bool)
         
         # Apply the vox_pick mask to all the attributes with voxel specific data
         
@@ -492,6 +496,96 @@ class DataFetch():
                 np.save(f'{self.nsp.own_datapath}/{subject}/betas/{roi}/all_betas.npy', stack)
         return stack
             
+    # def _stack_scce(self, save_stack:bool=False):
+    #     # Directory containing the files
+    #     directory = '/home/rfpred/data/custom_files/visfeats/scce/'
+
+    #     # Get a list of all files in the directory
+    #     files = os.listdir(directory)
+
+    #     # Function to extract the number from the filename
+    #     def _extract_number(filename):
+    #         match = re.search(r'scce_dict_center_(\d+)', filename)
+    #         return int(match.group(1)) if match else float('inf')
+
+    #     def _remove_naninf(df):
+    #         df_noninf = df.replace([np.inf, -np.inf], 0)  # Replace both inf and -inf with 0
+    #         df_nonan = df_noninf.fillna(0)  # Replace NaN values with 0
+    #         return df_nonan
+
+    #     # Sort the files based on the number
+    #     files.sort(key=_extract_number)
+
+    #     # Initialize an empty list to hold the dataframes
+    #     dfs = []
+
+    #     # Loop over the files
+    #     for file in files:
+    #         # Only process .pkl files
+    #         if file.endswith('.pkl'):
+    #             # Fetch the file
+    #             data = self.fetch_file(os.path.join(directory, file))
+    #             # Append the data to the list
+    #             dfs.append(data)
+
+    #     # Concatenate all dataframes vertically
+    #     result = pd.concat(dfs, axis=0)
+    #     result_cln = _remove_naninf(result)
+        
+    #     if save_stack:
+    #         result_cln.to_pickle(f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl')
+            
+    #     return result_cln
+
+    def _stack_scce(self, save_stack:bool=False, cut_outliers:bool=True):
+        # Directory containing the files
+        directory = '/home/rfpred/data/custom_files/visfeats/scce/'
+
+        # Get a list of all files in the directory that start with 'scce_dict_center_'
+        files = [file for file in os.listdir(directory) if file.startswith('scce_dict_center_')]        
+        
+        # Function to extract the number from the filename
+        def _extract_number(filename):
+            match = re.search(r'scce_dict_center_(\d+)', filename)
+            return int(match.group(1)) if match else float('inf')
+
+        def _remove_naninf(df):
+            df_noninf = df.replace([np.inf, -np.inf], 0)  # Replace both inf and -inf with 0
+            df_nonan = df_noninf.fillna(0)  # Replace NaN values with 0
+            return df_nonan
+
+        # Sort the files based on the number
+        files.sort(key=_extract_number)
+
+        # Initialize an empty list to hold the dataframes
+        dfs = []
+
+        # Loop over the files
+        for file in files:
+            # Only process .pkl files
+            if file.endswith('.pkl'):
+                # Fetch the file
+                data = self.fetch_file(os.path.join(directory, file))
+                # Append the data to the list
+                dfs.append(data)
+
+        # Concatenate all dataframes vertically
+        result = pd.concat(dfs, axis=0)
+        result_cln = _remove_naninf(result)
+
+        if cut_outliers:
+            result_cln['ce'] = self.nsp.utils.std_dev_cap(result_cln['ce'], 5)
+            result_cln['sc'] = self.nsp.utils.std_dev_cap(result_cln['sc'], 1)
+        
+        # Add z-scored columns
+        result_cln['ce_z'] = zs(result_cln['ce'])
+        result_cln['sc_z'] = zs(result_cln['sc'])
+
+        if save_stack:
+            result_cln.to_pickle(f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl')
+
+        return result_cln
+    
 class Utilities():
 
     def __init__(self):
@@ -2276,7 +2370,6 @@ class Cortex():
             sort_by (str, optional): Non-functional, still have to implement. Defaults to 'random'.
         """        
         n_voxels = np.sum(voxelsieve.r2mask) # Get the total amount of voxels, r2mask, because this is the final boolmask
-        print(f'this is nvoxels : {n_voxels}')
         
         if isinstance(which_voxels, int):
             which_voxels = [which_voxels]
@@ -2290,7 +2383,7 @@ class Cortex():
                                                       voxelsieve.ycoor.reshape(-1,1)[which_voxels], 
                                                       voxelsieve.xcoor.reshape(-1,1)[which_voxels], 
                                                       voxelsieve.size.reshape(-1,1)[which_voxels] * (425 / 8.4)), axis=0)
-        print(f'this is y: {voxelsieve.patchcoords[1]}, and this is x:{voxelsieve.patchcoords[0]}')
+        print(f'Patch centre at y: {voxelsieve.patchcoords[1]}, and x:{voxelsieve.patchcoords[0]}')
         central_patch = np.max(prfs) * self.nsp.utils.make_circle_mask(voxelsieve.figdims[0], voxelsieve.patchcoords[1], voxelsieve.patchcoords[0], voxelsieve.patchbound * (dims[0] / 8.4), fill = 'n')
         # central_patch = np.max(prfs) * self.nsp.utils.make_circle_mask(dims[0], ((dims[0]+2)/2), ((dims[0]+2)/2), voxelsieve.patchbound * (dims[0] / 8.4), fill = 'n')
 # self.patchcoords
