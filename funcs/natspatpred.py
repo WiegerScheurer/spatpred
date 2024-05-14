@@ -27,11 +27,11 @@ from scipy.ndimage import binary_dilation
 from PIL import Image
 from importlib import reload
 from scipy.io import loadmat
-from matplotlib.ticker import MultipleLocator, NullFormatter
+from matplotlib.ticker import MultipleLocator, NullFormatter, FuncFormatter, FixedLocator
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.linear_model import LinearRegression, Lasso, Ridge
 from colorama import Fore, Style
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 from matplotlib import colormaps
 from torch.utils.data import Dataset, DataLoader
 from torch.nn import Module
@@ -47,7 +47,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import cross_val_score, KFold, cross_val_predict
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error    
 from IPython.display import display
-from math import sqrt
+from math import e, sqrt
 from scipy.special import softmax
 from matplotlib.ticker import MaxNLocator
 from multiprocessing import Pool
@@ -63,107 +63,7 @@ sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
 
 import lgnpy.CEandSC.lgn_statistics
 from unet_recon.inpainting import UNet
-from funcs.analyses import univariate_regression
-from lgnpy.CEandSC.lgn_statistics import lgn_statistics, loadmat, LGN
-
-# class VoxelSieve:
-#     """
-#     A class used to represent a Voxel Sieve, filtering out all voxels that do not
-#     meet all requirements defined in the VoxelSieve initiation method.
-
-#     Attributes
-#     ----------
-#     size : ndarray
-#         The size of the pRFs.
-#     ecc : ndarray
-#         The eccentricity of the pRFs.
-#     angle : ndarray
-#         The angle of the pRFs.
-#     prf_R2 : ndarray
-#         The R2 value of the voxel from pRF.
-#     nsd_R2 : ndarray
-#         The R2 value of the voxel from NSD.
-#     vox_pick : ndarray
-#         Boolean array indicating which voxels meet the criteria.
-#     xyz : ndarray
-#         The x, y, z coordinates of the selected voxels.
-#     r2mask : ndarray
-#         A boolean array that sets the top n NSD R2 voxels to True in case 
-#             fixed_n_voxels is an integer. This is used in situations where
-#             a fixed amount of voxels is wanted for each ROI, for example to
-#             check whether differences in effect are due to the amount of voxels.
-
-#     Methods
-#     -------
-#     __init__(self, prf_dict: Dict, roi_masks: Dict, NSP, subject: str, roi: str, max_size: float, min_size: float, patchbound: float, min_nsd_R2: int, min_prf_R2: int)
-#         Initializes the VoxelSieve instance with the given parameters.
-#     """
-#     def __init__(self, NSP, prf_dict:Dict, roi_masks:Dict, subject:str, roi:str, 
-#                  max_size:Optional[float]=None, min_size:Optional[float]=None, patchbound:Optional[float]=None, 
-#                  min_nsd_R2:Optional[int]=None, min_prf_R2:Optional[int]=None, print_attributes:bool=True, 
-#                  fixed_n_voxels:Optional[Union[str, int]]=None):
-#         """Method to initialise the VoxelSieve class.
-#                     TODO: COMPLETE THIS
-#         Args:
-#             NSP (_type_): _description_
-#             prf_dict (Dict): _description_
-#             roi_masks (Dict): _description_
-#             subject (str): _description_
-#             roi (str): _description_
-#             fixed_n_voxels (Optional[Union[str, int]]): _description_
-#             max_size (Optional[float], optional): _description_. Defaults to None.
-#             min_size (Optional[float], optional): _description_. Defaults to None.
-#             patchbound (Optional[float], optional): _description_. Defaults to None.
-#             min_nsd_R2 (Optional[int], optional): _description_. Defaults to None.
-#             min_prf_R2 (Optional[int], optional): _description_. Defaults to None.
-#             print_attributes (bool, optional): _description_. Defaults to True.
-#         """        
-        
-#         self.patchbound = patchbound
-#         self.size = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:,3]
-#         self.ecc = prf_dict[subject]['proc'][f'{roi}_mask']['eccentricity'][:,3]
-#         self.angle = prf_dict[subject]['proc'][f'{roi}_mask']['angle'][:,3]
-#         self.prf_R2 = prf_dict[subject]['proc'][f'{roi}_mask']['R2'][:,3]
-#         self.nsd_R2 = NSP.cortex.nsd_R2_dict(roi_masks, glm_type='hrf')[subject]['R2_roi'][f'{roi}_mask'][:,3]
-#         self.sigmas, self.ycoor, self.xcoor = NSP.cortex.calculate_pRF_location(self.size, self.ecc, self.angle, (425,425))
-        
-#         if fixed_n_voxels == 'all': # If all_voxels is True, all ROI voxels are selected regardless of the other parameters
-#             self.vox_pick = np.ones(len(self.size)).astype(bool)
-#         else:
-#             self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
-        
-#         if type(fixed_n_voxels) == int:
-#             r2raw_arr = self.nsd_R2[self.vox_pick]
-#             # Adjust the mask based on the top n NSD R2 voxels, so cutoffs don't cut off good voxels
-#             top_n = fixed_n_voxels
-#             indices = np.argsort(r2raw_arr)
-#             topices = indices[-top_n:]
-#             r2mask = np.zeros_like(r2raw_arr, dtype=bool)
-#             r2mask[topices] = True
-            
-#         else: r2mask = np.ones(np.sum(self.vox_pick)).astype(bool)
-        
-#         # Apply the vox_pick mask to all the attributes with voxel specific data
-#         self.size = self.size[self.vox_pick][r2mask]
-#         self.ecc = self.ecc[self.vox_pick][r2mask]
-#         self.angle = self.angle[self.vox_pick][r2mask]
-#         self.prf_R2 = self.prf_R2[self.vox_pick][r2mask]
-#         self.nsd_R2 = self.nsd_R2[self.vox_pick][r2mask]
-#         self.sigmas = self.sigmas[self.vox_pick][r2mask]
-#         self.ycoor = self.ycoor[self.vox_pick][r2mask]
-#         self.xcoor = self.xcoor[self.vox_pick][r2mask]
-#         self.xyz = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:, :3][self.vox_pick].astype(int)[r2mask]
-#         self.r2mask = r2mask
-        
-#         self.attributes = [attr for attr in dir(self) if not attr.startswith('_')] # Filter out both the 'dunder' and hidden methods
-        
-#         print(f'{roi} voxels that fulfill requirements: {Fore.LIGHTWHITE_EX}{len(self.size)}{Style.RESET_ALL} out of {Fore.LIGHTWHITE_EX}{len(prf_dict[subject]["proc"][f"{roi}_mask"]["size"])}{Style.RESET_ALL}.')
-        
-#         if print_attributes:
-#             print('\nClass contains the following attributes:')
-#             for attr in self.attributes:
-#                 print(f"{Fore.BLUE} .{attr}{Style.RESET_ALL}")
-
+from lgnpy.CEandSC.lgn_statistics import lgn_statistics, LGN
 
 class VoxelSieve:
     """
@@ -245,14 +145,64 @@ class VoxelSieve:
             
         return peripheral_center, angle_min, angle_max, ecc_min, ecc_max
     
-    def __init__(self, NSP, prf_dict:Dict, roi_masks:Dict, subject:str, roi:str, patchloc:str='center',
+    def vox_lim(self, cutoff:int):
+        """Method to restrict the number of voxels after VoxelSieve class initiation.
+
+        Args:
+        - self (VoxelSieve instance): Existing voxel selection.
+        - cutoff (int): The maximum number of voxels to be included in the voxel selection. 
+        """        
+        roi_voxels = np.ones(np.sum(self.vox_pick)).astype(bool)
+        r2raw_arr = self.nsd_R2[roi_voxels]
+        
+        # Adjust the mask based on the top n NSD R2 voxels, so cutoffs don't cut off good voxels
+        top_n = cutoff
+        indices = np.argsort(r2raw_arr)
+        topices = indices[-top_n:]
+        r2mask = np.zeros_like(r2raw_arr, dtype=bool)
+        r2mask[topices] = True
+        
+        # Apply the vox_pick mask to all the attributes with voxel specific data
+        self.size = self.size[r2mask]
+        self.ecc = self.ecc[r2mask]
+        self.angle = self.angle[r2mask]
+        self.prf_R2 = self.prf_R2[r2mask]
+        self.nsd_R2 = self.nsd_R2[r2mask]
+        self.sigmas = self.sigmas[r2mask]
+        self.ycoor = self.ycoor[r2mask]
+        self.xcoor = self.xcoor[r2mask]
+        self.xyz = self.xyz[r2mask]
+        self.vox_pick = np.zeros_like(self.vox_pick, dtype=bool)
+        self.vox_pick[topices] = True
+        
+                
+    def __init__(self, NSP, prf_dict:Dict, roi_masks:Dict, subject:str, roi:str, patchloc:str='central',
                  max_size:Optional[float]=None, min_size:Optional[float]=None, patchbound:Optional[float]=None, 
                  min_nsd_R2:Optional[int]=None, min_prf_R2:Optional[int]=None, print_attributes:bool=True, 
                  fixed_n_voxels:Optional[Union[str, int]]=None, 
                  
                  peripheral_center:Optional[tuple]=None, peri_angle:Optional[float]=None, peri_ecc:Optional[float]=None, verbose:bool=True):
-        
-        
+        """_summary_
+
+        Args:
+            NSP (_type_): _description_
+            prf_dict (Dict): _description_
+            roi_masks (Dict): _description_
+            subject (str): _description_
+            roi (str): _description_
+            patchloc (str, optional): _description_. Defaults to 'center'.
+            max_size (Optional[float], optional): _description_. Defaults to None.
+            min_size (Optional[float], optional): _description_. Defaults to None.
+            patchbound (Optional[float], optional): _description_. Defaults to None.
+            min_nsd_R2 (Optional[int], optional): _description_. Defaults to None.
+            min_prf_R2 (Optional[int], optional): _description_. Defaults to None.
+            print_attributes (bool, optional): _description_. Defaults to True.
+            fixed_n_voxels (Optional[Union[str, int]], optional): _description_. Defaults to None.
+            peripheral_center (Optional[tuple], optional): _description_. Defaults to None.
+            peri_angle (Optional[float], optional): _description_. Defaults to None.
+            peri_ecc (Optional[float], optional): _description_. Defaults to None.
+            verbose (bool, optional): _description_. Defaults to True.
+        """        
         self.patchbound = patchbound
         self.figdims = (425, 425) # Raw image size of NSD stimuli
 
@@ -273,39 +223,27 @@ class VoxelSieve:
             patch_x = patch_y = central_coords
         #                      RF not too large    &     RF within patch boundary      &    RF not too small    &    NSD R2 high enough      &    pRF R2 high enough
             self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) & (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
-            # self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2) # O.G.
+    
         elif patchloc == 'peripheral':
             peripheral_center, angle_min, angle_max, ecc_min, ecc_max = self._get_peri_bounds(patchbound, peripheral_center, peri_angle, peri_ecc, verbose)
             patch_x = central_coords + peripheral_center[0] * (self.figdims[0]/8.4) # in pixels
             patch_y = central_coords + peripheral_center[1] * (self.figdims[0]/8.4) # in pixels
             self.vox_pick = (self.size < max_size) & (self.size > min_size) & (self.angle < angle_max) & (self.angle > angle_min) & (self.ecc < ecc_max) & (self.ecc > ecc_min) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
-            # self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) * (self.size > min_size)
-
-        if type(fixed_n_voxels) == int:
-            r2raw_arr = self.nsd_R2[self.vox_pick]
-            # Adjust the mask based on the top n NSD R2 voxels, so cutoffs don't cut off good voxels
-            top_n = fixed_n_voxels
-            indices = np.argsort(r2raw_arr)
-            topices = indices[-top_n:]
-            r2mask = np.zeros_like(r2raw_arr, dtype=bool)
-            r2mask[topices] = True
-            
-        else: r2mask = np.ones(np.sum(self.vox_pick)).astype(bool)
-        # else: r2mask = np.ones(len(self.size)).astype(bool)
         
         # Apply the vox_pick mask to all the attributes with voxel specific data
-        
         self.patchcoords = (patch_x, patch_y) # Matrix indexing
-        self.size = self.size[self.vox_pick][r2mask]
-        self.ecc = self.ecc[self.vox_pick][r2mask]
-        self.angle = self.angle[self.vox_pick][r2mask]
-        self.prf_R2 = self.prf_R2[self.vox_pick][r2mask]
-        self.nsd_R2 = self.nsd_R2[self.vox_pick][r2mask]
-        self.sigmas = self.sigmas[self.vox_pick][r2mask]
-        self.ycoor = self.ycoor[self.vox_pick][r2mask]
-        self.xcoor = self.xcoor[self.vox_pick][r2mask]
-        self.xyz = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:, :3][self.vox_pick].astype(int)[r2mask]
-        self.r2mask = r2mask
+        self.size = self.size[self.vox_pick]
+        self.ecc = self.ecc[self.vox_pick]
+        self.angle = self.angle[self.vox_pick]
+        self.prf_R2 = self.prf_R2[self.vox_pick]
+        self.nsd_R2 = self.nsd_R2[self.vox_pick]
+        self.sigmas = self.sigmas[self.vox_pick]
+        self.ycoor = self.ycoor[self.vox_pick]
+        self.xcoor = self.xcoor[self.vox_pick]
+        self.xyz = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:, :3][self.vox_pick].astype(int)
+        
+        if type(fixed_n_voxels) == int:
+            self.vox_lim(fixed_n_voxels)
         
         self.attributes = [attr for attr in dir(self) if not attr.startswith('_')] # Filter out both the 'dunder' and hidden methods
         
@@ -314,11 +252,8 @@ class VoxelSieve:
         if print_attributes:
             print('\nClass contains the following attributes:')
             for attr in self.attributes:
-                print(f"{Fore.BLUE} .{attr}{Style.RESET_ALL}")
-
-
-
-
+                print(f"{Fore.BLUE} .{attr}{Style.RESET_ALL}")  
+            print('\n')          
 
 class DataFetch():
     
@@ -339,24 +274,6 @@ class DataFetch():
         ]
         return {os.path.basename(file): self.fetch_file(file) for file in prf_selection_paths}
     
-    # # General file fetching function 
-    # def fetch_file(self, file_path:str):
-    #     """
-    #     General function to acquire saved data from various file types
-    #     file_type: str, the types of files to be fetched, either features or prf_selections
-    #     """
-    #     _, ext = os.path.splitext(file_path)
-        
-    #     # Check if file is of .h5 type
-    #     if ext == '.h5':
-    #         with h5py.File(file_path, 'r') as hf:
-    #             data = hf.keys()
-    #             return {key: np.array(hf[key]).flatten() for key in data}
-    #     # Check if file is of .pkl type
-    #     elif ext == '.pkl':
-    #         with open(file_path, 'rb') as fp:
-    #             return pickle.load(fp)
-            
     # General file fetching function 
     def fetch_file(self, file_path:str):
         """
@@ -495,51 +412,22 @@ class DataFetch():
             if save_stack:
                 np.save(f'{self.nsp.own_datapath}/{subject}/betas/{roi}/all_betas.npy', stack)
         return stack
-            
-    # def _stack_scce(self, save_stack:bool=False):
-    #     # Directory containing the files
-    #     directory = '/home/rfpred/data/custom_files/visfeats/scce/'
 
-    #     # Get a list of all files in the directory
-    #     files = os.listdir(directory)
+    def _stack_scce(self, save_stack:bool=False, cut_outliers:bool=True, sc_cutoff:Optional[float]=None, ce_cutoff:Optional[float]=None):
+        """Stack the raw computed scce values into a single dataframe and deal with the outliers,
+            NaN, and -inf values.
 
-    #     # Function to extract the number from the filename
-    #     def _extract_number(filename):
-    #         match = re.search(r'scce_dict_center_(\d+)', filename)
-    #         return int(match.group(1)) if match else float('inf')
+        Args:
+        - save_stack (bool, optional): Whether to save the stacked version or not. Defaults to False.
+        - cut_outliers (bool, optional): Whether to cut the outliers or not. Defaults to True.
+        - sc_cutoff (float, optional): An optional manual STD cutoff value for spatial coherence
+        - ce_cutoff (float, optional): An optional manual STD cutoff value for contrast energy
 
-    #     def _remove_naninf(df):
-    #         df_noninf = df.replace([np.inf, -np.inf], 0)  # Replace both inf and -inf with 0
-    #         df_nonan = df_noninf.fillna(0)  # Replace NaN values with 0
-    #         return df_nonan
-
-    #     # Sort the files based on the number
-    #     files.sort(key=_extract_number)
-
-    #     # Initialize an empty list to hold the dataframes
-    #     dfs = []
-
-    #     # Loop over the files
-    #     for file in files:
-    #         # Only process .pkl files
-    #         if file.endswith('.pkl'):
-    #             # Fetch the file
-    #             data = self.fetch_file(os.path.join(directory, file))
-    #             # Append the data to the list
-    #             dfs.append(data)
-
-    #     # Concatenate all dataframes vertically
-    #     result = pd.concat(dfs, axis=0)
-    #     result_cln = _remove_naninf(result)
-        
-    #     if save_stack:
-    #         result_cln.to_pickle(f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl')
-            
-    #     return result_cln
-
-    def _stack_scce(self, save_stack:bool=False, cut_outliers:bool=True):
+        Returns:
+        - pandas.DataFrame: The stacked values, including z-scored versions
+        """        
         # Directory containing the files
-        directory = '/home/rfpred/data/custom_files/visfeats/scce/'
+        directory = '/home/rfpred/data/custom_files/visfeats/scce/raw/'
 
         # Get a list of all files in the directory that start with 'scce_dict_center_'
         files = [file for file in os.listdir(directory) if file.startswith('scce_dict_center_')]        
@@ -574,8 +462,12 @@ class DataFetch():
         result_cln = _remove_naninf(result)
 
         if cut_outliers:
-            result_cln['ce'] = self.nsp.utils.std_dev_cap(result_cln['ce'], 5)
-            result_cln['sc'] = self.nsp.utils.std_dev_cap(result_cln['sc'], 1)
+            if sc_cutoff is None:
+                sc_cutoff = 1
+            if ce_cutoff is None:
+                ce_cutoff = 5
+            result_cln['sc'] = self.nsp.utils.std_dev_cap(result_cln['sc'], sc_cutoff)
+            result_cln['ce'] = self.nsp.utils.std_dev_cap(result_cln['ce'], ce_cutoff)
         
         # Add z-scored columns
         result_cln['ce_z'] = zs(result_cln['ce'])
@@ -675,7 +567,8 @@ class Utilities():
         return z_scores
 
     def cap_values(self, array = None, lower_threshold = None, upper_threshold = None):
-        
+        array = array.copy()  # create a copy of the array
+
         if upper_threshold is None:
             upper_threshold = np.max(array)
         else:
@@ -1373,45 +1266,6 @@ class Cortex():
         
         return rois, binary_masks, viscortex_mask
     
-    # # This function provides a dictionary with all the pRF data for all subjects and rois
-    # def prf_dict(self, rois:list, roi_masks:dict):
-    #     prf_dict = {}
-
-    #     # Make a loop to go over all the subjects
-    #     for subject in self.nsp.subjects:
-    #         prf_dict[subject] = {}
-    #         prf_dict[subject]['nsd_dat'] = {}
-            
-    #         # Initialize dictionaries if they don't exist
-    #         prf_dict[subject]['proc'] = {}
-
-    #         # Get the overall prf results, save them in a dict
-    #         prf_types = ['angle', 'eccentricity', 'exponent', 'gain', 'meanvol', 'R2', 'size']
-
-    #         for prf_type in prf_types:
-    #             prf_path = f'{self.nsp.nsd_datapath}/nsddata/ppdata/{subject}/func1mm/prf_{prf_type}.nii.gz'
-    #             prf_dat, prf_ar, prf_dim, prf_range = self.nsp.datafetch.get_dat(prf_path)
-    #             prf_dict[subject]['nsd_dat'][prf_type] = {
-    #                 'prf_dat': prf_dat,
-    #                 'prf_ar': prf_ar,
-    #                 'prf_dim': prf_dim,
-    #                 'prf_range': prf_range
-    #             }
-    #         roi_list =  [f'{roistr}_mask' for roistr in rois]
-    #         for roi in roi_list:
-    #             prf_dict[subject]['proc'][roi] = {
-    #                 prf_type : None for prf_type in prf_types
-    #             } 
-    #             for prf_type in prf_types:
-    #                 prf_dict[subject]['proc'][roi][prf_type] = self.nsp.utils.roi_filter(roi_masks[subject][roi], prf_dict[subject]['nsd_dat'][prf_type]['prf_ar'])
-
-    #         # Calculate the linear pRF sigma values, these tend to be smaller and don't take
-    #         # into account the nonlinear relationship between input and neural respons
-    #             lin_sigmas = prf_dict[subject]['proc'][roi]['size'][:,3] * np.sqrt(prf_dict[subject]['proc'][roi]['exponent'][:,3])
-    #             prf_dict[subject]['proc'][roi]['lin_sigma'] = np.column_stack([prf_dict[subject]['proc'][roi]['size'][:,0:3], lin_sigmas])
-
-    #     return prf_dict
-    
     # This function should be reduced to just storing the subject specific np.arrays,, much more efficient.
     # I'll keep this version, but I'll comment out the unneccesary shit
     def prf_dict(self, rois:list, roi_masks:dict):
@@ -1449,7 +1303,6 @@ class Cortex():
                     prf_type: self.nsp.utils.roi_filter(roi_masks[subject][roi], prf_dict[subject]['nsd_dat'][prf_type]['prf_ar']) for prf_type in prf_types
                 } for roi in roi_list
             }
-
 
         # Calculate the linear pRF sigma values, these tend to be smaller and don't take
         # into account the nonlinear relationship between input and neural respons
@@ -2369,7 +2222,7 @@ class Cortex():
             enlarge (bool, optional): Whether or not to enlarge the plot. Defaults to True.
             sort_by (str, optional): Non-functional, still have to implement. Defaults to 'random'.
         """        
-        n_voxels = np.sum(voxelsieve.r2mask) # Get the total amount of voxels, r2mask, because this is the final boolmask
+        n_voxels = np.sum(voxelsieve.vox_pick) # Get the total amount of voxels, r2mask, because this is the final boolmask
         
         if isinstance(which_voxels, int):
             which_voxels = [which_voxels]
@@ -2440,7 +2293,7 @@ class Stimuli():
             
         return test_image, image_no
 
-    def get_rms_contrast_lab(self, rgb_image:np.ndarray, img_idx:int, mask_w_in:np.ndarray, rf_mask_in:np.ndarray, 
+    def calc_rms_contrast_lab(self, rgb_image:np.ndarray, img_idx:int, mask_w_in:np.ndarray, rf_mask_in:np.ndarray, 
                             normalise:bool=True, plot:bool=False, cmap:str='gist_gray', 
                             crop_post:bool=False, lab_idx:int=0) -> float:
         """"
@@ -2525,7 +2378,7 @@ class Stimuli():
             mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
             rf_mask_in = rf_mask_in[x_min:x_max, y_min:y_max]
             
-        return self.get_rms_contrast_lab(ar_in, i, mask_w_in, rf_mask_in, normalise=normalise, 
+        return self.calc_rms_contrast_lab(ar_in, i, mask_w_in, rf_mask_in, normalise=normalise, 
                                     plot=plot_contrast, cmap=cmap, crop_post=crop_post, lab_idx=lab_idx)
         
     # This function is paired with rms_single to mass calculate the visual features using parallel computation.
@@ -2551,18 +2404,65 @@ class Stimuli():
             f'{self.nsp.own_datapath}/all_visfeats_rms_crop_prior.pkl',
             f'{self.nsp.own_datapath}/all_visfeats_scce.pkl',
             f'{self.nsp.own_datapath}/all_visfeats_scce_large.pkl',
+            f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl',
             f'{self.nsp.own_datapath}/subj01/pred/all_predestims.h5',
-            f'{self.nsp.own_datapath}/all_predestims_vgg-b.csv'
+            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg-b.csv'
             ]
         return {os.path.basename(file): self.nsp.datafetch.fetch_file(file) for file in feature_paths}
     
-    def baseline_feats(self, feat_type:str, outlier_bound:float=.3):
+    def get_rms(self, subject:str, rel_or_irrel:str='rel', crop_prior:bool=True, outlier_bound:float=.3):
+        """Function to get the Root Mean Square values for a given subject
+
+        Args:
+        - subject (str): Which subject.
+        - rel_or_irrel (str, optional): Whether to get the RMS values for a central (relevant) patch, 
+            or for a peripheral (irrelevant) patch. Defaults to 'rel'.
+        - crop_prior (bool, optional): Whether to take the RMS values from computations in which the 
+            image was cropped prior to computing the RMS, or from computations where images were cropped
+            after computing the overall RMS of the image. Defaults to True.
+        - outlier_bound (float, optional): What boundary to use for outlier filtering. Defaults to .3.
+
+        Returns:
+            np.ndarray: The resulting values.
+        """        
+        rms_loc_relevance = 'rms' if rel_or_irrel == 'rel' else 'rms_irrelevant'
+        
+        if crop_prior:
+            Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/all_visfeats_rms_crop_prior.pkl')[subject][rms_loc_relevance]['rms_z']
+        else:
+            Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/all_visfeats_rms.pkl')[subject][rms_loc_relevance]['rms_z']
+
+        Xnorm = zs(self.nsp.utils.replace_outliers(np.array(Xraw).reshape(-1,1), m=outlier_bound))
+        indices = self.imgs_designmx()[subject] # Get the 73k-based indices for the specific subject
+
+        return pd.DataFrame(Xnorm, index=indices, columns=['rms'])
+        
+    def get_scce(self, subject:str, sc_or_ce:str):
+        """Function to get the Spatial Coherence or Contrast Energy values for a given subject
+
+        Args:
+        - subject (str): Which subject.
+        - sc_or_ce (str): Whether to get the Spatial Coherence or Contrast Energy values.
+
+        Returns:
+            np.ndarray: The resulting values.
+        """        
+        indices = self.imgs_designmx()[subject] # Get the 73k-based indices for the specific subject
+        scce = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl')
+        X = scce[f'{sc_or_ce}_z'][indices]
+        
+        return X.to_frame(sc_or_ce)
+        
+        
+    # DEPRECATED NOW. USE FUNCTIONS ABOVE
+    def baseline_feats(self, subject:str, feat_type:str, outlier_bound:float=.3):
         """
         Input options:
         - 'rms' for Root Mean Square
         - 'ce' for Contrast Energy (ce_l) for larger pooling region (5 instead of 1 degree radius)
         - 'sc' for Spatial Coherence (sc_l) for larger pooling region (5 instead of 1 degree radius)
         """
+
         if feat_type == 'rms':
             file_name = 'all_visfeats_rms_crop_prior.pkl'
             category = feat_type
@@ -2579,9 +2479,12 @@ class Stimuli():
             file_name = 'all_visfeats_scce_large.pkl'
             category = 'scce'
             key = 'ce_z' if 'ce' in feat_type else 'sc_z'
+        # elif feat_type == 'ce_new':
+        #     file_name = scc
         else:
             raise ValueError(f"Unknown feature type: {feat_type}")
 
+        
         X = self.nsp.utils.replace_outliers(np.array(self.nsp.stimuli.features()[file_name]['subj01'][category][key]).reshape(-1,1), m=outlier_bound)
         return zs(X)
         
@@ -3220,7 +3123,8 @@ class Analysis():
         start_column = 0 if include_xyz else 3
         n_trials = 30000 if n_trials == 'all' else n_trials 
         
-        return (np.load(f'{self.nsp.own_datapath}/{subject}/betas/{roi}/all_betas.npy')[voxelsieve.vox_pick, start_column:][voxelsieve.r2mask])[:, :n_trials]
+        # return (np.load(f'{self.nsp.own_datapath}/{subject}/betas/{roi}/all_betas.npy')[voxelsieve.vox_pick, start_column:][voxelsieve.vox_pick])[:, :n_trials]
+        return (np.load(f'{self.nsp.own_datapath}/{subject}/betas/{roi}/all_betas.npy')[voxelsieve.vox_pick, start_column:])[:, :n_trials]
                                 
     def run_ridge_regression(self, X:np.array, y:np.array, alpha:float=1.0, fit_icept:bool=False):
         """Function to run a ridge regression model on the data.
@@ -3350,7 +3254,7 @@ class Analysis():
         
         return y_hat, cor_scores
     
-    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, glass_brain:bool=False, save_img:bool=False, img_path:str='brain_image.png', cmap:Union[str, LinearSegmentedColormap]='plasma'):
+    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, cmap, glass_brain:bool=False, save_img:bool=False, img_path:str='brain_image.png'):
         """Function to plot a 3D np.ndarray with voxel-specific values on an anatomical brain template of that subject.
 
         Args:
@@ -3364,14 +3268,27 @@ class Analysis():
         """        
         brain_nii = nib.Nifti1Image(brain_numpy, self.nsp.cortex.anat_templates(prf_dict)[subject].affine)
         if glass_brain:
-            display = plotting.plot_glass_brain(brain_nii, display_mode='ortho', colorbar=True, cmap=cmap)
+            display = plotting.plot_glass_brain(brain_nii, display_mode='ortho', colorbar=True, cmap=cmap, symmetric_cbar=False)
         else:
-            display = plotting.plot_stat_map(brain_nii, bg_img=self.nsp.cortex.anat_templates(prf_dict)[subject], display_mode='ortho', colorbar=True, cmap=cmap)
+            display = plotting.plot_stat_map(brain_nii, bg_img=self.nsp.cortex.anat_templates(prf_dict)[subject], display_mode='ortho', colorbar=True, cmap=cmap, symmetric_cbar=False)
+        
+        # New code to format colorbar ticks
+        def format_tick(x, pos):
+            return f'{x:.0f}'
+
+        formatter = FuncFormatter(format_tick)
+
+        if display._cbar:
+            display._cbar.update_ticks()
+            display._cbar.ax.yaxis.set_major_formatter(formatter)
+            display._cbar.ax.yaxis.set_major_locator(FixedLocator(np.arange(0, 6)))  # set ticks manually
+
+        plt.show()
         
         if save_img:
             display.savefig(img_path)  # save figure to file
         
-    def stat_on_brain(self, prf_dict:dict, roi_masks:dict, subject:str, stat:np.ndarray, xyzs:np.ndarray, glass_brain:bool=False, cmap:Union[str, LinearSegmentedColormap]='plasma'):
+    def stat_on_brain(self, prf_dict:dict, roi_masks:dict, subject:str, stat:np.ndarray, xyzs:np.ndarray, glass_brain:bool, cmap, save_img:bool=False, img_path:Optional[str]='/home/rfpred/data/custom_files'):
         """Function to create a brain plot based on a specific statistic and the corresponding voxel coordinates.
 
         Args:
@@ -3391,7 +3308,7 @@ class Analysis():
 
         brainp = self.nsp.utils.coords2numpy(statmap, roi_masks[subject]['V1_mask'].shape, keep_vals=True)
         
-        self.plot_brain(prf_dict, roi_masks, subject, brainp, glass_brain, cmap)
+        self.plot_brain(prf_dict, roi_masks, subject, brainp, cmap, glass_brain, save_img, img_path)
       
     def plot_learning_curve(self, X, y, model=None, alpha=1.0, cv=5):
         if model is None:
@@ -3469,7 +3386,7 @@ class Analysis():
     
     def analysis_chain(self, subject:str, ydict:Dict[str, np.ndarray], voxeldict:Dict[str, VoxelSieve], 
                        X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, 
-                       fit_icept:bool=False, save_outs:bool=False, regname:Optional[str]='') -> np.ndarray:
+                       fit_icept:bool=False, save_outs:bool=False, regname:Optional[str]='', plot_hist:bool=True) -> np.ndarray:
         """Function to run a chain of analyses on the input data for each of the four regions of interest (ROIs).
             Includes comparisons with an uninformative dependent variable X matrix (such as a shuffled 
             version of the original X matrix), to assess the quality of the model in a relative way.
@@ -3531,31 +3448,30 @@ class Analysis():
                 uninf_scores = np.vstack((uninf_scores, r_uninformative[roi].reshape(-1,1)))
 
         coords = np.hstack((coords, uninf_scores, beta_coefs)) # also added beta coefficients as last column. very rough but works
-                
-        # Create a figure with 4 subplots
-        fig, axs = plt.subplots(2, 2, figsize=(8, 8))
-
-        # Flatten the axs array for easy iteration
-        axs = axs.flatten()
-
         delta_r_df = pd.DataFrame()
+        
         for i, roi in enumerate(rois[:4]):
             # Calculate and store the delta-R values 
             this_delta_r = round(np.mean(r_values[roi]) - np.mean(r_uninformative[roi]), 5)
             delta_r_df[roi] = [this_delta_r]
             
-            # Underlay with the histogram of r_uninformative[roi] values
-            axs[i].hist(r_uninformative[roi], bins=25, edgecolor=None, alpha=1, label='Shuffled X', color='burlywood')
-            # Plot the histogram of r_values[roi] values in the i-th subplot
-            axs[i].hist(r_values[roi], bins=25, edgecolor='black', alpha=0.5, label='X', color='dodgerblue')
-            axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
-            axs[i].legend()
+            if plot_hist:
+                if roi == 'V1': # Create a figure with 4 subplots
+                    fig, axs = plt.subplots(2, 2, figsize=(8, 8))
+                    # Flatten the axs array for easy iteration
+                    axs = axs.flatten()
+                
+                # Underlay with the histogram of r_uninformative[roi] values
+                axs[i].hist(r_uninformative[roi], bins=25, edgecolor=None, alpha=1, label='Shuffled X', color='burlywood')
+                # Plot the histogram of r_values[roi] values in the i-th subplot
+                axs[i].hist(r_values[roi], bins=25, edgecolor='black', alpha=0.5, label='X', color='dodgerblue')
+                axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
+                axs[i].legend()
 
-
-        # Add title and display the figure
-        plt.suptitle(f'Ridge reg results for {regname}', fontsize=16)
-        plt.tight_layout()
-        plt.show()
+                if roi == 'V4': # Add title and display the figure
+                    plt.suptitle(f'Ridge reg results for {regname}', fontsize=16)
+                    plt.tight_layout()
+                    plt.show()
         
         if save_outs:
             # Save the delta_r_df to a file
@@ -3570,11 +3486,11 @@ class Analysis():
             with open(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_regcor_dict.pkl', 'wb') as f:
                 pickle.dump(regcor_dict, f)
             
-        return coords
+        return coords, delta_r_df
 
     def load_regresults(self, subject:str, prf_dict:dict, roi_masks:dict, feattype:str, cnn_layer:Optional[int]=None, 
                     plot_on_viscortex:bool=True, plot_result:Optional[str]='r', lowcap:float=0, upcap:float=None,
-                    verbose:bool=True):
+                    file_tag:str='', verbose:bool=True):
         """Function to load in the results from the regressions.
 
         Args:
@@ -3592,17 +3508,17 @@ class Analysis():
         if feattype in ['unpred', 'alexunet', 'alexown'] or cnn_layer is not None:
             if cnn_layer is None:
                 raise ValueError('Please provide a cnn_layer number for the feature type you have chosen')
-            reg_str = f'{feattype}_lay{cnn_layer}'
+            reg_str = f'{feattype}_lay{cnn_layer}{file_tag}'
         
         # This is the dictionary that contains for both the actual X matrix and the shuffled X matrix the
         # r correlation scores for every separate cv fold.
-        with open (f'{self.nsp.own_datapath}/subj01/brainstats/{reg_str}_regcor_dict.pkl', 'rb') as f:
+        with open (f'{self.nsp.own_datapath}/{subject}/brainstats/{reg_str}_regcor_dict.pkl', 'rb') as f:
             # Structure: cor_scores_dict['X' or 'X_uninformative'][roi][cross-validation fold]
             cor_scores_dict = pickle.load(f)
             
         # This dataframe contains the mean scores over all of the cross-validation folds
         # coords = pd.DataFrame(np.load(f'{self.nsp.own_datapath}/subj01/brainstats/{reg_str}_regcor_scores.npy'), 
-        coords = pd.DataFrame(np.load(f'{self.nsp.own_datapath}/subj01/brainstats/{reg_str}_regcor_scores.npy'), 
+        coords = pd.DataFrame(np.load(f'{self.nsp.own_datapath}/{subject}/brainstats/{reg_str}_regcor_scores.npy'), 
                             columns=['x', 'y', 'z', 'r', 'r_shuf', 'beta'])
         
         
@@ -3638,7 +3554,7 @@ class Analysis():
         return cor_scores_dict, coords
 
 
-    def assign_layers(self, subject:str, prf_dict:dict, roi_masks:dict, rois:list, cnn_type:str='alex', plot_on_brain:bool=True):
+    def assign_layers(self, subject:str, prf_dict:dict, roi_masks:dict, rois:list, cmap, cnn_type:str='alex', plot_on_brain:bool=True, file_tag:str='', save_imgs:bool=False):
         """
         Assigns layers to voxels based on the maximum beta value across layers for each voxel.
 
@@ -3650,8 +3566,10 @@ class Analysis():
             cnn_type (str, optional): The type of CNN model to use. Defaults to 'alex'.
             plot_on_brain (bool, optional): Whether to plot the results on the brain. Defaults to True.
         """    
-        for layer in range(0,5): # Loop over the layers of the alexnet
-            cordict, coords = self.load_regresults(subject, prf_dict, roi_masks, f'{cnn_type}_unpred', f'{str(layer)}', plot_on_viscortex=False, plot_result='r', verbose=False)
+        n_layers = 5 if cnn_type == 'alex' or cnn_type == 'alexnet' else 6
+
+        for layer in range(0,n_layers): # Loop over the layers of the alexnet
+            cordict, coords = self.load_regresults(subject, prf_dict, roi_masks, f'{cnn_type}_unpred', f'{str(layer)}', plot_on_viscortex=False, plot_result='r', file_tag=file_tag, verbose=False)
             if layer == 0:
                 all_betas = np.hstack((np.array(coords)[:,:3], np.array(coords)[:,5].reshape(-1,1)))
             else:
@@ -3666,12 +3584,15 @@ class Analysis():
                 vox_of_roi = (np.vstack((vox_of_roi, (np.ones((n_roivoxels, 1))* (n_roi + 1))))).astype(int)
 
         all_betas_voxroi = np.hstack((all_betas, vox_of_roi))[:,3:]
-        all_betas_voxroi[:,:5] = stats.zscore(all_betas_voxroi[:,:5], axis=0)
+        all_betas_voxroi[:,:n_layers] = stats.zscore(all_betas_voxroi[:,:n_layers], axis=0)
 
         # Get the index of the maximum value in each row, excluding the last column
         max_indices = np.argmax(all_betas_voxroi[:, :-1], axis=1)
-
-        cmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000080', '#CCCCCC', '#FFA500', '#FF0000'], N=5)
+        barcmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000080', '#CCCCCC', '#FFA500', '#FF0000'], N=n_layers)
+        
+        # Create a new colourmap for the glass brain plot, as it has difficulty adapting the colourmap to non-symmetrical/positive values
+        colors = np.concatenate([barcmap(np.linspace(0, 1, 128)), barcmap(np.linspace(0, 1, 128))])
+        glass_cmap = ListedColormap(colors, name='double_lay_assign')
 
         # Create a DataFrame from the array
         df = pd.DataFrame(all_betas_voxroi, columns=[f'col_{i}' for i in range(all_betas_voxroi.shape[1])])
@@ -3691,11 +3612,26 @@ class Analysis():
                     .unstack(fill_value=0))
 
         # Plot the proportions using a stacked bar plot
-        df_prop.plot(kind='bar', stacked=True, colormap=cmap)
+        df_prop.plot(kind='bar', stacked=True, colormap=barcmap)
+
+        # Create legend
+        plt.legend(title='CNN Layer', loc='upper center', bbox_to_anchor=(0.5, 1.17),
+                ncol=n_layers, fancybox=False, shadow=False, fontsize=11.5, columnspacing=0.55)
+        
+        if save_imgs:
+            save_path = f'{self.nsp.own_datapath}/{subject}/brainstats/{cnn_type}_unpred_layassign{file_tag}'
+            # Save the plot
+            plt.savefig(f'{save_path}.png')
 
         plt.show()
         if plot_on_brain:    
-            self.stat_on_brain(prf_dict, roi_masks, 'subj01', max_indices, all_betas[:,:3].astype(int), True, cmap)
+            self.stat_on_brain(prf_dict, roi_masks, 'subj01', 
+                               max_indices, 
+                               all_betas[:,:3].astype(int), 
+                               glass_brain=True, 
+                               cmap=glass_cmap, 
+                               save_img=save_imgs, 
+                               img_path=f'{save_path}_glassbrain.png')
 
 class NatSpatPred():
     

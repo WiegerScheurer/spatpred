@@ -179,7 +179,7 @@ prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 ################### FULL VISUAL CORTEX (V1, V2, V3, V4) REGRESSIONS ###############
 
 subject = 'subj01'
-
+tag = '_nieuw'
 voxeldict = {}
 for roi in rois:
     print_attr = True if roi == rois[len(rois)-1] else False
@@ -194,11 +194,19 @@ for roi in rois:
     ydict[roi] = NSP.analyse.load_y(subject=subject, roi=roi, voxelsieve=voxeldict[roi], n_trials='all').T
     print(f'{roi} y-matrix has dimensions: {ydict[roi].shape}')
 
-baseline_strings = ['rms', 'ce', 'sc_l']
-    
-for feat in baseline_strings:
+# baseline_strings = ['rms', 'ce', 'sc_l']
+
+baseline_strings = ['rms', 'ce', 'sc']
+
+rms = NSP.stimuli.get_rms(subject)
+sc = NSP.stimuli.get_scce(subject, 'sc')
+ce = NSP.stimuli.get_scce(subject, 'ce')
+baseline = pd.concat([rms, sc, ce], axis=1)
+
+for feat_no in range(0,4):    
+    feat = baseline_strings[feat_no] if feat_no < 3 else baseline_strings
     print(f'Running regression for baseline feature: {feat}')
-    X = NSP.stimuli.baseline_feats(feat)
+    X = baseline[feat].values.reshape(-1,1) if feat_no < 3 else baseline[feat].values
     print(f'X has these dimensions: {X.shape}')
     X_shuf = np.copy(X)
     np.random.shuffle(X_shuf)
@@ -213,7 +221,7 @@ for feat in baseline_strings:
                                      X_uninformative=X_shuf, 
                                      fit_icept=False, 
                                      save_outs=True,
-                                     regname=feat)
+                                     regname=f'{feat}{tag}')
     
     rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
 
@@ -226,7 +234,7 @@ for feat in baseline_strings:
                            NSP.utils.cap_values(np.copy(rel_scores_np), None, None), 
                            False, 
                            save_img=True, 
-                           img_path=f'/home/rfpred/imgs/reg/{feat}_regcorplot.png')
+                           img_path=f'/home/rfpred/imgs/reg/{feat}_regcorplot{tag}.png')
 
     # This is for the betas
     plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))
@@ -239,7 +247,7 @@ for feat in baseline_strings:
                            NSP.utils.cap_values(np.copy(plot_bets_np), None, None), 
                            False, 
                            save_img=True, 
-                           img_path=f'/home/rfpred/imgs/reg/{feat}_regbetaplot.png')
+                           img_path=f'/home/rfpred/imgs/reg/{feat}_regbetaplot{tag}.png')
 
 
 # baseline_strings = ['rms', 'ce', 'sc_l']

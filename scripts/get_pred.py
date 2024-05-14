@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# This script acquires the predictability estimates
+
 import os
 import sys
 
