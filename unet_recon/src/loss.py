@@ -264,11 +264,11 @@ class AlexNetFeatureExtractor(nn.Module):
         # Define each feature extractor
         self.enc_1 = nn.Sequential(normalization, *alexnet.features[:3]) # Conv + ReLU + MaxPool
         # self.enc_1 = nn.Sequential(normalization, *alexnet.features[:2]) # Conv + ReLU + MaxPool
-        self.enc_2 = nn.Sequential(*alexnet.features[3:5]) # Conv + ReLU 
+        self.enc_2 = nn.Sequential(*alexnet.features[3:5]) # Conv + ReLU (OG is tot 6, dus met maxpool)
         # self.enc_2 = nn.Sequential(*alexnet.features[3:5]) # Conv + ReLU + MaxPool
         self.enc_3 = nn.Sequential(*alexnet.features[6:8]) # Conv + ReLU
         self.enc_4 = nn.Sequential(*alexnet.features[8:10]) # Conv + ReLU
-        self.enc_5 = nn.Sequential(*alexnet.features[10:12]) # Conv + ReLU 
+        self.enc_5 = nn.Sequential(*alexnet.features[10:12]) # Conv + ReLU (OG is tot einde, dus met maxpool)
         # self.enc_5 = nn.Sequential(*alexnet.features[10:11]) # Conv + ReLU + MaxPool
 #         self.enc_6 = nn.Sequential(*alexnet.classifier[:2]) # Dropout + FC
 #         self.enc_7 = nn.Sequential(*alexnet.classifier[2:5]) # ReLU + Dropout + FC

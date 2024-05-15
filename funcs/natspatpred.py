@@ -2562,6 +2562,50 @@ class Stimuli():
         
         return X
         
+    # def unet_featmaps(self, list_layers:list, scale:str='cropped'):
+    #     """
+    #     Load in the UNet extracted feature maps
+    #     Input:
+    #     - list_layers: list with values between 1 and 4 to indicate which layers to include
+    #     - scale: string to select either 'cropped' for cropped images, or 'full' for full images
+    #     """
+    #     # Load all the matrices and store them in a list
+    #     # matrices = [self.nsp.utils.get_zscore(np.load(f'{self.nsp.own_datapath}/subj01/pred/featmaps/{scale}_unet_gt_feats_{layer}.npy'), print_ars='n') for layer in list_layers]
+    #     matrices = [self.nsp.utils.get_zscore(np.load(f'{self.nsp.own_datapath}/subj01/pred/featmaps/tests/{scale}_unet_gt_feats_{layer}.npy'), print_ars='n') for layer in list_layers]
+
+    #     # Horizontally stack the matrices
+    #     Xcnn_stack = np.hstack(matrices)
+
+    #     return Xcnn_stack
+    
+### THIS ONE WORKS, BUT DOESN'T ZSCORE IT YET
+    # def unet_featmaps(self, list_layers:list, scale:str='cropped'):
+    #     """
+    #     Load in the UNet extracted feature maps
+    #     Input:
+    #     - list_layers: list with values between 1 and 4 to indicate which layers to include
+    #     - scale: string to select either 'cropped' for cropped images, or 'full' for full images
+    #     """
+    #     # Initialize an empty list to store the loaded feature maps for each layer
+    #     matrices = []
+
+    #     # Load the feature maps for each layer and append them to the list
+    #     for layer in list_layers:
+    #         file_path = f'{self.nsp.own_datapath}/subj01/pred/featmaps/tests/{scale}_unet_gt_feats_{layer}.npy'
+    #         feature_map = np.load(file_path)
+    #         # Apply z-score normalization if needed
+    #         # feature_map = self.nsp.utils.get_zscore(feature_map, print_ars='n')
+    #         # Reshape the feature map to have shape (n_imgs, n_components, 256)
+    #         reshaped_feature_map = feature_map.reshape(feature_map.shape[0], -1, 256)
+    #         # Take the mean over the flattened dimensions (last axis)
+    #         mean_feature_map = np.mean(reshaped_feature_map, axis=-1)
+    #         matrices.append(mean_feature_map)
+
+    #     # Horizontally stack the loaded and averaged feature maps
+    #     Xcnn_stack = np.hstack(matrices)
+
+    #     return Xcnn_stack
+
     def unet_featmaps(self, list_layers:list, scale:str='cropped'):
         """
         Load in the UNet extracted feature maps
@@ -2569,10 +2613,22 @@ class Stimuli():
         - list_layers: list with values between 1 and 4 to indicate which layers to include
         - scale: string to select either 'cropped' for cropped images, or 'full' for full images
         """
-        # Load all the matrices and store them in a list
-        matrices = [self.nsp.utils.get_zscore(np.load(f'{self.nsp.own_datapath}/subj01/pred/featmaps/{scale}_unet_gt_feats_{layer}.npy'), print_ars='n') for layer in list_layers]
+        # Initialize an empty list to store the loaded feature maps for each layer
+        matrices = []
 
-        # Horizontally stack the matrices
+        # Load the feature maps for each layer and append them to the list
+        for layer in list_layers:
+            file_path = f'{self.nsp.own_datapath}/subj01/pred/featmaps/tests/{scale}_unet_gt_feats_{layer}.npy'
+            feature_map = np.load(file_path)
+            # Reshape the feature map to have shape (n_imgs, n_components, 256)
+            reshaped_feature_map = feature_map.reshape(feature_map.shape[0], -1, 256)
+            # Take the mean over the flattened dimensions (last axis)
+            mean_feature_map = np.mean(reshaped_feature_map, axis=-1)
+            # Apply zs() to the mean feature map
+            mean_feature_map = zs(mean_feature_map)
+            matrices.append(mean_feature_map)
+
+        # Horizontally stack the loaded and averaged feature maps
         Xcnn_stack = np.hstack(matrices)
 
         return Xcnn_stack
@@ -2739,17 +2795,37 @@ class Stimuli():
         cmap (str): The colormap to use for the heatmap. Default is 'copper_r'.
         """
         
+        # if cnn_type == 'alexnet':
+        #     file_str = 'all_predestims.h5'
+        #     predfeatnames = [name for name in list(self.features()[file_str].keys()) if name.endswith(loss_calc) and name.startswith(type)]
+        # elif cnn_type == 'vgg-b':
+        #     file_str = 'all_predestims_vgg-b.csv'
+        #     predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith(type)]
+        
+        # # predfeatnames = [name for name in list(self.features()['all_predestims.h5'].keys()) if name.endswith(loss_calc) and name.startswith(type)]
+
+        # # Build dataframe
+        # data = {name: self.features()[file_str][name] for name in predfeatnames}
+        
+        # Get the subject specific-indices, only required as long as I haven't calculated all the features for all 73k
+        indices = self.imgs_designmx()[subject]
+
+        
         if cnn_type == 'alexnet':
             file_str = 'all_predestims.h5'
-            predfeatnames = [name for name in list(self.features()[file_str].keys()) if name.endswith(loss_calc) and name.startswith(type)]
+            predfeatnames = [name for name in list(self.features()[file_str].keys()) if name.endswith(loss_calc) and name.startswith('content')]
+            indices = np.ones((30000,)).astype(bool)
         elif cnn_type == 'vgg-b':
             file_str = 'all_predestims_vgg-b.csv'
-            predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith(type)]
+            predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith('content')]
+        elif cnn_type == 'alexnet_new':
+            file_str = 'all_predestims_alexnet_new.csv'
+            predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith('content')]
         
-        # predfeatnames = [name for name in list(self.features()['all_predestims.h5'].keys()) if name.endswith(loss_calc) and name.startswith(type)]
-
         # Build dataframe
-        data = {name: self.features()[file_str][name] for name in predfeatnames}
+        data = {name: self.features()[file_str][name][indices] for name in predfeatnames}
+        
+        
         df = pd.DataFrame(data)
 
         # Compute correlation matrix
@@ -2782,6 +2858,7 @@ class Stimuli():
         if cnn_type == 'alexnet':
             file_str = 'all_predestims.h5'
             predfeatnames = [name for name in list(self.features()[file_str].keys()) if name.endswith(loss_calc) and name.startswith('content')]
+            indices = np.ones((30000,)).astype(bool)
         elif cnn_type == 'vgg-b':
             file_str = 'all_predestims_vgg-b.csv'
             predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith('content')]

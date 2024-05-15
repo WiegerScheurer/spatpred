@@ -33,53 +33,175 @@ sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
 
 # from funcs.imgproc import rand_img_list, show_stim, get_imgs_designmx
 
-scale = 'cropped' # alternative: 'full'
+scale = 'full' # alternative: 'full'
 
+
+# import numpy as np
+
+# # Dictionary to store feature maps for each layer
+# cnnfeats = {}
+
+# # Loop over layers 1 to 4
+# for layer in range(1, 5):
+#     cnnfeats[f'layer_{layer}'] = []
+
+#     # Get a list of all files that start with 'feats_gt_np'
+#     file_list = glob.glob(f'/home/rfpred/data/custom_files/subj01/pred/featmaps/{scale}/feats_gt_np*')
+
+#     # Sort the file list
+#     file_list = sorted(file_list, key=lambda filename: int(filename.split('_')[-1].split('.')[0]))
+
+#     # Loop over files and load feature maps for the current layer
+#     for n_file, file in enumerate(file_list):
+#         if n_file < 6:
+#             print(f'Processing file {n_file+1}/{len(file_list)}...')
+#             with open(file, 'rb') as f:
+#                 array = pickle.load(f)[layer]
+#                 cnnfeats[f'layer_{layer}'].extend(array)
+#         else:
+#             print(f'Breaking at {n_file}...')
+#             break
+
+
+
+# # Initialize dictionary to store transformed data for each layer
+# transformed_layers = {}
+
+# # Loop over layers
+# for layer_name, layer in cnnfeats.items():
+#     print(f"Processing {layer_name}...")
+#     print(f'shape of img: {layer[0].shape}')
+    
+#     # Flatten each image into a 1D vector and stack them into a 2D array
+#     flattened_images = np.vstack([image.flatten() for image in layer])
+
+#     # Run PCA to determine the number of components needed
+#     ipca = IncrementalPCA(n_components=None)
+#     ipca.fit(flattened_images)
+#     cumulative_explained_variance_ratio = np.cumsum(ipca.explained_variance_ratio_)
+#     n_components = np.argmax(cumulative_explained_variance_ratio >= 0.95) + 1
+#     print(f'\tNumber of components needed to explain 95% of the variance: {n_components}')
+
+#     # Run PCA with the determined number of components on the entire dataset
+#     ipca = IncrementalPCA(n_components=n_components)
+#     transformed_images = ipca.fit_transform(flattened_images)
+
+#     # Store the transformed images for the layer
+#     transformed_layers[layer_name] = transformed_images
+
+# # # Loop over layers
+# # for layer_name, layer in cnnfeats.items():
+# #     print(f"Processing {layer_name}...")
+# #     print(f'shape of img: {layer[0].shape}')
+# #     # List to store transformed data for each image
+# #     transformed_images = []
+    
+# #     # ADDITION
+# #     flattened_images = np.vstack([np.reshape(image, (image.shape[0], -1)) for image in layer])
+
+# #     # Run PCA to determine the number of components needed
+# #     ipca = IncrementalPCA(n_components=None)
+# #     # ipca.fit(layer)
+# #     ipca.fit(flattened_images)
+# #     cumulative_explained_variance_ratio = np.cumsum(ipca.explained_variance_ratio_)
+# #     n_components = np.argmax(cumulative_explained_variance_ratio >= 0.95) + 1
+# #     print(f'\tNumber of components needed to explain 95% of the variance: {n_components}')
+    
+# #     # Loop over images in the layer
+# #     for i, image in enumerate(layer):
+# #         if (i+1) % 100 == 0:
+# #             print(f"\tProcessing image {i+1}/{len(layer)}...")
+        
+            
+# #         # Reshape the image to a 2D array
+# #         reshaped_image = np.reshape(image, (image.shape[0], -1))
+
+        
+# #         # Run PCA with the determined number of components
+# #         ipca = IncrementalPCA(n_components=n_components)
+# #         # transformed_image = ipca.fit_transform(image)
+# #         transformed_image = ipca.fit_transform(reshaped_image)
+        
+# #         # Append the transformed image to the list
+# #         transformed_images.append(transformed_image)
+    
+# #     # Store the list of transformed images for the layer
+# #     transformed_layers[layer_name] = transformed_images
+        
+# # Save the transformed layers
+# for layer in range(1, 5):
+#     layer_data = np.array(transformed_layers[f'layer_{layer}'])
+#     n_imgs, _, _ = layer_data.shape
+#     reshaped_layer_data = layer_data.reshape(n_imgs, -1)
+#     np.save(f'/home/rfpred/data/custom_files/subj01/pred/featmaps/tests/{scale}_unet_gt_feats_{layer}', reshaped_layer_data)
+    
+# print("All is well")
+
+
+
+
+
+
+
+### NEWER VERSION, THIS ONE WORKS BETTER BUT STILL RETURNS WEIRD SHAPES
+
+# Dictionary to store feature maps for each layer
 cnnfeats = {}
-for layer in range(1,5):
+
+# Loop over layers 1 to 4
+for layer in range(1, 5):
     cnnfeats[f'layer_{layer}'] = []
 
     # Get a list of all files that start with 'feats_gt_np'
     file_list = glob.glob(f'/home/rfpred/data/custom_files/subj01/pred/featmaps/{scale}/feats_gt_np*')
 
-    # Define a custom sorting key that extracts the number following 'feats_gt_np_'
-    def sorting_key(filename):
-        base_name = filename.split('/')[-1]  # Get the filename without the directory
-        number = base_name.split('_')[-1]  # Get the number following 'feats_gt_np_'
-        number = number.split('.')[0]  # Remove the '.pkl' extension
-        return int(number)
+    # Sort the file list
+    file_list = sorted(file_list, key=lambda filename: int(filename.split('_')[-1].split('.')[0]))
 
-    # Sort the file list using the custom sorting key
-    file_list = sorted(file_list, key=sorting_key)
+    # # Loop over files and load feature maps for the current layer
+    # for n_file, file in enumerate(file_list):
+    #     if n_file < 6:
+    #         print(f'Processing file {n_file+1}/{len(file_list)}...')
+    #         with open(file, 'rb') as f:
+    #             array = pickle.load(f)[layer]
+    #             cnnfeats[f'layer_{layer}'].extend(array)
+    #     else:
+    #         print(f'Breaking at {n_file}...')
+    #         break
 
-    # Loop over the files and load each one
-    for file in file_list:
+    # Loop over files and load feature maps for the current layer
+    for n_file, file in enumerate(file_list):
+        # if n_file < 6:
+        print(f'Processing file {n_file+1}/{len(file_list)}...')
         with open(file, 'rb') as f:
             array = pickle.load(f)[layer]
             cnnfeats[f'layer_{layer}'].extend(array)
+        # else:
+        #     print(f'Breaking at {n_file}...')
+        #     break
 
-# Works, but takes a LOT of time, about 30 mins
-# Initialize an empty dictionary to store the transformed data for each layer
+# Initialize dictionary to store transformed data for each layer
 transformed_layers = {}
 
-# Loop over the layers in the cnnfeats dictionary
+# Loop over layers
 for layer_name, layer in cnnfeats.items():
     print(f"Processing {layer_name}...")
     
-    # Initialize an empty list to store the transformed data for each image
+    # List to store transformed data for each image
     transformed_images = []
     
-    # Reshape the layer so that all feature maps are flattened into a single vector
+    # Reshape the layer
     reshaped_layer = np.array(layer).reshape(len(layer)*len(layer[0]), -1)
     
-    # Run an initial PCA to determine the number of components needed to explain at least 80% of the variance
+    # Run PCA to determine the number of components needed
     ipca = IncrementalPCA(n_components=None)
     ipca.fit(reshaped_layer)
     
     cumulative_explained_variance_ratio = np.cumsum(ipca.explained_variance_ratio_)
-    n_components = np.argmax(cumulative_explained_variance_ratio >= 0.8) + 1
+    n_components = np.argmax(cumulative_explained_variance_ratio >= 0.95) + 1
+    print(f'\tNumber of components needed to explain 95% of the variance: {n_components}')
     
-    # Loop over the images in the layer
+    # Loop over images in the layer
     for i in range(len(layer)):
         if (i+1) % 100 == 0:
             print(f"\tProcessing image {i+1}/{len(layer)}...")
@@ -87,7 +209,7 @@ for layer_name, layer in cnnfeats.items():
         # Select the current image
         image = layer[i]
         
-        # Reshape the image so that all feature maps are flattened into a single vector
+        # Reshape the image
         reshaped_image = np.array(image).reshape(len(image), -1)
         
         # Run PCA with the determined number of components
@@ -97,19 +219,111 @@ for layer_name, layer in cnnfeats.items():
         # Append the transformed image to the list
         transformed_images.append(transformed_image)
     
-    # Append the list of transformed images for the layer to the transformed_layers dictionary
+    # Store the list of transformed images for the layer
     transformed_layers[layer_name] = transformed_images
         
-# This was used to saved the feature maps that have been reduced in dimensionality using PCA
-# Initialize an empty list to store the reshaped data for each layer
-reshaped_layers = []
-
-# Save the transformed layers and flatten the last 2 dimensions to get a 2D array that can be used as X matrix
-for layer in range(1,5):
+# Save the transformed layers
+for layer in range(1, 5):
     layer_data = np.array(transformed_layers[f'layer_{layer}'])
     n_imgs, _, _ = layer_data.shape
     reshaped_layer_data = layer_data.reshape(n_imgs, -1)
-    np.save(f'/home/rfpred/data/custom_files/subj01/pred/featmaps/{scale}_unet_gt_feats_{layer}', reshaped_layer_data)
-    reshaped_layers.append(reshaped_layer_data.flatten())
+    np.save(f'/home/rfpred/data/custom_files/subj01/pred/featmaps/tests/{scale}_unet_gt_feats_{layer}', reshaped_layer_data)
     
 print("All is well")
+
+
+
+
+
+
+
+
+
+
+## MY OLD CODE, IT WORKS BUT HAS WEIRD DIMENSIONS. IT DOES NOT KEEP THE N_COMPONENTS IT SAYS IT NEEDS TO RETAIN THE PERCENTAGE OF VARIANCE
+
+# cnnfeats = {}
+# for layer in range(1,5):
+#     cnnfeats[f'layer_{layer}'] = []
+
+#     # Get a list of all files that start with 'feats_gt_np'
+#     file_list = glob.glob(f'/home/rfpred/data/custom_files/subj01/pred/featmaps/{scale}/feats_gt_np*')
+
+#     # Define a custom sorting key that extracts the number following 'feats_gt_np_'
+#     def sorting_key(filename):
+#         base_name = filename.split('/')[-1]  # Get the filename without the directory
+#         number = base_name.split('_')[-1]  # Get the number following 'feats_gt_np_'
+#         number = number.split('.')[0]  # Remove the '.pkl' extension
+#         return int(number)
+
+#     # Sort the file list using the custom sorting key
+#     file_list = sorted(file_list, key=sorting_key)
+
+#     # Loop over the files and load each one
+#     for n_file, file in enumerate(file_list):
+#         if n_file < 6:
+#             print(f'Processing file {n_file+1}/{len(file_list)}...')
+#             with open(file, 'rb') as f:
+#                 array = pickle.load(f)[layer]
+#                 cnnfeats[f'layer_{layer}'].extend(array)
+#         else:
+#             print(f'Breaking at {n_file}...')
+#             break
+
+# # Works, but takes a LOT of time, about 30 mins
+# # Initialize an empty dictionary to store the transformed data for each layer
+# transformed_layers = {}
+
+# # Loop over the layers in the cnnfeats dictionary
+# for layer_name, layer in cnnfeats.items():
+#     print(f"Processing {layer_name}...")
+    
+#     # Initialize an empty list to store the transformed data for each image
+#     transformed_images = []
+    
+#     # Reshape the layer so that all feature maps are flattened into a single vector
+#     reshaped_layer = np.array(layer).reshape(len(layer)*len(layer[0]), -1)
+    
+#     # Run an initial PCA to determine the number of components needed to explain at least 80% of the variance
+#     ipca = IncrementalPCA(n_components=None)
+#     ipca.fit(reshaped_layer)
+    
+#     cumulative_explained_variance_ratio = np.cumsum(ipca.explained_variance_ratio_)
+#     n_components = np.argmax(cumulative_explained_variance_ratio >= 0.95) + 1
+#     print(f'\tNumber of components needed to explain 95% of the variance: {n_components}')
+    
+#     # Loop over the images in the layer
+#     for i in range(len(layer)):
+#         if (i+1) % 100 == 0:
+#             print(f"\tProcessing image {i+1}/{len(layer)}...")
+        
+#         # Select the current image
+#         image = layer[i]
+        
+#         # Reshape the image so that all feature maps are flattened into a single vector
+#         reshaped_image = np.array(image).reshape(len(image), -1)
+        
+#         # Run PCA with the determined number of components
+#         ipca = IncrementalPCA(n_components=n_components)
+#         transformed_image = ipca.fit_transform(reshaped_image)
+        
+#         # Append the transformed image to the list
+#         transformed_images.append(transformed_image)
+    
+#     # Append the list of transformed images for the layer to the transformed_layers dictionary
+#     transformed_layers[layer_name] = transformed_images
+        
+# # This was used to saved the feature maps that have been reduced in dimensionality using PCA
+# # Initialize an empty list to store the reshaped data for each layer
+# reshaped_layers = []
+
+# # Save the transformed layers and flatten the last 2 dimensions to get a 2D array that can be used as X matrix
+# for layer in range(1,5):
+#     layer_data = np.array(transformed_layers[f'layer_{layer}'])
+#     n_imgs, _, _ = layer_data.shape
+#     reshaped_layer_data = layer_data.reshape(n_imgs, -1)
+#     # np.save(f'/home/rfpred/data/custom_files/subj01/pred/featmaps/{scale}_unet_gt_feats_{layer}', reshaped_layer_data)
+#     np.save(f'/home/rfpred/data/custom_files/subj01/pred/featmaps/tests/{scale}_unet_gt_feats_{layer}', reshaped_layer_data)
+#     reshaped_layers.append(reshaped_layer_data.flatten())
+    
+# print("All is well")

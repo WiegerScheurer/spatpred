@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# 
+
 import os
 # Limit the number of CPUs used to 2
 os.environ["OMP_NUM_THREADS"] = "5"
@@ -25,6 +27,8 @@ import scipy.stats.mstats as mstats
 from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
 from tqdm import tqdm
 import traceback
+from scipy.stats import zscore as zs
+
 
 # torch.manual_seed(1)
 # random.seed(1)
@@ -69,7 +73,7 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, idx):
         img_id = self.image_ids[idx]
-        imgnp = (show_stim(img_no=img_id, hide='y', small = 'y')[0][163:263,163:263])
+        imgnp = (show_stim(img_no=img_id, hide='y', small = 'y')[0][163:263,163:263]) # I CROP THEM, YOU SEE
         
         imgPIL = Image.fromarray(imgnp) # Convert into PIL from np
 
@@ -190,6 +194,24 @@ if args.end == 30000:
 
     n_file = -1
     current_array = 0
+    
+    # THIS WAS OLD CODE, BUT IT HAD A SCALING MISTAKE BECAUSE IT SCALED INDIVIDUAL IMAGES INSTEAD OF THE ENTIRE SESSION
+# for file_name in sorted(os.listdir(f'/home/rfpred/data/custom_files/{subject}/{prf_region}/')):
+#     n_file += 1
+#     if file_name.startswith(f"cnn_pcs_layerfeatures.{cnn_layer}") and file_name.endswith(".npz"):
+#         data = np.load(f'/home/rfpred/data/custom_files/{subject}/{prf_region}/{file_name}')
+#         n_imgs = len(data.files)
+        
+#         if n_imgs > 0:
+#             session_ar = np.zeros((n_imgs, n_comps))
+#             for image in range(n_imgs):
+#                 session_ar[image, :] = zs(data[f'arr_{image}'])
+
+#             layer_feats[current_array:current_array+n_imgs, :] = session_ar
+#             current_array += n_imgs
+            
+
+    
     for file_name in sorted(os.listdir(f'/home/rfpred/data/custom_files/{args.subject}/{prf_region}/')):
         n_file += 1
         if file_name.startswith(f"cnn_pcs_layerfeatures.{args.cnn_layer}") and file_name.endswith(".npz"):
@@ -199,12 +221,14 @@ if args.end == 30000:
             if n_imgs > 0:
                 session_ar = np.zeros((n_imgs, n_comps))
                 for image in range(n_imgs):
-                    session_ar[image, :] = get_zscore(data[f'arr_{image}'], print_ars='n')
+                    session_ar[image, :] = data[f'arr_{image}']
+
+                # Apply zs() to the entire session_ar
+                session_ar = zs(session_ar)
 
                 layer_feats[current_array:current_array+n_imgs, :] = session_ar
                 current_array += n_imgs
-                
-                
+                    
                 
     # Print out some summary statistics of the features
     print(f'All feat stats:\nMean: {layer_feats.mean()}, Std: {layer_feats.std()}, Min: {layer_feats.min()}, Max: {layer_feats.max()}')
