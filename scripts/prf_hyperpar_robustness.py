@@ -87,7 +87,7 @@ subject = 'subj01'
 max_size = 2
 # min_size = .1
 # patchbound = 1
-min_nsd_R2 = 0
+min_nsd_R2 = 20
 min_prf_R2 = 0
 
 min_sizes = [0, .1, .2, .3]
@@ -119,6 +119,8 @@ for i, min_size in enumerate(min_sizes):
             
         max_n_voxels = np.min(n_voxels)
 
+        # UNCOMMENT TO LIMIT THE NUMBER OF VOXELS BASED ON THE LOWEST NUMBER OF AVAILABLE VOXELS ACROSS ROIS
+        
         for roi in rois: # Limit the number of voxels based on the lowest number of available voxels across rois
             voxeldict[roi].vox_lim(max_n_voxels)
             print(f'{roi} voxels capped at: {max_n_voxels}')
@@ -135,12 +137,12 @@ for i, min_size in enumerate(min_sizes):
         ce = NSP.stimuli.get_scce(subject, 'ce')
         Xbl = pd.concat([rms, sc, ce], axis=1).values
 
-        which_cnn = 'vgg-b'
-        # which_cnn = 'alexnet'
+        # which_cnn = 'vgg-b'
+        which_cnn = 'alexnet'
         n_layers = 5 if which_cnn == 'alexnet' else 6
 
         Xpred = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=False, ssim=False, pixel_loss=False, 
-                                        L1=True, MSE=False, verbose=True, outlier_sd_bound=5, subject=subject) # wait untill all are computed of alexnet
+                                        L1=True, MSE=False, verbose=True, outlier_sd_bound=5, subject=None) # wait untill all are computed of alexnet
 
         print(f'Xpred has these dimensions: {Xpred.shape}')
 
@@ -156,7 +158,7 @@ for i, min_size in enumerate(min_sizes):
                                             X=X, # The baseline model + current unpredictability layer
                                             alpha=10, 
                                             voxeldict=voxeldict, 
-                                            cv=10, 
+                                            cv=5, 
                                             rois=rois, 
                                             X_uninformative=Xbl, # The baseline model
                                             fit_icept=False, 

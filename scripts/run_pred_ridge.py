@@ -79,7 +79,7 @@ NSP.initialise()
 
 rois, roi_masks, viscortex_mask = NSP.cortex.visrois_dict(verbose=False)
 prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
-tag = '_prelim'
+tag = 'ALEXANDERNIEUW'
 ############ CONSTRAINED VOXEL SELECTION Y-MATRIX ################
 ##### ALSO RUN THIS FOR THE PRED FEATS SEPARATELY WITHOUT THE BASELINE #########
 
@@ -89,15 +89,16 @@ min_size = .25
 patchbound = 1
 min_nsd_R2 = 0
 min_prf_R2 = 0
-fixed_n_voxels = 170
+# fixed_n_voxels = 170
 
 voxeldict = {}
+n_voxels = []
 for roi in rois:
     print_attr = True if roi == rois[len(rois)-1] else False
     voxeldict[roi] = VoxelSieve(NSP, prf_dict, roi_masks,
                                 subject=subject, 
-                                roi=roi, 
-                                patchloc='central',
+                                roi=roi,
+                                patchloc='central', 
                                 max_size=max_size, 
                                 min_size=min_size, 
                                 patchbound=patchbound, 
@@ -105,6 +106,31 @@ for roi in rois:
                                 min_prf_R2=min_prf_R2,
                                 print_attributes=print_attr,
                                 fixed_n_voxels=None)
+    n_voxels.append(len(voxeldict[roi].size))
+    
+max_n_voxels = np.min(n_voxels)
+
+# for roi in rois: # Limit the number of voxels based on the lowest number of available voxels across rois
+#     voxeldict[roi].vox_lim(max_n_voxels)
+#     print(f'{roi} voxels capped at: {max_n_voxels}')
+
+
+
+# OLD CODE
+# voxeldict = {}
+# for roi in rois:
+#     print_attr = True if roi == rois[len(rois)-1] else False
+#     voxeldict[roi] = VoxelSieve(NSP, prf_dict, roi_masks,
+#                                 subject=subject, 
+#                                 roi=roi, 
+#                                 patchloc='central',
+#                                 max_size=max_size, 
+#                                 min_size=min_size, 
+#                                 patchbound=patchbound, 
+#                                 min_nsd_R2=min_nsd_R2, 
+#                                 min_prf_R2=min_prf_R2,
+#                                 print_attributes=print_attr,
+#                                 fixed_n_voxels=None)
 
 ydict = {}
 for roi in rois:
@@ -124,8 +150,9 @@ sc = NSP.stimuli.get_scce(subject, 'sc')
 ce = NSP.stimuli.get_scce(subject, 'ce')
 Xbl = pd.concat([rms, sc, ce], axis=1).values
 
-which_cnn = 'vgg-b'
+# which_cnn = 'vgg-b'
 # which_cnn = 'alexnet'
+which_cnn = 'alexnet_new'
 n_layers = 5 if which_cnn == 'alexnet' else 6
 
 Xpred = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=False, ssim=False, pixel_loss=False, 
@@ -140,12 +167,12 @@ for layer in range(0, Xpred.shape[1]):
     X_shuf = np.copy(X)
     np.random.shuffle(X_shuf)
 
-    obj = NSP.analyse.analysis_chain(subject=subject,
+    obj, _ = NSP.analyse.analysis_chain(subject=subject,
                                      ydict=ydict, 
                                      X=X, # The baseline model + current unpredictability layer
                                      alpha=10, 
                                      voxeldict=voxeldict, 
-                                     cv=10, 
+                                     cv=5, 
                                      rois=rois, 
                                      X_uninformative=Xbl, # The baseline model
                                      fit_icept=False, 

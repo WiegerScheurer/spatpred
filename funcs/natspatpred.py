@@ -1,5 +1,6 @@
 import os
 import sys
+from arrow import get
 import numpy as np
 import random
 import time
@@ -308,14 +309,14 @@ class DataFetch():
         
     # Hard coded, make flexible    
     # Function to load in all the computed predictability estimates, created using the get_pred.py and pred_stack.sh scripts.
-    def load_pred_estims(self, subject = None, start = None, n_files = None, verbose:bool = False):
+    def load_pred_estims(self, subject:str=None, start:int=None, n_files:int=None, verbose:bool=False, cnn_type:str='alexnet'):
         dict_list = []
 
         # Get a list of files in the directory
-        files = os.listdir(f'{self.nsp.own_datapath}/')
+        files = os.listdir(f'{self.nsp.own_datapath}/visfeats/pred/')
 
         # Filter files that start with "beta_dict" and end with ".pkl"
-        filtered_files = [file for file in files if file.startswith('pred_payloads') and file.endswith("vgg-b.h5")]
+        filtered_files = [file for file in files if file.startswith('pred_payloads') and file.endswith(f"{cnn_type}.h5")]
         
         # Sort files based on the first number after 'beta_dict'
         sorted_files = sorted(filtered_files, key=lambda x: int(''.join(filter(str.isdigit, x.split('pred_payloads')[1]))))
@@ -325,7 +326,7 @@ class DataFetch():
             if verbose:
                 print(f'Now loading file {file_no + 1} of {len(sorted_files)}')
             # load in back dictionary
-            with h5py.File(f'{self.nsp.own_datapath}/{file}', 'r') as hf:
+            with h5py.File(f'{self.nsp.own_datapath}/visfeats/pred/{file}', 'r') as hf:
                 data = hf.keys()
                     
                 dict = {key: np.array(hf[key]) for key in data}
@@ -2406,7 +2407,8 @@ class Stimuli():
             f'{self.nsp.own_datapath}/all_visfeats_scce_large.pkl',
             f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl',
             f'{self.nsp.own_datapath}/subj01/pred/all_predestims.h5',
-            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg-b.csv'
+            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg-b.csv',
+            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_alexnet_new.csv'
             ]
         return {os.path.basename(file): self.nsp.datafetch.fetch_file(file) for file in feature_paths}
     
@@ -2511,7 +2513,7 @@ class Stimuli():
         if outlier_sd_bound == 'auto':
             if cnn_type == 'vgg-b':
                 cutoff_bound = 10
-            elif cnn_type == 'alexnet':
+            elif cnn_type == 'alexnet' or 'alexnet_new':
                 cutoff_bound = 5
         else: cutoff_bound = outlier_sd_bound
                         
@@ -2520,6 +2522,9 @@ class Stimuli():
             predfeatnames = [name for name in list(self.features()[file_str].keys()) if name != 'img_ices']
         elif cnn_type == 'vgg-b':
             file_str = 'all_predestims_vgg-b.csv'
+            predfeatnames = [name for name in self.features()[file_str].columns if name != 'img_ices']
+        elif cnn_type == 'alexnet_new':
+            file_str = 'all_predestims_alexnet_new.csv'
             predfeatnames = [name for name in self.features()[file_str].columns if name != 'img_ices']
         
         if subject is not None:    
@@ -2541,7 +2546,7 @@ class Stimuli():
         
         # data = {name: zs(self.nsp.utils.replace_outliers(self.nsp.stimuli.features()['all_predestims.h5'][name], m=outlier_bound)) for name in predfeatnames}
         
-        data = {name: zs(self.nsp.utils.std_dev_cap(self.features()[file_str][name],num_std_dev=cutoff_bound))[indices] for name in predfeatnames}
+        data = {name: zs(self.nsp.utils.std_dev_cap(self.features()[file_str][name].fillna(.00001),num_std_dev=cutoff_bound))[indices] for name in predfeatnames}
         
         # Convert the dictionary values to a list of lists
         data_list = list(data.values())
@@ -2756,7 +2761,7 @@ class Stimuli():
         plt.show()
         
     def plot_correlation_matrix(self, subject:str='subj01', include_rms:bool=True, include_ce:bool=True, include_ce_l:bool=True, include_sc:bool=True, 
-                                include_sc_l:bool=True, cmap:str='copper_r', cnn_type:str='alexnet', loss_calc:str='MSE'): 
+                                include_sc_l:bool=True, include_ce_new:bool=True, include_sc_new:bool=True, cmap:str='copper_r', cnn_type:str='alexnet', loss_calc:str='MSE'): 
         """
         Plot a correlation matrix for the MSE content loss values per layer, and the baseline features.
 
@@ -2780,19 +2785,27 @@ class Stimuli():
         elif cnn_type == 'vgg-b':
             file_str = 'all_predestims_vgg-b.csv'
             predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith('content')]
+        elif cnn_type == 'alexnet_new':
+            file_str = 'all_predestims_alexnet_new.csv'
+            predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith('content')]
         
         # Build dataframe
         data = {name: self.features()[file_str][name][indices] for name in predfeatnames}
         if include_rms:
-            data['rms'] = self.baseline_feats('rms').flatten()
+            # data['rms'] = self.baseline_feats('rms').flatten()
+            data['rms'] = self.get_rms(subject).values.flatten()
         if include_ce:
-            data['ce'] = self.baseline_feats('ce').flatten()
+            data['ce'] = self.baseline_feats(subject, feat_type = 'ce').flatten()
         if include_ce_l:
-            data['ce_l'] = self.baseline_feats('ce_l').flatten()
+            data['ce_l'] = self.baseline_feats(subject, feat_type = 'ce_l').flatten()
         if include_sc:
-            data['sc'] = self.baseline_feats('sc').flatten()
+            data['sc'] = self.baseline_feats(subject, feat_type = 'sc').flatten()
         if include_sc_l:
-            data['sc_l'] = self.baseline_feats('sc_l').flatten()
+            data['sc_l'] = self.baseline_feats(subject, feat_type = 'sc_l').flatten()
+        if include_ce_new:
+            data['ce_new'] = self.get_scce(subject, 'ce').values.flatten()
+        if include_sc_new:
+            data['sc_new'] = self.get_scce(subject, 'sc').values.flatten()
 
         df = pd.DataFrame(data)
 
@@ -2809,6 +2822,11 @@ class Stimuli():
             ticks.append('SC 1°')
         if include_sc_l:
             ticks.append('SC 5°')
+        if include_ce_new:
+            ticks.append('CE new')
+        if include_sc_new:
+            ticks.append('SC new')
+            
         plt.figure(figsize=(9,7))
         # sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks)
         sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks, vmin=0, vmax=1)
@@ -3386,7 +3404,8 @@ class Analysis():
     
     def analysis_chain(self, subject:str, ydict:Dict[str, np.ndarray], voxeldict:Dict[str, VoxelSieve], 
                        X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, 
-                       fit_icept:bool=False, save_outs:bool=False, regname:Optional[str]='', plot_hist:bool=True) -> np.ndarray:
+                       fit_icept:bool=False, save_outs:bool=False, regname:Optional[str]='', plot_hist:bool=True,
+                       shuf_or_baseline:str='s') -> np.ndarray:
         """Function to run a chain of analyses on the input data for each of the four regions of interest (ROIs).
             Includes comparisons with an uninformative dependent variable X matrix (such as a shuffled 
             version of the original X matrix), to assess the quality of the model in a relative way.
@@ -3411,6 +3430,7 @@ class Analysis():
                 into a nifti file using nib.Nifti1Image(np.array, affine), in which the affine can be extracted
                 from a readily available nifti file from the specific subject (using your_nifti.affine).
         """
+        comp_X_str = 'shuffled' if shuf_or_baseline == 's' else 'baseline'
         r_values = {}
         r_uninformative = {}
         regcor_dict = {}  # Dictionary to store cor_scores
@@ -3462,7 +3482,7 @@ class Analysis():
                     axs = axs.flatten()
                 
                 # Underlay with the histogram of r_uninformative[roi] values
-                axs[i].hist(r_uninformative[roi], bins=25, edgecolor=None, alpha=1, label='Shuffled X', color='burlywood')
+                axs[i].hist(r_uninformative[roi], bins=25, edgecolor=None, alpha=1, label=comp_X_str, color='burlywood')
                 # Plot the histogram of r_values[roi] values in the i-th subplot
                 axs[i].hist(r_values[roi], bins=25, edgecolor='black', alpha=0.5, label='X', color='dodgerblue')
                 axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
@@ -3495,9 +3515,16 @@ class Analysis():
 
         Args:
         - subject (str): The subject for which the regression results are to be loaded
+        - prf_dict (dict): The pRF dictionary
+        - roi_masks (dict): The dictionary with the 3D np.ndarray boolean brain masks
         - feattype (str): options: 'rms', 'ce', 'sc', 'unpred', 'alexunet', 'alexown'
         - cnn_layer (int): Optional, only necessary for the 'unpred, 'alexunet', and 'alexown' feature types
-            
+        - plot_on_viscortex (bool): Whether to plot the results on the V1 mask
+        - plot_result (str): The result to plot, options: 'r', 'r_shuf', 'r_rel', 'betas'
+        - lowcap (float): The lower cap for the colourmap when plotting the brain
+        - upcap (float): The upper cap, idem.
+        - file_tag (str): Optional tag to append to the file name
+        - verbose (bool): Whether to print the coords dataframe
         Out:
         - cor_scores_dict (Dict): The dictionary that contains for both the actual X matrix and the shuffled X matrix the
             r correlation scores for every separate cv fold.
@@ -3554,7 +3581,76 @@ class Analysis():
         return cor_scores_dict, coords
 
 
-    def assign_layers(self, subject:str, prf_dict:dict, roi_masks:dict, rois:list, cmap, cnn_type:str='alex', plot_on_brain:bool=True, file_tag:str='', save_imgs:bool=False):
+    def plot_delta_r(self, subject:str, rois:list, cnn_type:str='alex',
+                    file_tag:str='', save_imgs:bool=False, basis_param:str='betas',
+                    which_reg:str='unpred'):
+        """Function to plot the delta r values that have resulted from regressions across different cnn layers.
+        Works for the predictability estimates and for the encoding models. 
+
+        Args:
+        - subject (str): The subject.
+        - rois (list): List of ROIs to consider.
+        - cnn_type (str, optional): The type of CNN model to use. Defaults to 'alex'.
+        - file_tag (str, optional): Optional tag to append to the file name. Defaults to ''.
+        - save_imgs (bool, optional): Whether to save the images. Defaults to False.
+        - basis_param (str, optional): The basis for assigning layers. Defaults to 'betas', alternative is 'r' or 'delta_r'.
+        - which_reg (str, optional): The type of regression to use. Defaults to 'unpred'.
+        """    
+        first_lay = 0
+        last_lay = 5 if cnn_type == 'alex' or cnn_type == 'alexnet' else 6
+        
+        if which_reg == 'unpred':
+            feattype = f'{cnn_type}_unpred'
+        elif which_reg == 'encoding':
+            feattype = 'allvox_alexunet'
+            first_lay = 1
+            last_lay = 5
+            
+        n_layers = last_lay - first_lay
+        
+        if basis_param == 'betas':
+            param_col = 5
+        elif basis_param == 'r':
+            param_col = 3
+        elif basis_param == 'delta_r':
+            param_col = 6
+        
+        for layer in range(first_lay,last_lay): # Loop over the layers of the alexnet
+            cnn_layer = f'er{str(layer)}' if which_reg == 'encoding' else f'{str(layer)}'
+                
+            delta_r_layer = pd.read_pickle(f'{self.nsp.own_datapath}/{subject}/brainstats/{feattype}_lay{cnn_layer}{file_tag}_delta_r.pkl').values[0].flatten()
+            if layer == first_lay:
+                all_delta_r = delta_r_layer
+            else:
+                all_delta_r = np.vstack((all_delta_r, delta_r_layer))
+                
+        df = pd.DataFrame(all_delta_r, columns = rois)
+        print(df)
+
+        df.reset_index(inplace=True)
+
+        # Melt the DataFrame to long-form or tidy format
+        df_melted = df.melt('index', var_name='ROI', value_name='b')
+        
+        fig, ax = plt.subplots()
+
+        # Create the line plot
+        sns.lineplot(x='index', y='b', hue='ROI', data=df_melted, marker='o', ax=ax)
+
+        ax.set_xticks(range(n_layers))  # Set x-axis ticks to be integers from 0 to 4
+        ax.set_xlabel(f'{cnn_type} Layer')
+        ax.set_ylabel('Delta R Value')
+        ax.set_title(f'Delta R Value per {cnn_type} Layer')
+
+        if save_imgs:
+            # Save the plot
+            fig.savefig(f'{self.nsp.own_datapath}/{subject}/brainstats/{feattype}_lay{cnn_layer}{file_tag}_delta_r_plot.png')
+
+        plt.show()
+
+    def assign_layers(self, subject:str, prf_dict:dict, roi_masks:dict, rois:list, cmap, cnn_type:str='alex', 
+                      plot_on_brain:bool=True, file_tag:str='', save_imgs:bool=False, basis_param:str='betas',
+                      which_reg:str='unpred'):
         """
         Assigns layers to voxels based on the maximum beta value across layers for each voxel.
 
@@ -3565,15 +3661,39 @@ class Analysis():
             rois (list): List of ROIs to consider.
             cnn_type (str, optional): The type of CNN model to use. Defaults to 'alex'.
             plot_on_brain (bool, optional): Whether to plot the results on the brain. Defaults to True.
+            file_tag (str, optional): Optional tag to append to the file name. Defaults to ''.
+            save_imgs (bool, optional): Whether to save the images. Defaults to False.
+            basis_param (str, optional): The basis for assigning layers. Defaults to 'betas', alternative is 'r' or 'delta_r'.
+            which_reg (str, optional): The type of regression to use. Defaults to 'unpred'.
         """    
-        n_layers = 5 if cnn_type == 'alex' or cnn_type == 'alexnet' else 6
-
-        for layer in range(0,n_layers): # Loop over the layers of the alexnet
-            cordict, coords = self.load_regresults(subject, prf_dict, roi_masks, f'{cnn_type}_unpred', f'{str(layer)}', plot_on_viscortex=False, plot_result='r', file_tag=file_tag, verbose=False)
-            if layer == 0:
-                all_betas = np.hstack((np.array(coords)[:,:3], np.array(coords)[:,5].reshape(-1,1)))
+        first_lay = 0
+        last_lay = 5 if cnn_type == 'alex' or cnn_type == 'alexnet' else 6
+        
+        if which_reg == 'unpred':
+            feattype = f'{cnn_type}_unpred'
+        elif which_reg == 'encoding':
+            feattype = 'allvox_alexunet'
+            first_lay = 1
+            last_lay = 5
+            
+        n_layers = last_lay - first_lay
+        
+        if basis_param == 'betas':
+            param_col = 5
+        elif basis_param == 'r':
+            param_col = 3
+        elif basis_param == 'delta_r':
+            param_col = 6
+        
+        for layer in range(first_lay,last_lay): # Loop over the layers of the alexnet
+            cnn_layer = f'er{str(layer)}' if which_reg == 'encoding' else f'{str(layer)}'
+            cordict, coords = self.load_regresults(subject, prf_dict, roi_masks, feattype, cnn_layer, plot_on_viscortex=False, plot_result='r', file_tag=file_tag, verbose=False)
+            coords['delta_r'] = coords['r'] - coords['r_shuf'] # Compute the delta_r values
+                
+            if layer == first_lay:
+                all_betas = np.hstack((np.array(coords)[:,:3], np.array(coords)[:,param_col].reshape(-1,1)))
             else:
-                all_betas = np.hstack((all_betas, np.array(coords)[:,5].reshape(-1,1)))
+                all_betas = np.hstack((all_betas, np.array(coords)[:,param_col].reshape(-1,1)))
                 
         for n_roi, roi in enumerate(rois):
             n_roivoxels = len(cordict['X'][roi][0])
