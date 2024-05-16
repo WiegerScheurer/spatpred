@@ -32,4 +32,4 @@ Visual contrast:
     maintain the same ratio between the two pooling radii as in the original paper, thus CE still encapsulates only
     information from the central patch and SC also encapsulates information from the surrounding context.
     This adaptation is done to ensure the computed visual contrast feature is still informative about the
-    central patch, 
+    central patch, -->>>> UPDATE THIS, DEPRECATED
