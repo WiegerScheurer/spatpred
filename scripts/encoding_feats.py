@@ -42,7 +42,7 @@ predparser.add_argument(
 )  # Standard is 1000
 predparser.add_argument(
     "n_comps", type=int, help="The fixed number of principal components to extract"
-)  # Standard is 600
+)  # Standard is 1000
 predparser.add_argument(
     "cnn_layer", type=int, help="The layer to extract neural representations of"
 )

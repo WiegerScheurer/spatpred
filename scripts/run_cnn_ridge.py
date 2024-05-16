@@ -181,7 +181,7 @@ prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 ################### FULL VISUAL CORTEX (V1, V2, V3, V4) REGRESSIONS ###############
 
 subject = 'subj01'
-
+file_tag = '_fullviscortex'
 voxeldict = {}
 for roi in rois:
     print_attr = True if roi == rois[len(rois)-1] else False
@@ -199,12 +199,14 @@ for roi in rois:
 for layer in range(1, 5):
     print(f'Running regression for layer: {layer}')
     
-    X = NSP.stimuli.unet_featmaps(list_layers=[layer], scale='full') # Get X matrix
+    # X = NSP.stimuli.unet_featmaps(list_layers=[layer], scale='full') # Get X matrix
+    relu_lays = [1, 4, 7, 9, 11]
+    X = NSP.stimuli.alex_featmaps(relu_lays[layer], subject)
     print(f'X has these dimensions: {X.shape}')
     X_shuf = np.copy(X) # Get control X matrix which is a shuffled version of original X matrix
     np.random.shuffle(X_shuf)
 
-    obj = NSP.analyse.analysis_chain(subject=subject,
+    obj,_  = NSP.analyse.analysis_chain(subject=subject,
                                      ydict=ydict, 
                                      X=X, 
                                      alpha=10, 
@@ -214,7 +216,7 @@ for layer in range(1, 5):
                                      X_uninformative=X_shuf, 
                                      fit_icept=False, 
                                      save_outs=True,
-                                     regname=f'allvox_alexunet_layer{layer}')
+                                     regname=f'allvox_alexunet_layer{layer}{file_tag}')
     
     rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
 
@@ -227,20 +229,20 @@ for layer in range(1, 5):
                            NSP.utils.cap_values(np.copy(rel_scores_np), None, None), 
                            False, 
                            save_img=True, 
-                           img_path=f'/home/rfpred/imgs/reg/allvox_alexunet_layer{layer}_regcorplot.png')
+                           img_path=f'/home/rfpred/imgs/reg/allvox_alexunet_layer{layer}_regcorplot{file_tag}.png')
 
-    # This is for the betas
-    plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))
-    plot_bets_np = NSP.utils.coords2numpy(plot_bets, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+    # # This is for the betas
+    # plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))
+    # plot_bets_np = NSP.utils.coords2numpy(plot_bets, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
 
-    # plot the betas
-    NSP.analyse.plot_brain(prf_dict, 
-                           roi_masks, 
-                           subject, 
-                           NSP.utils.cap_values(np.copy(plot_bets_np), None, None), 
-                           False, 
-                           save_img=True, 
-                           img_path=f'/home/rfpred/imgs/reg/allvox_alexnet_lay{layer}_regbetaplot.png')
+    # # plot the betas. Not necessary at all
+    # NSP.analyse.plot_brain(prf_dict, 
+    #                        roi_masks, 
+    #                        subject, 
+    #                        NSP.utils.cap_values(np.copy(plot_bets_np), None, None), 
+    #                        False, 
+    #                        save_img=True, 
+    #                        img_path=f'/home/rfpred/imgs/reg/allvox_alexnet_lay{layer}_regbetaplot.png')
 
 
 # baseline_strings = ['rms', 'ce', 'sc_l']

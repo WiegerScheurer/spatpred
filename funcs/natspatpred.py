@@ -1,59 +1,57 @@
-import os
-import sys
-from arrow import get
-import numpy as np
-import random
-import time
-import matplotlib.pyplot as plt
-import pandas as pd
-import torch
-import seaborn as sns
-import nibabel as nib
-import pickle
-import torchvision.models as models
-import nibabel as nib
-import h5py
-import scipy.stats.mstats as mstats
 import copy
-import ipywidgets as widgets
-import sklearn as sk
-import yaml
+import os
+import pickle
+import random
 import re
-
-from skimage import color
-from scipy import stats
-from nilearn import plotting
-from sklearn.base import clone
-from scipy.ndimage import binary_dilation
-from PIL import Image
+import sys
+import time
 from importlib import reload
-from scipy.io import loadmat
-from matplotlib.ticker import MultipleLocator, NullFormatter, FuncFormatter, FixedLocator
-from sklearn.cross_decomposition import PLSRegression
-from sklearn.linear_model import LinearRegression, Lasso, Ridge
+from math import e, sqrt
+from multiprocessing import Pool
+from typing import Dict, List, Optional, Sequence, Tuple, Union
+
+import h5py
+import ipywidgets as widgets
+import matplotlib.pyplot as plt
+import nibabel as nib
+import numpy as np
+import pandas as pd
+import scipy.stats.mstats as mstats
+import seaborn as sns
+import sklearn as sk
+import torch
+import torchvision.models as models
+import yaml
+from arrow import get
 from colorama import Fore, Style
-from matplotlib.colors import LinearSegmentedColormap, ListedColormap
+from IPython.display import display
 from matplotlib import colormaps
-from torch.utils.data import Dataset, DataLoader
-from torch.nn import Module
-from torchvision import transforms
-from sklearn.preprocessing import StandardScaler
+from matplotlib.colors import LinearSegmentedColormap, ListedColormap
+from matplotlib.lines import Line2D
+from matplotlib.ticker import (FixedLocator, FuncFormatter, MaxNLocator,
+                               MultipleLocator, NullFormatter)
+from nilearn import plotting
+from PIL import Image
+from scipy import stats
+from scipy.io import loadmat
+from scipy.ndimage import binary_dilation
+from scipy.special import softmax
+from scipy.stats import zscore as zs
+from skimage import color
+from sklearn.base import clone
+from sklearn.cross_decomposition import PLSRegression
 from sklearn.decomposition import PCA, IncrementalPCA
 from sklearn.impute import SimpleImputer
-from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
+from sklearn.linear_model import Lasso, LinearRegression, Ridge
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import KFold, cross_val_predict, cross_val_score
+from sklearn.preprocessing import StandardScaler
+from torch.nn import Module
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
+from torchvision.models.feature_extraction import (create_feature_extractor,
+                                                   get_graph_node_names)
 from tqdm.notebook import tqdm
-from matplotlib.lines import Line2D
-from sklearn.model_selection import KFold
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import cross_val_score, KFold, cross_val_predict
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error    
-from IPython.display import display
-from math import e, sqrt
-from scipy.special import softmax
-from matplotlib.ticker import MaxNLocator
-from multiprocessing import Pool
-from typing import Union, Dict, List, Tuple, Optional, Sequence
-from scipy.stats import zscore as zs
 
 print('soepstengesl')
 
@@ -63,8 +61,10 @@ sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
 
 import lgnpy.CEandSC.lgn_statistics
+from lgnpy.CEandSC.lgn_statistics import LGN, lgn_statistics
+
 from unet_recon.inpainting import UNet
-from lgnpy.CEandSC.lgn_statistics import lgn_statistics, LGN
+
 
 class VoxelSieve:
     """
@@ -2738,6 +2738,73 @@ class Stimuli():
         
         return X_all    
     
+    def alex_featmaps(self, layers:(list | int)=[1, 4, 7, 9, 11], subject:str='subj01',
+                    plot_corrmx:bool=True):
+        """
+        Load in the feature maps from the AlexNet model for a specific layer and subject
+        
+        Args:
+        - layers: list of integers representing the layers of the AlexNet model to include in the X-matrix.
+            Options are 1, 4, 7, 9, 11. These correspond to the ReLU layers of the AlexNet model.
+        - subject: string value representing the subject for which the feature maps should be loaded in
+        - plot_corrmx: boolean value indicating whether a correlation matrix should be plotted for the top 500 principal components of the AlexNet model
+        
+        Out:
+        - X_all: np.array containing the feature maps extracted at the specified layers of the AlexNet model
+        """
+        
+        full_img_alex = []
+        layers = [layers] if type(layers) is int else layers
+        for n_layer, cnn_layer in enumerate(layers):
+            if n_layer == 0:
+                full_img_alex = np.load(f'{self.nsp.own_datapath}/{subject}/encoding/regprepped_featmaps_layer{cnn_layer}.npy')
+            else: full_img_alex = np.hstack((full_img_alex, np.load(f'{self.nsp.own_datapath}/{subject}/encoding/regprepped_featmaps_layer{cnn_layer}.npy')))
+ 
+        if len(layers) < 5:
+            plot_corrmx = False
+            
+        if plot_corrmx:
+            # Correlation matrix for the 5 AlexNet layers
+            # Split X_all into separate arrays for each layer
+            X_split = np.hsplit(full_img_alex, len(layers)) # Amazing function, splits the array into n arrays along the columns
+
+            # Initialize an empty matrix for the correlations
+            corr_matrix = np.empty((len(layers), len(layers)))
+
+            # Calculate the correlation between each pair of layers
+            for i in range(len(layers)):
+                for j in range(len(layers)):
+                    corr_matrix[i, j] = np.corrcoef(X_split[i].flatten(), X_split[j].flatten())[0, 1]
+
+            print(corr_matrix)
+
+            # Create a heatmap from the correlation matrix
+            plt.imshow(corr_matrix, cmap='Greens_r', interpolation='nearest')
+            plt.colorbar(label='Correlation coefficient')
+
+            # Add annotations to each cell
+            for i in range(corr_matrix.shape[0]):
+                for j in range(corr_matrix.shape[1]):
+                    plt.text(j, i, format(corr_matrix[i, j], '.2f'),
+                            ha="center", va="center",
+                            color="black")
+
+            relu_nos = [no for no in range(1,6)]
+            # Set the tick labels
+            plt.xticks(np.arange(len(layers)), relu_nos)
+            plt.yticks(np.arange(len(layers)), relu_nos)
+
+            # Set the title and labels
+            plt.title(f'Correlation matrix of\ntop {len(layers)} principal components of AlexNet')
+            plt.xlabel('ReLU layer')
+            plt.ylabel('ReLU layer')
+
+            plt.show()
+        
+        return full_img_alex    
+    
+    
+    
     # Create design matrix containing ordered indices of stimulus presentation per subject
     def imgs_designmx(self):
         
@@ -3482,7 +3549,7 @@ class Analysis():
     def analysis_chain(self, subject:str, ydict:Dict[str, np.ndarray], voxeldict:Dict[str, VoxelSieve], 
                        X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, 
                        fit_icept:bool=False, save_outs:bool=False, regname:Optional[str]='', plot_hist:bool=True,
-                       shuf_or_baseline:str='s') -> np.ndarray:
+                       shuf_or_baseline:str='s') -> (np.ndarray, pd.DataFrame):
         """Function to run a chain of analyses on the input data for each of the four regions of interest (ROIs).
             Includes comparisons with an uninformative dependent variable X matrix (such as a shuffled 
             version of the original X matrix), to assess the quality of the model in a relative way.
