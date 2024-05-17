@@ -196,7 +196,8 @@ for roi in rois:
     ydict[roi] = NSP.analyse.load_y(subject=subject, roi=roi, voxelsieve=voxeldict[roi], n_trials='all').T
     print(f'{roi} y-matrix has dimensions: {ydict[roi].shape}')
 
-for layer in range(1, 5):
+# for layer in range(1, 5):
+for layer in range(0, 1):
     print(f'Running regression for layer: {layer}')
     
     # X = NSP.stimuli.unet_featmaps(list_layers=[layer], scale='full') # Get X matrix
@@ -226,8 +227,8 @@ for layer in range(1, 5):
     NSP.analyse.plot_brain(prf_dict, 
                            roi_masks, 
                            subject, 
-                           NSP.utils.cap_values(np.copy(rel_scores_np), None, None), 
-                           False, 
+                           brain_numpy=NSP.utils.cap_values(np.copy(rel_scores_np), None, None), 
+                           cmap='coolwarm', 
                            save_img=True, 
                            img_path=f'/home/rfpred/imgs/reg/allvox_alexunet_layer{layer}_regcorplot{file_tag}.png')
 

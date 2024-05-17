@@ -145,20 +145,26 @@ def extract_features(feature_extractor, dataloader, pca, cnn_layer: int):
 
 
 def extract_features_and_check(d, feature_extractor):
-    # Extract features
-    ft = feature_extractor(d)
-    # Flatten the features
-    ft = torch.hstack([torch.flatten(l, start_dim=1) for l in ft.values()])
+    while True:  # Keep trying until successful
+        try:
+            # Extract features
+            ft = feature_extractor(d)
+            # Flatten the features
+            ft = torch.hstack([torch.flatten(l, start_dim=1) for l in ft.values()])
 
-    # Check for NaN values
-    if np.isnan(ft.detach().numpy().any()):
-        raise ValueError("NaN value detected before PCA fit")
+            # Check for NaN values
+            if np.isnan(ft.detach().numpy().any()):
+                raise ValueError("NaN value detected before PCA fit")
 
-    # Check for extreme outliers
-    if (ft.detach().numpy() < -100000).any() or (ft.detach().numpy() > 100000).any():
-        raise ValueError("Extreme outlier detected before PCA fit")
+            # Check for extreme outliers
+            if (ft.detach().numpy() < -100000).any() or (ft.detach().numpy() > 100000).any():
+                raise ValueError("Extreme outlier detected before PCA fit")
 
-    return ft
+            return ft  # If everything is fine, return the features
+
+        except ValueError as e:
+            print(f"Error occurred: {e}")
+            print("Restarting feature extraction...")
 
 
 def fit_pca(

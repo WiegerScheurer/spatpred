@@ -3416,7 +3416,7 @@ class Analysis():
         
         return y_hat, cor_scores
     
-    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, cmap, glass_brain:bool=False, save_img:bool=False, img_path:str='brain_image.png'):
+    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, cmap, glass_brain:bool=False, save_img:bool=False, img_path:str='brain_image.png', lay_assign_plot:bool=False):
         """Function to plot a 3D np.ndarray with voxel-specific values on an anatomical brain template of that subject.
 
         Args:
@@ -3434,16 +3434,17 @@ class Analysis():
         else:
             display = plotting.plot_stat_map(brain_nii, bg_img=self.nsp.cortex.anat_templates(prf_dict)[subject], display_mode='ortho', colorbar=True, cmap=cmap, symmetric_cbar=False)
         
-        # New code to format colorbar ticks
-        def format_tick(x, pos):
-            return f'{x:.0f}'
+        if lay_assign_plot:        
+            # New code to format colorbar ticks
+            def format_tick(x, pos):
+                return f'{x:.0f}'
 
-        formatter = FuncFormatter(format_tick)
+            formatter = FuncFormatter(format_tick)
 
-        if display._cbar:
-            display._cbar.update_ticks()
-            display._cbar.ax.yaxis.set_major_formatter(formatter)
-            display._cbar.ax.yaxis.set_major_locator(FixedLocator(np.arange(0, 6)))  # set ticks manually
+            if display._cbar:
+                display._cbar.update_ticks()
+                display._cbar.ax.yaxis.set_major_formatter(formatter)
+                display._cbar.ax.yaxis.set_major_locator(FixedLocator(np.arange(0, 6)))  # set ticks manually
 
         plt.show()
         
@@ -3794,7 +3795,7 @@ class Analysis():
 
     def assign_layers(self, subject:str, prf_dict:dict, roi_masks:dict, rois:list, cmap, cnn_type:str='alex', 
                       plot_on_brain:bool=True, file_tag:str='', save_imgs:bool=False, basis_param:str='betas',
-                      which_reg:str='unpred'):
+                      which_reg:str='unpred', man_title:(str, None)=None):
         """
         Assigns layers to voxels based on the maximum beta value across layers for each voxel.
 
@@ -3817,7 +3818,7 @@ class Analysis():
             feattype = f'{cnn_type}_unpred'
         elif which_reg == 'encoding':
             feattype = 'allvox_alexunet'
-            first_lay = 1
+            first_lay = 0
             last_lay = 5
             
         n_layers = last_lay - first_lay
@@ -3875,17 +3876,43 @@ class Analysis():
                     .value_counts(normalize=True)
                     .unstack(fill_value=0))
 
-        # Plot the proportions using a stacked bar plot
-        df_prop.plot(kind='bar', stacked=True, colormap=barcmap)
+        # Create a mapping from old labels to new labels
+        roi_mapping = {1: 'V1', 2: 'V2', 3: 'V3', 4: 'V4'}
 
-        # Create legend
-        plt.legend(title='CNN Layer', loc='upper center', bbox_to_anchor=(0.5, 1.17),
-                ncol=n_layers, fancybox=False, shadow=False, fontsize=11.5, columnspacing=0.55)
+        # Change the labels on the x-axis
+        df_prop.rename(index=roi_mapping, inplace=True)
+
+        # Plot the proportions using a stacked bar plot
+        ax = df_prop.plot(kind='bar', stacked=True, colormap=barcmap)
+
+        # Add a y-axis label
+        ax.set_ylabel('Layer assignment (%)')
+
+        # # Create legend
+        # plt.legend(title='CNN Layer', loc='upper center', bbox_to_anchor=(0.5, 1.17),
+        #         ncol=n_layers, fancybox=False, shadow=False, fontsize=11.5, columnspacing=0.55)
         
+        # Get current handles and labels
+        handles, labels = plt.gca().get_legend_handles_labels()
+
+        # Reverse handles and labels
+        handles, labels = handles[::-1], labels[::-1]
+        
+        # Create legend
+        legend = plt.legend(handles, labels, title='CNN\nLayer', loc='center right', bbox_to_anchor=(1.15, 0.5),
+                ncol=1, fancybox=False, shadow=False, fontsize=10)
+        
+
+        if man_title is None:
+            plt.title(f'Layer assignment {which_reg} {cnn_type} {basis_param}-based')
+        else:
+            plt.title(man_title)
+            
         if save_imgs:
             save_path = f'{self.nsp.own_datapath}/{subject}/brainstats/{cnn_type}_unpred_layassign{file_tag}'
             # Save the plot
             plt.savefig(f'{save_path}.png')
+        else: save_path = ''
 
         plt.show()
         if plot_on_brain:    
@@ -3894,6 +3921,7 @@ class Analysis():
                                all_betas[:,:3].astype(int), 
                                glass_brain=True, 
                                cmap=glass_cmap, 
+                                # cmap='coolwarm_r', 
                                save_img=save_imgs, 
                                img_path=f'{save_path}_glassbrain.png')
 
