@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Sequence, Tuple, Union
 import h5py
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import nibabel as nib
 import numpy as np
 import pandas as pd
@@ -22,6 +23,7 @@ import sklearn as sk
 import torch
 import torchvision.models as models
 import yaml
+import joblib
 from arrow import get
 from colorama import Fore, Style
 from IPython.display import display
@@ -683,7 +685,7 @@ class Utilities():
         return np.array(processed_data).T
 
 
-
+    # REDUNDANT, I THINK
     # Function to generate a bell-shaped vector
     def generate_bell_vector(self, n, width, location, kurtosis=0, plot = 'y'):
         x = np.linspace(0, 1, n)
@@ -733,7 +735,21 @@ class Utilities():
         
         return coordinates
 
-    def coords2numpy(self, coordinates, shape, keep_vals:bool = False):
+    def coords2numpy(self, coordinates:np.ndarray, shape:tuple, keep_vals:bool=False):
+        """Function to convert voxel coordinates to a numpy array. 
+
+        Args:
+        - coordinates (np.ndarray): Coordinates object as np.ndarray from size (n_voxels, 4) of
+                which the first 3 columns contain the x, y, z coordinates and the last column
+                any values that ought to be plotted on the voxels in the brain. 
+        - shape (tuple): The dimensions of the output brain numpy.ndarray.
+        - keep_vals (bool, optional): Whether or not to keep the values from the fourth column
+                after converting. If False the voxel values will be set to True. Defaults to False.
+
+        Returns:
+        - np.ndarray: Brain numpy in the given shape, with all voxel values set to
+                0 apart from the specified coordinates in the input list. 
+        """        
         # Create an array with the same shape as the original array
         array = np.zeros(shape, dtype=float if keep_vals else bool)
         
@@ -742,8 +758,6 @@ class Utilities():
             array[tuple(coordinates[:,:3].astype('int').T)] = coordinates[:,3]
         else:
             # Set the cells at the coordinates to True
-            # if coordinates
-            # array[tuple(coordinates.T)] = True
                 array[tuple(coordinates[:,:3].astype('int').T)] = True
         
         return array
@@ -962,6 +976,52 @@ class Utilities():
         print(f'Mean value: {np.mean(data)}')
         print(f'Standard deviation: {np.std(data)}')
         return 
+    
+    
+    def display_cmap(self, cmap):
+        plt.figure(figsize=(5, 2))
+        plt.imshow(np.outer(np.ones(10), np.linspace(0, 1, 256)), aspect="auto", cmap=cmap)
+        plt.axis("off")
+        plt.show()
+    
+    def duplicate_cmap(
+        self,
+        which_cmap: str | mcolors.LinearSegmentedColormap = "afmhot",
+        show_cmap: bool = False,
+    ) -> mcolors.LinearSegmentedColormap:
+        """
+        Duplicate a colormap to prevent uninformative brain plots using the standard nilearn
+        brainplots with values that are either all positive or negative. 
+        """
+        if isinstance(which_cmap, str):
+            cmap = plt.cm.get_cmap(which_cmap)
+        elif isinstance(which_cmap, mcolors.LinearSegmentedColormap):
+            cmap = which_cmap
+        else:
+            raise ValueError("which_cmap must be a string or a LinearSegmentedColormap")
+
+        # Create a new colormap that goes from -1 to 0 using the reversed colormap
+        cmap1 = mcolors.LinearSegmentedColormap.from_list(
+            "trunc({n},{a:.2f},{b:.2f})".format(n=cmap.name, a=0, b=0.5),
+            cmap(np.linspace(0, 1, 128)),
+        )
+
+        # Create a new colormap that goes from 0 to 1 using the original colormap
+        cmap2 = mcolors.LinearSegmentedColormap.from_list(
+            "trunc({n},{a:.2f},{b:.2f})".format(n=cmap.name, a=0.5, b=1),
+            cmap(np.linspace(0, 1, 128)),
+        )
+
+        # Combine the two colormaps to create a new colormap that goes from -1 to 1
+        new_cmap = mcolors.LinearSegmentedColormap.from_list(
+            "sym({n})".format(n=cmap.name),
+            np.vstack((cmap1(np.linspace(0, 1, 128)), cmap2(np.linspace(0, 1, 128)))),
+        )
+
+        if show_cmap:
+            self.display_cmap(new_cmap)
+
+        return new_cmap
     
 # This class only contains strictly non-functional methods, they form no part of the main functionality of the NSP.
 # However, they do serve as useful tools to explore the data and a basis for optimal decision-making regarding the procedures.
@@ -2561,24 +2621,8 @@ class Stimuli():
             print(predfeatnames)
         
         return X
-        
-    # def unet_featmaps(self, list_layers:list, scale:str='cropped'):
-    #     """
-    #     Load in the UNet extracted feature maps
-    #     Input:
-    #     - list_layers: list with values between 1 and 4 to indicate which layers to include
-    #     - scale: string to select either 'cropped' for cropped images, or 'full' for full images
-    #     """
-    #     # Load all the matrices and store them in a list
-    #     # matrices = [self.nsp.utils.get_zscore(np.load(f'{self.nsp.own_datapath}/subj01/pred/featmaps/{scale}_unet_gt_feats_{layer}.npy'), print_ars='n') for layer in list_layers]
-    #     matrices = [self.nsp.utils.get_zscore(np.load(f'{self.nsp.own_datapath}/subj01/pred/featmaps/tests/{scale}_unet_gt_feats_{layer}.npy'), print_ars='n') for layer in list_layers]
 
-    #     # Horizontally stack the matrices
-    #     Xcnn_stack = np.hstack(matrices)
-
-    #     return Xcnn_stack
-    
-## THIS ONE WORKS, BUT DOESN'T ZSCORE IT YET
+## THIS ONE WORKS, BUT DOESN'T ZSCORE IT YET -->> Also outdated now. 
     def unet_featmaps(self, list_layers:list, scale:str='cropped'):
         """
         Load in the UNet extracted feature maps
@@ -2605,34 +2649,8 @@ class Stimuli():
         Xcnn_stack = np.hstack(matrices)
 
         return Xcnn_stack
-
-    # def unet_featmaps(self, list_layers:list, scale:str='cropped'):
-    #     """
-    #     Load in the UNet extracted feature maps
-    #     Input:
-    #     - list_layers: list with values between 1 and 4 to indicate which layers to include
-    #     - scale: string to select either 'cropped' for cropped images, or 'full' for full images
-    #     """
-    #     # Initialize an empty list to store the loaded feature maps for each layer
-    #     matrices = []
-
-    #     # Load the feature maps for each layer and append them to the list
-    #     for layer in list_layers:
-    #         file_path = f'{self.nsp.own_datapath}/subj01/pred/featmaps/tests/{scale}_unet_gt_feats_{layer}.npy'
-    #         feature_map = np.load(file_path)
-    #         # Reshape the feature map to have shape (n_imgs, n_components, 256)
-    #         reshaped_feature_map = feature_map.reshape(feature_map.shape[0], -1, 256)
-    #         # Take the mean over the flattened dimensions (last axis)
-    #         mean_feature_map = np.mean(reshaped_feature_map, axis=-1)
-    #         # Apply zs() to the mean feature map
-    #         mean_feature_map = zs(mean_feature_map)
-    #         matrices.append(mean_feature_map)
-
-    #     # Horizontally stack the loaded and averaged feature maps
-    #     Xcnn_stack = np.hstack(matrices)
-
-    #     return Xcnn_stack
     
+    # This is actually deprecated. Does cool stuff but I'm using different feature maps now. 
     def plot_unet_feats(self, layer:int, batch:int, cmap:str='bone', subject:str='subj01', scale:str='cropped'):
         """
         Function to plot a selection of feature maps extracted from the U-Net class.
@@ -2669,6 +2687,8 @@ class Stimuli():
             axes[j].axis('off')
         plt.show()
         
+        
+    # These are the correct featmaps (17-05-2024)
     def alex_featmaps(self, layers:list, pcs_per_layer:Union[int, str]='all', subject:str='subj01',
                       plot_corrmx:bool=True):
         """
@@ -3795,7 +3815,7 @@ class Analysis():
 
     def assign_layers(self, subject:str, prf_dict:dict, roi_masks:dict, rois:list, cmap, cnn_type:str='alex', 
                       plot_on_brain:bool=True, file_tag:str='', save_imgs:bool=False, basis_param:str='betas',
-                      which_reg:str='unpred', man_title:(str, None)=None):
+                      which_reg:str='unpred', man_title:(str | None)=None):
         """
         Assigns layers to voxels based on the maximum beta value across layers for each voxel.
 
@@ -3924,6 +3944,45 @@ class Analysis():
                                 # cmap='coolwarm_r', 
                                save_img=save_imgs, 
                                img_path=f'{save_path}_glassbrain.png')
+            
+    
+    def explained_var_plot(self, relu_layer:int, n_pcs:int):
+        """Method to plot the explained variance ratio of the PCA instance created.
+        
+        Args:
+        - relu_layer (int): Which ReLU layer of the AlexNet used for the encoding analyses
+                to plot the explained variance ratio of. Options are 1, 2, 3, 4, and 5.
+                These correspond to overall layers 1, 4, 7, 9, 11 in the CNN. 
+        - n_pcs (int): The number of principle components. Options are 1000 or 600. 
+        """        
+        pca_instance = joblib.load(f'{self.nsp.own_datapath}/visfeats/cnn_featmaps/pca/pca_{relu_layer}_{n_pcs}pcs.joblib')
+        # Create a figure and a set of subplots
+        fig, ax = plt.subplots()
+
+        # Number of components
+        n_components = np.arange(1, len(pca_instance.explained_variance_ratio_) + 1)
+        cumulative_explained_variance_ratio = np.cumsum(pca_instance.explained_variance_ratio_)
+        # Plot the explained variance ratio
+        ax.bar(n_components, pca_instance.explained_variance_ratio_, alpha=0.5,
+        align='center', label='individual explained variance')
+
+        # Plot the cumulative explained variance ratio
+        ax.step(n_components, cumulative_explained_variance_ratio, where='mid',
+                label='cumulative explained variance')
+
+        # Add a horizontal line at y=0.95
+        ax.axhline(y=0.95, color='r', linestyle='--', label='95% explained variance')
+
+        # Add labels and title
+        ax.set_xlabel('Principal components')
+        ax.set_ylabel('Explained variance ratio')
+        ax.set_title(f'Explained variance ratio across all {n_pcs} PCs of layer {relu_layer}')
+
+        # Add a legend
+        ax.legend(loc='best')
+
+        # Show the plot
+        plt.show()
 
 class NatSpatPred():
     
