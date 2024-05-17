@@ -3837,9 +3837,9 @@ class Analysis():
         if which_reg == 'unpred':
             feattype = f'{cnn_type}_unpred'
         elif which_reg == 'encoding':
-            feattype = 'allvox_alexunet'
+            feattype = 'encoding/allvox_alexunet'
             first_lay = 0
-            last_lay = 5
+            # last_lay = 5
             
         n_layers = last_lay - first_lay
         
@@ -3955,6 +3955,8 @@ class Analysis():
                 These correspond to overall layers 1, 4, 7, 9, 11 in the CNN. 
         - n_pcs (int): The number of principle components. Options are 1000 or 600. 
         """        
+        
+        print('koekjes')
         pca_instance = joblib.load(f'{self.nsp.own_datapath}/visfeats/cnn_featmaps/pca/pca_{relu_layer}_{n_pcs}pcs.joblib')
         # Create a figure and a set of subplots
         fig, ax = plt.subplots()
