@@ -3815,7 +3815,7 @@ class Analysis():
 
     def assign_layers(self, subject:str, prf_dict:dict, roi_masks:dict, rois:list, cmap, cnn_type:str='alex', 
                       plot_on_brain:bool=True, file_tag:str='', save_imgs:bool=False, basis_param:str='betas',
-                      which_reg:str='unpred', man_title:(str | None)=None):
+                      which_reg:str='unpred', man_title:(str | None)=None, return_nifti:bool=False):
         """
         Assigns layers to voxels based on the maximum beta value across layers for each voxel.
 
@@ -3944,6 +3944,15 @@ class Analysis():
                                 # cmap='coolwarm_r', 
                                save_img=save_imgs, 
                                img_path=f'{save_path}_glassbrain.png')
+            
+        if return_nifti:
+            brain_coords = np.hstack((all_betas[:,:3].astype(int), (max_indices.reshape(-1,1) + 1)))
+            brain_np = self.nsp.utils.coords2numpy(brain_coords, roi_masks['subj01']['V1_mask'].shape, keep_vals=True)
+            brain_nii = nib.Nifti1Image(brain_np, affine=self.nsp.cortex.anat_templates(prf_dict)[subject].affine)
+            if save_imgs:
+                nib.save(brain_nii, f'{save_path}.nii')
+            return brain_nii
+            
             
     
     def explained_var_plot(self, relu_layer:int, n_pcs:int):
