@@ -483,7 +483,8 @@ class DataFetch():
     
 class Utilities():
 
-    def __init__(self):
+    def __init__(self, NSPobject):
+        self.nsp = NSPobject
         pass
         
     # Utility function to visualize dictionary structures
@@ -761,7 +762,51 @@ class Utilities():
                 array[tuple(coordinates[:,:3].astype('int').T)] = True
         
         return array
+    
+    def coords2nifti(
+        self,
+        subject: str,
+        prf_dict: dict,
+        coords: np.ndarray,
+        keep_vals=True,
+        save_nifti: bool = False,
+        save_path: (str | None) = None,
+        file_name: (str | None) = None
+    ):
+        """Helper function to convert coordinate objects to a nifti file
 
+        Args:
+        - subject (str): The subject
+        - prf_dict (dict): pRF dictionary
+        - coords (np.ndarray): Coordinate object with xyz voxel coordinates and 4th 
+                column with voxel values.
+        - keep_vals (bool, optional): Whether to keep the values, otherwise turns 
+                into boolean brain. Defaults to True.
+        - save_nifti (bool, optional): Whether or not to save the nifti file. Defaults to False.
+        - save_path (str  |  None, optional): The path to save the file to. Defaults to None.
+        - file_name (str  |  None, optional): The file name to be used. Defaults to None.
+        
+        Out:
+        - enc_brain_nii (nib.Nifti1Image): The nifti image
+        """    
+        
+        subj_brain = self.nsp.cortex.anat_templates(prf_dict)[subject]
+        brain_affine = subj_brain.affine
+        brain_shape = subj_brain.shape
+        brain_np = self.coords2numpy(coords, brain_shape, keep_vals)
+        enc_brain_nii = nib.Nifti1Image(brain_np, affine=brain_affine)
+        
+        if save_nifti:
+            if file_name is None:
+                file_name = 'an_unknown_brain'
+            nifti_save_path = f'{self.nsp.own_datapath}/{subject}/surf_niftis'
+            os.makedirs(nifti_save_path, exist_ok=True)
+            if save_path is None:
+                save_path = f"{nifti_save_path}/{file_name}.nii.gz"
+            nib.save(enc_brain_nii, save_path)
+            
+        return enc_brain_nii
+    
     def find_common_rows(self, values_array, mask_array, keep_vals:bool = False):
         cols_vals = values_array.shape[1] - 1
         cols_mask = mask_array.shape[1] - 1
@@ -3081,7 +3126,7 @@ class Stimuli():
             num_rows += 1
             
         cmaps = list(colormaps)
-        this_cmap = cmaps[random.randint(0, len(cmaps))] if random_cmap else 'bone'
+        this_cmap = cmaps[random.randint(0, len(cmaps))] if random_cmap else 'binary_r'
         if random_cmap:
             print (f'The Lord has decided for you to peek into feature space through the lens of {this_cmap}')
         
@@ -3570,7 +3615,7 @@ class Analysis():
     def analysis_chain(self, subject:str, ydict:Dict[str, np.ndarray], voxeldict:Dict[str, VoxelSieve], 
                        X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, 
                        fit_icept:bool=False, save_outs:bool=False, regname:Optional[str]='', plot_hist:bool=True,
-                       shuf_or_baseline:str='s') -> (np.ndarray, pd.DataFrame):
+                       shuf_or_baseline:str='s', save_folder:(str | None)=None) -> (np.ndarray, pd.DataFrame):
         """Function to run a chain of analyses on the input data for each of the four regions of interest (ROIs).
             Includes comparisons with an uninformative dependent variable X matrix (such as a shuffled 
             version of the original X matrix), to assess the quality of the model in a relative way.
@@ -3658,17 +3703,45 @@ class Analysis():
                     plt.tight_layout()
                     plt.show()
         
-        if save_outs:
-            # Save the delta_r_df to a file
-            delta_r_df.to_pickle(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_delta_r.pkl')
+        # if save_outs:
+        #     # Save the delta_r_df to a file
+        #     delta_r_df.to_pickle(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_delta_r.pkl')
 
-            plt.savefig(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_plot.png')  # Save the plot to a file
-            # Save cor_scores to a file
-            np.save(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_regcor_scores.npy', coords)  # Save the coords to a file
-            print(f'Succesfully saved the outputs to {regname}_plot.png and {regname}_regcor_scores.npy')
+        #     plt.savefig(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_plot.png')  # Save the plot to a file
+        #     # Save cor_scores to a file
+        #     np.save(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_regcor_scores.npy', coords)  # Save the coords to a file
+        #     print(f'Succesfully saved the outputs to {regname}_plot.png and {regname}_regcor_scores.npy')
             
+        #     # Save the regcor_dict to a file
+        #     with open(f'{self.nsp.own_datapath}/{subject}/brainstats/unpred/{regname}_regcor_dict.pkl', 'wb') as f:
+        #         pickle.dump(regcor_dict, f)
+                
+        if save_outs:
+            if save_folder is None:
+                if 'unpred' in regname:
+                    save_folder = 'unpred'
+                elif 'baseline' in regname:
+                    save_folder = 'baseline'
+                elif 'encoding' in regname:
+                    save_folder = 'encoding'
+                else: 
+                    save_folder = 'various'
+                
+            save_path = f'{self.nsp.own_datapath}/{subject}/brainstats/{save_folder}'
+            os.makedirs(save_path, exist_ok=True)
+            
+            # Save the delta_r_df to a file
+            delta_r_df.to_pickle(f'{save_path}/{regname}_delta_r.pkl')
+
+            plt.savefig(f'{save_path}/{regname}_plot.png')  # Save the plot to a file
+
+            # Save cor_scores to a file
+            np.save(f'{save_path}/{regname}_regcor_scores.npy', coords)  # Save the coords to a file
+
+            print(f'Succesfully saved the outputs to {regname}_plot.png and {regname}_regcor_scores.npy')
+
             # Save the regcor_dict to a file
-            with open(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_regcor_dict.pkl', 'wb') as f:
+            with open(f'{save_path}/{regname}_regcor_dict.pkl', 'wb') as f:
                 pickle.dump(regcor_dict, f)
             
         return coords, delta_r_df
@@ -4017,7 +4090,7 @@ class NatSpatPred():
     # TODO: Expand this initialise in such way that it creates all the globally relevant attributes by calling on methods from the
     # nested classes
     def initialise(self):
-        self.utils = Utilities()
+        self.utils = Utilities(self)
         self.cortex = Cortex(self)
         self.stimuli = Stimuli(self)
         self.datafetch = DataFetch(self)

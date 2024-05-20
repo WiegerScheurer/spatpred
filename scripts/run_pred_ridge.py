@@ -85,8 +85,8 @@ tag = 'ALEXANDERNIEUW'
 
 subject = 'subj01'
 max_size = 2
-min_size = .25
-patchbound = 1
+min_size = .1
+patchbound = 1.25
 min_nsd_R2 = 0
 min_prf_R2 = 0
 # fixed_n_voxels = 170
@@ -177,7 +177,8 @@ for layer in range(0, Xpred.shape[1]):
                                      X_uninformative=Xbl, # The baseline model
                                      fit_icept=False, 
                                      save_outs=True,
-                                     regname=f'{which_cnn}_unpred_lay{layer}{tag}')
+                                     regname=f'{which_cnn}_unpred_lay{layer}{tag}',
+                                     shuf_or_baseline='baseline')
     
     # This is for the relative R scores.
     rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
