@@ -179,15 +179,42 @@ prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 ################### FULL VISUAL CORTEX (V1, V2, V3, V4) REGRESSIONS ###############
 
 subject = 'subj01'
-tag = '_nieuw'
+tag = '_baseline'
+# voxeldict = {}
+# for roi in rois:
+#     print_attr = True if roi == rois[len(rois)-1] else False
+#     voxeldict[roi] = VoxelSieve(NSP, prf_dict, roi_masks,
+#                                 subject=subject, 
+#                                 roi=roi,
+#                                 print_attributes=print_attr,
+#                                 fixed_n_voxels=None)
+
+subject = 'subj01'
+max_size = 2
+min_size = .1
+patchbound = 1.25
+min_nsd_R2 = 0
+min_prf_R2 = 0
+# fixed_n_voxels = 170
+
 voxeldict = {}
+n_voxels = []
 for roi in rois:
     print_attr = True if roi == rois[len(rois)-1] else False
     voxeldict[roi] = VoxelSieve(NSP, prf_dict, roi_masks,
                                 subject=subject, 
                                 roi=roi,
+                                patchloc='central', 
+                                max_size=max_size, 
+                                min_size=min_size, 
+                                patchbound=patchbound, 
+                                min_nsd_R2=min_nsd_R2, 
+                                min_prf_R2=min_prf_R2,
                                 print_attributes=print_attr,
-                                fixed_n_voxels='all')
+                                fixed_n_voxels=None)
+    n_voxels.append(len(voxeldict[roi].size))
+    
+max_n_voxels = np.min(n_voxels)
 
 ydict = {}
 for roi in rois:
@@ -211,7 +238,7 @@ for feat_no in range(0,4):
     X_shuf = np.copy(X)
     np.random.shuffle(X_shuf)
 
-    obj = NSP.analyse.analysis_chain(subject=subject,
+    obj,_ = NSP.analyse.analysis_chain(subject=subject,
                                      ydict=ydict, 
                                      X=X, 
                                      alpha=10, 
@@ -221,33 +248,34 @@ for feat_no in range(0,4):
                                      X_uninformative=X_shuf, 
                                      fit_icept=False, 
                                      save_outs=True,
-                                     regname=f'{feat}{tag}')
+                                     regname=f'{feat}{tag}',
+                                     shuf_or_baseline='s')
     
     rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
 
     rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
 
-    # Plot relative R scores
-    NSP.analyse.plot_brain(prf_dict, 
-                           roi_masks, 
-                           subject, 
-                           NSP.utils.cap_values(np.copy(rel_scores_np), None, None), 
-                           False, 
-                           save_img=True, 
-                           img_path=f'/home/rfpred/imgs/reg/{feat}_regcorplot{tag}.png')
+    # # Plot relative R scores
+    # NSP.analyse.plot_brain(prf_dict, 
+    #                        roi_masks, 
+    #                        subject, 
+    #                        NSP.utils.cap_values(np.copy(rel_scores_np), None, None), 
+    #                        False, 
+    #                        save_img=True, 
+    #                        img_path=f'/home/rfpred/imgs/reg/{feat}_regcorplot{tag}.png')
 
-    # This is for the betas
-    plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))
-    plot_bets_np = NSP.utils.coords2numpy(plot_bets, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+    # # This is for the betas
+    # plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))
+    # plot_bets_np = NSP.utils.coords2numpy(plot_bets, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
 
-    # plot the betas
-    NSP.analyse.plot_brain(prf_dict, 
-                           roi_masks, 
-                           subject, 
-                           NSP.utils.cap_values(np.copy(plot_bets_np), None, None), 
-                           False, 
-                           save_img=True, 
-                           img_path=f'/home/rfpred/imgs/reg/{feat}_regbetaplot{tag}.png')
+    # # plot the betas
+    # NSP.analyse.plot_brain(prf_dict, 
+    #                        roi_masks, 
+    #                        subject, 
+    #                        NSP.utils.cap_values(np.copy(plot_bets_np), None, None), 
+    #                        False, 
+    #                        save_img=True, 
+    #                        img_path=f'/home/rfpred/imgs/reg/{feat}_regbetaplot{tag}.png')
 
 
 # baseline_strings = ['rms', 'ce', 'sc_l']

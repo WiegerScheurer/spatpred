@@ -79,14 +79,14 @@ NSP.initialise()
 
 rois, roi_masks, viscortex_mask = NSP.cortex.visrois_dict(verbose=False)
 prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
-tag = 'ALEXANDERNIEUW'
+tag = 'presentatie_plotjes'
 ############ CONSTRAINED VOXEL SELECTION Y-MATRIX ################
 ##### ALSO RUN THIS FOR THE PRED FEATS SEPARATELY WITHOUT THE BASELINE #########
 
 subject = 'subj01'
 max_size = 2
-min_size = .1
-patchbound = 1.25
+min_size = .2
+patchbound = 1
 min_nsd_R2 = 0
 min_prf_R2 = 0
 # fixed_n_voxels = 170
@@ -150,9 +150,9 @@ sc = NSP.stimuli.get_scce(subject, 'sc')
 ce = NSP.stimuli.get_scce(subject, 'ce')
 Xbl = pd.concat([rms, sc, ce], axis=1).values
 
-# which_cnn = 'vgg-b'
+which_cnn = 'vgg-b'
 # which_cnn = 'alexnet'
-which_cnn = 'alexnet_new'
+# which_cnn = 'alexnet_new'
 n_layers = 5 if which_cnn == 'alexnet' else 6
 
 Xpred = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=False, ssim=False, pixel_loss=False, 
@@ -177,7 +177,7 @@ for layer in range(0, Xpred.shape[1]):
                                      X_uninformative=Xbl, # The baseline model
                                      fit_icept=False, 
                                      save_outs=True,
-                                     regname=f'{which_cnn}_unpred_lay{layer}{tag}',
+                                     regname=f'/{which_cnn}_unpred_lay{layer}{tag}',
                                      shuf_or_baseline='baseline')
     
     # This is for the relative R scores.
@@ -210,7 +210,7 @@ for layer in range(0, Xpred.shape[1]):
 
 
 for layer in range(0,Xpred.shape[1]):
-    delta_r_layer = pd.read_pickle(f'{NSP.own_datapath}/{subject}/brainstats/{which_cnn}_unpred_lay{layer}{tag}_delta_r.pkl').values[0].flatten()
+    delta_r_layer = pd.read_pickle(f'{NSP.own_datapath}/{subject}/brainstats/unpred/{which_cnn}_unpred_lay{layer}{tag}_delta_r.pkl').values[0].flatten()
     if layer == 0:
         all_delta_r = delta_r_layer
     else:

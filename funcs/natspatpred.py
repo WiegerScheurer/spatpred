@@ -3183,7 +3183,7 @@ class Stimuli():
         
     # Allround function to run the U-Net and create intuitive plots of the resulting predictability estimates.
     def predplot(self, subject:str = None, start_img:int = 0, n_imgs:int = 5, mask_loc:str = 'center', ecc_max:float = 1, select_ices = 'subject_based', 
-                cnn_type:str = 'alex', pretrain_version:str = 'places20k', eval_mask_factor:float = 1.2, log_y_MSE:str = 'y'):
+                cnn_type:str = 'alex', pretrain_version:str = 'places20k', eval_mask_factor:float = 1.2, log_y_MSE:str = 'y', dark_theme:bool=False):
         
         # Load in the U-Net
         if pretrain_version == 'places20k':
@@ -3230,8 +3230,9 @@ class Stimuli():
         average_time_per_image = (total_time / n_imgs) / 2
 
         print(f"Average time per image: {average_time_per_image} seconds")
-            
-        plt.style.use('dark_background')  # Apply dark background theme
+        
+        if dark_theme:
+            plt.style.use('dark_background')  # Apply dark background theme
 
         for img_idx in range(len(imgs)):
             scene_no = img_nos[img_idx]
@@ -3748,7 +3749,7 @@ class Analysis():
 
     def load_regresults(self, subject:str, prf_dict:dict, roi_masks:dict, feattype:str, cnn_layer:Optional[int]=None, 
                     plot_on_viscortex:bool=True, plot_result:Optional[str]='r', lowcap:float=0, upcap:float=None,
-                    file_tag:str='', verbose:bool=True):
+                    file_tag:str='', verbose:bool=True, reg_folder:str=''):
         """Function to load in the results from the regressions.
 
         Args:
@@ -3777,13 +3778,13 @@ class Analysis():
         
         # This is the dictionary that contains for both the actual X matrix and the shuffled X matrix the
         # r correlation scores for every separate cv fold.
-        with open (f'{self.nsp.own_datapath}/{subject}/brainstats/{reg_str}_regcor_dict.pkl', 'rb') as f:
+        with open (f'{self.nsp.own_datapath}/{subject}/brainstats/{reg_folder}/{reg_str}_regcor_dict.pkl', 'rb') as f:
             # Structure: cor_scores_dict['X' or 'X_uninformative'][roi][cross-validation fold]
             cor_scores_dict = pickle.load(f)
             
         # This dataframe contains the mean scores over all of the cross-validation folds
         # coords = pd.DataFrame(np.load(f'{self.nsp.own_datapath}/subj01/brainstats/{reg_str}_regcor_scores.npy'), 
-        coords = pd.DataFrame(np.load(f'{self.nsp.own_datapath}/{subject}/brainstats/{reg_str}_regcor_scores.npy'), 
+        coords = pd.DataFrame(np.load(f'{self.nsp.own_datapath}/{subject}/brainstats/{reg_folder}/{reg_str}_regcor_scores.npy'), 
                             columns=['x', 'y', 'z', 'r', 'r_shuf', 'beta'])
         
         
@@ -3925,7 +3926,7 @@ class Analysis():
         
         for layer in range(first_lay,last_lay): # Loop over the layers of the alexnet
             cnn_layer = f'er{str(layer)}' if which_reg == 'encoding' else f'{str(layer)}'
-            cordict, coords = self.load_regresults(subject, prf_dict, roi_masks, feattype, cnn_layer, plot_on_viscortex=False, plot_result='r', file_tag=file_tag, verbose=False)
+            cordict, coords = self.load_regresults(subject, prf_dict, roi_masks, feattype, cnn_layer, plot_on_viscortex=False, plot_result='r', file_tag=file_tag, verbose=False, reg_folder=which_reg)
             coords['delta_r'] = coords['r'] - coords['r_shuf'] # Compute the delta_r values
                 
             if layer == first_lay:
