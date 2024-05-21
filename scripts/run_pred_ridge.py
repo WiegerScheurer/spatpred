@@ -79,13 +79,13 @@ NSP.initialise()
 
 rois, roi_masks, viscortex_mask = NSP.cortex.visrois_dict(verbose=False)
 prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
-tag = 'presentatie_plotjes'
+tag = 'MSE_presentatie_plotjes'
 ############ CONSTRAINED VOXEL SELECTION Y-MATRIX ################
 ##### ALSO RUN THIS FOR THE PRED FEATS SEPARATELY WITHOUT THE BASELINE #########
 
 subject = 'subj01'
 max_size = 2
-min_size = .2
+min_size = .15
 patchbound = 1
 min_nsd_R2 = 0
 min_prf_R2 = 0
@@ -156,7 +156,7 @@ which_cnn = 'vgg-b'
 n_layers = 5 if which_cnn == 'alexnet' else 6
 
 Xpred = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=False, ssim=False, pixel_loss=False, 
-                                 L1=True, MSE=False, verbose=True, outlier_sd_bound=5, subject=subject) # wait untill all are computed of alexnet
+                                 L1=False, MSE=True, verbose=True, outlier_sd_bound=5, subject=subject) # wait untill all are computed of alexnet
 
 print(f'Xpred has these dimensions: {Xpred.shape}')
 

@@ -3616,7 +3616,7 @@ class Analysis():
     def analysis_chain(self, subject:str, ydict:Dict[str, np.ndarray], voxeldict:Dict[str, VoxelSieve], 
                        X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, 
                        fit_icept:bool=False, save_outs:bool=False, regname:Optional[str]='', plot_hist:bool=True,
-                       shuf_or_baseline:str='s', save_folder:(str | None)=None) -> (np.ndarray, pd.DataFrame):
+                       shuf_or_baseline:str='s', save_folder:(str | None)=None, X_str:(str | None)=None) -> (np.ndarray, pd.DataFrame):
         """Function to run a chain of analyses on the input data for each of the four regions of interest (ROIs).
             Includes comparisons with an uninformative dependent variable X matrix (such as a shuffled 
             version of the original X matrix), to assess the quality of the model in a relative way.
@@ -3641,7 +3641,8 @@ class Analysis():
                 into a nifti file using nib.Nifti1Image(np.array, affine), in which the affine can be extracted
                 from a readily available nifti file from the specific subject (using your_nifti.affine).
         """
-        comp_X_str = 'shuffled' if shuf_or_baseline == 's' else 'baseline'
+        comp_X_str = 'Shuffled model' if shuf_or_baseline == 's' else 'Baseline model'
+        X_str = 'model' if X_str is None else X_str
         r_values = {}
         r_uninformative = {}
         regcor_dict = {}  # Dictionary to store cor_scores
@@ -3695,27 +3696,14 @@ class Analysis():
                 # Underlay with the histogram of r_uninformative[roi] values
                 axs[i].hist(r_uninformative[roi], bins=25, edgecolor=None, alpha=1, label=comp_X_str, color='burlywood')
                 # Plot the histogram of r_values[roi] values in the i-th subplot
-                axs[i].hist(r_values[roi], bins=25, edgecolor='black', alpha=0.5, label='X', color='dodgerblue')
+                axs[i].hist(r_values[roi], bins=25, edgecolor='black', alpha=0.5, label=X_str, color='dodgerblue')
                 axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
-                axs[i].legend()
+                axs[i].legend() if roi == 'V1' else None
 
                 if roi == 'V4': # Add title and display the figure
-                    plt.suptitle(f'Ridge reg results for {regname}', fontsize=16)
+                    plt.suptitle(f'{regname}', fontsize=16)
                     plt.tight_layout()
                     plt.show()
-        
-        # if save_outs:
-        #     # Save the delta_r_df to a file
-        #     delta_r_df.to_pickle(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_delta_r.pkl')
-
-        #     plt.savefig(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_plot.png')  # Save the plot to a file
-        #     # Save cor_scores to a file
-        #     np.save(f'{self.nsp.own_datapath}/{subject}/brainstats/{regname}_regcor_scores.npy', coords)  # Save the coords to a file
-        #     print(f'Succesfully saved the outputs to {regname}_plot.png and {regname}_regcor_scores.npy')
-            
-        #     # Save the regcor_dict to a file
-        #     with open(f'{self.nsp.own_datapath}/{subject}/brainstats/unpred/{regname}_regcor_dict.pkl', 'wb') as f:
-        #         pickle.dump(regcor_dict, f)
                 
         if save_outs:
             if save_folder is None:
