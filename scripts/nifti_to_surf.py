@@ -34,20 +34,33 @@ predparser = argparse.ArgumentParser(
 predparser.add_argument(
     "subject",
     type=str,
-    help="The subject",
+    help="The subject"
 )
 predparser.add_argument(
     "result_type",
     type=str,
-    help="What type of results are in the nifti file, options: baseline, unpred, and encoding",
+    help="What type of results are in the nifti file, options: baseline, unpred, and encoding"
 )
 predparser.add_argument(
-    "surface_type", type=str, help="What type of freesurfer surface to output"
+    "surface_type", 
+    type=str, 
+    help="What type of freesurfer surface to output",
+    default="pial"
 )
 
 predparser.add_argument(
-    "source_file_name", type=str, help="What is the name of the source nifti file"
+    "source_file_name", 
+    type=str, 
+    help="What is the name of the source nifti file"
 )
+
+predparser.add_argument(
+    "interpmethod",
+    type=str,
+    help="What interpolation method to use, options: cubic, wta, and more (see nsdcode)",
+    default="cubic"
+)
+
 
 args = predparser.parse_args()
 
@@ -71,16 +84,18 @@ base_path = os.path.join("/home", "rfpred", "data", "natural-scenes-dataset")
 print(base_path)
 subjix = int(args.subject[-1])
 
-for hemisphere in ['lh', 'rh']:
+for hemisphere in ["lh", "rh"]:
     # initiate NSDmapdata
     nsd = NSDmapdata(base_path)
 
     nsd_dir = nsd_datalocation(base_path=base_path)
     nsd_betas = nsd_datalocation(base_path=base_path, dir0="betas")
-    sourcedata = f"/home/rfpred/data/custom_files/{args.subject}/surf_niftis/{args.source_file_name}.nii.gz"
+    sourcedata = f"/home/rfpred/data/custom_files/{args.subject}/surf_niftis/{args.source_file_name}.nii"
     sourcespace = "func1pt0"
     targetspace = f"{hemisphere}.{args.surface_type}"  # lh.pial and rh.pial are needed for unfolding the cortex
-    interpmethod = "cubic"
+    interpmethod = (
+        args.interpmethod
+    )  # default is cubic use 'wta' for winner takes all, useful for label data such as layer assignment.
     targetdata = nsd.fit(
         subjix,
         sourcespace,

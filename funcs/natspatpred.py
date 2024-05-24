@@ -3899,7 +3899,8 @@ class Analysis():
         if which_reg == 'unpred':
             feattype = f'{cnn_type}_unpred'
         elif which_reg == 'encoding':
-            feattype = 'encoding/allvox_alexunet'
+            # feattype = 'encoding/allvox_alexunet'
+            feattype = 'allvox_alexunet'
             first_lay = 0
             # last_lay = 5
             
@@ -3948,7 +3949,7 @@ class Analysis():
         df.rename(columns={df.columns[-1]: 'ROI'}, inplace=True)
 
         # Add the max_indices as a new column
-        df['AlexNet layer'] = max_indices
+        df['AlexNet layer'] = max_indices + 1 # Add 1 to the max_indices to get the layer number
 
         # Convert the 'ROI' column to int for plotting
         df['ROI'] = df['ROI'].astype(int)
@@ -3970,10 +3971,6 @@ class Analysis():
         # Add a y-axis label
         ax.set_ylabel('Layer assignment (%)')
 
-        # # Create legend
-        # plt.legend(title='CNN Layer', loc='upper center', bbox_to_anchor=(0.5, 1.17),
-        #         ncol=n_layers, fancybox=False, shadow=False, fontsize=11.5, columnspacing=0.55)
-        
         # Get current handles and labels
         handles, labels = plt.gca().get_legend_handles_labels()
 
