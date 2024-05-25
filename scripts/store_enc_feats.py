@@ -5,6 +5,9 @@
 # All matrices are Z-scored per feature. This script should only be run once so that the feature maps are
 # more easily accessible as numpy.ndarrays that can be loaded in in minimal time.
 
+# I'VE ONLY RAN IT FOR SUBJECT 01 WITH THE SMALLPATCH, FIRST CHECK IF IT'S WORTH DOING.
+# IF SO, ALSO RUN FOR THE OTHER SUBJECTS
+
 import os
 
 # Limit the number of CPUs used to 5
@@ -41,7 +44,8 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False):
     """
     # Load in the feature maps for the specified layer of the CNN, dimensionality reduction has already been applied
     featmaps_pc = np.load(
-        f"{NSP.own_datapath}/visfeats/cnn_featmaps/featmaps/featmaps_layfeatures.{cnn_layer}.npz"
+        # f"{NSP.own_datapath}/visfeats/cnn_featmaps/featmaps/featmaps_layfeatures.{cnn_layer}.npz"
+        f"{NSP.own_datapath}/visfeats/cnn_featmaps/featmaps/featmaps_smallpatch_layfeatures.{cnn_layer}.npz"
     )
 
     # Convert the dictionary-like object to a numpy array
@@ -56,7 +60,8 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False):
 
     os.makedirs(f"{NSP.own_datapath}/{subject}/encoding", exist_ok=True)
     np.save(
-        "%s/%s/encoding/regprepped_featmaps_layer%s"
+        # "%s/%s/encoding/regprepped_featmaps_layer%s"
+        "%s/%s/encoding/regprepped_featmaps_smallpatch_layer%s"
         % (NSP.own_datapath, subject, cnn_layer),
         Xsubj,
     )
@@ -69,7 +74,8 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False):
 # The layers of AlexNet that are ReLU layers, others weren't extracted (yet)
 relu_lays = [1, 4, 7, 9, 11]
 
-for subject in NSP.subjects:
+# for subject in NSP.subjects:
+for subject in ['subj01']:
     for cnn_layer in relu_lays:
         _ = _pull_featmaps(subject, cnn_layer, verbose=True)
 

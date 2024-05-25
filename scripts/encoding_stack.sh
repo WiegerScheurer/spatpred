@@ -4,7 +4,7 @@
 
 # Define the values for pca_fit_batch and n_comps
 pca_fit_batch=1000
-n_comps=1000
+n_comps=500
 
 # Loop over the integer vector for cnn_layer
 for cnn_layer in 1 4 7 9 11; do

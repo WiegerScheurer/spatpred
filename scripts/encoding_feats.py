@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# This script pulls the feature maps from the specified layer of the CNN for each subject runs
+# dimensionality reduction on them using incremental PCA. Can take a while and can be adapted
+
+
 import os
 
 # Limit the number of CPUs used to 2
@@ -56,7 +60,7 @@ model.eval()  # Set the model to evaluation mode
 
 
 class ImageDataset(Dataset):
-    def __init__(self, image_ids, transform=None, crop: bool = False):
+    def __init__(self, image_ids, transform=None, crop: bool = True):
         self.image_ids = image_ids
         self.transform = transform
         self.crop = crop
@@ -106,7 +110,7 @@ fixed_n_comps = args.n_comps
 
 # image_ids = get_imgs_designmx()[args.subject][start:end] # This was for subject-specific image indices. Current line (below) is for all images.
 image_ids = list(range(0, train_batch))
-dataset = ImageDataset(image_ids, transform=preprocess, crop=False)
+dataset = ImageDataset(image_ids, transform=preprocess, crop=True) # CHECK THIS CROP ARG
 dataloader = DataLoader(dataset, batch_size=train_batch, shuffle=False)
 
 
@@ -227,7 +231,8 @@ def fit_pca(
 pca = fit_pca(
     feature_extractor,
     dataloader,
-    pca_save_path=f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/pca_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
+    # pca_save_path=f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/pca_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
+    pca_save_path=f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/pca_smallpatch_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
     fixed_n_comps=fixed_n_comps,
     train_batch=train_batch,
 )
@@ -249,7 +254,8 @@ else:
     print("PCA fitting failed. Unable to apply PCA.")
 
 np.savez(
-    f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/featmaps/featmaps_lay{this_layer}.npz",
+    # f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/featmaps/featmaps_lay{this_layer}.npz",
+    f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/featmaps/featmaps_smallpatch_lay{this_layer}.npz",
     *features_algo,
 )
 

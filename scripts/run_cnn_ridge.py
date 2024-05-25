@@ -196,8 +196,7 @@ for roi in rois:
     ydict[roi] = NSP.analyse.load_y(subject=subject, roi=roi, voxelsieve=voxeldict[roi], n_trials='all').T
     print(f'{roi} y-matrix has dimensions: {ydict[roi].shape}')
 
-# for layer in range(1, 5):
-for layer in range(0, 1):
+for layer in range(0, 5):
     print(f'Running regression for layer: {layer}')
     
     # X = NSP.stimuli.unet_featmaps(list_layers=[layer], scale='full') # Get X matrix
@@ -217,7 +216,7 @@ for layer in range(0, 1):
                                      X_uninformative=X_shuf, 
                                      fit_icept=False, 
                                      save_outs=True,
-                                     regname=f'allvox_alexunet_layer{layer}{file_tag}')
+                                     regname=f'smallpatch_allvox_alexunet_layer{layer}{file_tag}')
     
     rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
 
@@ -230,7 +229,7 @@ for layer in range(0, 1):
                            brain_numpy=NSP.utils.cap_values(np.copy(rel_scores_np), None, None), 
                            cmap='coolwarm', 
                            save_img=True, 
-                           img_path=f'/home/rfpred/imgs/reg/allvox_alexunet_layer{layer}_regcorplot{file_tag}.png')
+                           img_path=f'/home/rfpred/imgs/reg/smallpatch_allvox_alexunet_layer{layer}_regcorplot{file_tag}.png')
 
     # # This is for the betas
     # plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))

@@ -1027,6 +1027,7 @@ class Utilities():
         plt.figure(figsize=(5, 2))
         plt.imshow(np.outer(np.ones(10), np.linspace(0, 1, 256)), aspect="auto", cmap=cmap)
         plt.axis("off")
+        plt.tight_layout()
         plt.show()
     
     def duplicate_cmap(
@@ -2506,14 +2507,14 @@ class Stimuli():
     # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
     def features(self):
         feature_paths = [
-            f'{self.nsp.own_datapath}/all_visfeats_rms.pkl',
-            f'{self.nsp.own_datapath}/all_visfeats_rms_crop_prior.pkl',
+            f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl', #dep, now get_rms
+            f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms_crop_prior.pkl', #dep, now get_rms
             f'{self.nsp.own_datapath}/all_visfeats_scce.pkl',
             f'{self.nsp.own_datapath}/all_visfeats_scce_large.pkl',
             f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl',
-            f'{self.nsp.own_datapath}/subj01/pred/all_predestims.h5',
-            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg-b.csv',
-            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_alexnet_new.csv'
+            f'{self.nsp.own_datapath}/subj01/pred/all_predestims.h5', # old, .95 correlation with new
+            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg-b.csv', # also about .9-.95 correlation with alex
+            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_alexnet_new.csv' 
             ]
         return {os.path.basename(file): self.nsp.datafetch.fetch_file(file) for file in feature_paths}
     
@@ -2535,9 +2536,9 @@ class Stimuli():
         rms_loc_relevance = 'rms' if rel_or_irrel == 'rel' else 'rms_irrelevant'
         
         if crop_prior:
-            Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/all_visfeats_rms_crop_prior.pkl')[subject][rms_loc_relevance]['rms_z']
+            Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms_crop_prior.pkl')[subject][rms_loc_relevance]['rms_z']
         else:
-            Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/all_visfeats_rms.pkl')[subject][rms_loc_relevance]['rms_z']
+            Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl')[subject][rms_loc_relevance]['rms_z']
 
         Xnorm = zs(self.nsp.utils.replace_outliers(np.array(Xraw).reshape(-1,1), m=outlier_bound))
         indices = self.imgs_designmx()[subject] # Get the 73k-based indices for the specific subject
@@ -2733,8 +2734,8 @@ class Stimuli():
         plt.show()
         
         
-    # These are the correct featmaps (17-05-2024)
-    def alex_featmaps(self, layers:list, pcs_per_layer:Union[int, str]='all', subject:str='subj01',
+    # These are the correct featmaps (17-05-2024) DON'T THINK SO, IT'S THE NEXT ONE.
+    def alex_featmaps_old(self, layers:list, pcs_per_layer:Union[int, str]='all', subject:str='subj01',
                       plot_corrmx:bool=True):
         """
         Load in the feature maps from the AlexNet model for a specific layer and subject
@@ -2751,7 +2752,8 @@ class Stimuli():
         """
         # Load in the feature maps extracted by the AlexNet model
         X_all = []
-        
+                    
+
         if isinstance(pcs_per_layer, int):
             cut_off = pcs_per_layer
         
@@ -2803,8 +2805,10 @@ class Stimuli():
         
         return X_all    
     
+    
+    
     def alex_featmaps(self, layers:(list | int)=[1, 4, 7, 9, 11], subject:str='subj01',
-                    plot_corrmx:bool=True):
+                    plot_corrmx:bool=True, smallpatch:bool=False):
         """
         Load in the feature maps from the AlexNet model for a specific layer and subject
         
@@ -2818,12 +2822,16 @@ class Stimuli():
         - X_all: np.array containing the feature maps extracted at the specified layers of the AlexNet model
         """
         
+        # if smallpatch:
+        smallpatch_str = '_smallpatch' if smallpatch else ''
+        # else: 
+        
         full_img_alex = []
         layers = [layers] if type(layers) is int else layers
         for n_layer, cnn_layer in enumerate(layers):
             if n_layer == 0:
-                full_img_alex = np.load(f'{self.nsp.own_datapath}/{subject}/encoding/regprepped_featmaps_layer{cnn_layer}.npy')
-            else: full_img_alex = np.hstack((full_img_alex, np.load(f'{self.nsp.own_datapath}/{subject}/encoding/regprepped_featmaps_layer{cnn_layer}.npy')))
+                full_img_alex = np.load(f'{self.nsp.own_datapath}/{subject}/encoding/regprepped_featmaps{smallpatch_str}_layer{cnn_layer}.npy')
+            else: full_img_alex = np.hstack((full_img_alex, np.load(f'{self.nsp.own_datapath}/{subject}/encoding/regprepped_featmaps{smallpatch_str}_layer{cnn_layer}.npy')))
  
         if len(layers) < 5:
             plot_corrmx = False
@@ -3899,10 +3907,9 @@ class Analysis():
         if which_reg == 'unpred':
             feattype = f'{cnn_type}_unpred'
         elif which_reg == 'encoding':
-            # feattype = 'encoding/allvox_alexunet'
             feattype = 'allvox_alexunet'
-            first_lay = 0
-            # last_lay = 5
+        elif which_reg == 'encoding_smallpatch':
+            feattype = 'smallpatch_allvox_alexunet'
             
         n_layers = last_lay - first_lay
         
@@ -3914,7 +3921,7 @@ class Analysis():
             param_col = 6
         
         for layer in range(first_lay,last_lay): # Loop over the layers of the alexnet
-            cnn_layer = f'er{str(layer)}' if which_reg == 'encoding' else f'{str(layer)}'
+            cnn_layer = f'er{str(layer)}' if which_reg == 'encoding' or which_reg == 'encoding_smallpatch' else f'{str(layer)}'
             cordict, coords = self.load_regresults(subject, prf_dict, roi_masks, feattype, cnn_layer, plot_on_viscortex=False, plot_result='r', file_tag=file_tag, verbose=False, reg_folder=which_reg)
             coords['delta_r'] = coords['r'] - coords['r_shuf'] # Compute the delta_r values
                 
@@ -3933,9 +3940,11 @@ class Analysis():
 
         all_betas_voxroi = np.hstack((all_betas, vox_of_roi))[:,3:]
         all_betas_voxroi[:,:n_layers] = stats.zscore(all_betas_voxroi[:,:n_layers], axis=0)
+        print(all_betas_voxroi)
 
         # Get the index of the maximum value in each row, excluding the last column
-        max_indices = np.argmax(all_betas_voxroi[:, :-1], axis=1)
+        max_indices = np.argmax(all_betas_voxroi[:, :-1], axis=1) + 1 # Add 1 to the max_indices to get the layer number
+        print(max_indices)
         barcmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000080', '#CCCCCC', '#FFA500', '#FF0000'], N=n_layers)
         
         # Create a new colourmap for the glass brain plot, as it has difficulty adapting the colourmap to non-symmetrical/positive values
@@ -3949,7 +3958,7 @@ class Analysis():
         df.rename(columns={df.columns[-1]: 'ROI'}, inplace=True)
 
         # Add the max_indices as a new column
-        df['AlexNet layer'] = max_indices + 1 # Add 1 to the max_indices to get the layer number
+        df['AlexNet layer'] = max_indices
 
         # Convert the 'ROI' column to int for plotting
         df['ROI'] = df['ROI'].astype(int)
@@ -4005,7 +4014,7 @@ class Analysis():
                                img_path=f'{save_path}_glassbrain.png')
             
         if return_nifti:
-            brain_coords = np.hstack((all_betas[:,:3].astype(int), (max_indices.reshape(-1,1) + 1)))
+            brain_coords = np.hstack((all_betas[:,:3].astype(int), (max_indices.reshape(-1,1)))) # Earlier I had +1 here
             brain_np = self.nsp.utils.coords2numpy(brain_coords, roi_masks['subj01']['V1_mask'].shape, keep_vals=True)
             brain_nii = nib.Nifti1Image(brain_np, affine=self.nsp.cortex.anat_templates(prf_dict)[subject].affine)
             if save_imgs:
@@ -4014,7 +4023,7 @@ class Analysis():
             
             
     
-    def explained_var_plot(self, relu_layer:int, n_pcs:int):
+    def explained_var_plot(self, relu_layer:int, n_pcs:int, smallpatch:bool=False):
         """Method to plot the explained variance ratio of the PCA instance created.
         
         Args:
@@ -4025,7 +4034,12 @@ class Analysis():
         """        
         
         print('koekjes')
-        pca_instance = joblib.load(f'{self.nsp.own_datapath}/visfeats/cnn_featmaps/pca/pca_{relu_layer}_{n_pcs}pcs.joblib')
+        
+        
+        smallpatch_str = 'smallpatch_' if smallpatch else ''
+            
+        # pca_instance = joblib.load(f'{self.nsp.own_datapath}/visfeats/cnn_featmaps/pca/pca_{smallpatch_str}{relu_layer}_{n_pcs}pcs.joblib')
+        pca_instance = joblib.load(f'{self.nsp.own_datapath}/visfeats/cnn_featmaps/pca_{smallpatch_str}{relu_layer}_{n_pcs}pcs.joblib')
         # Create a figure and a set of subplots
         fig, ax = plt.subplots()
 
