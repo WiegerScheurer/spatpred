@@ -32,6 +32,7 @@ from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 from matplotlib.lines import Line2D
 from matplotlib.ticker import (FixedLocator, FuncFormatter, MaxNLocator,
                                MultipleLocator, NullFormatter)
+import matplotlib.patches as patches
 from nilearn import plotting
 from PIL import Image
 from scipy import stats
@@ -1070,6 +1071,55 @@ class Utilities():
             self.display_cmap(new_cmap)
 
         return new_cmap
+    
+    
+    def _get_circle_outline(full_circle:np.ndarray, plot:bool=False):
+        """Helper function to get the outer boundaries of an input circle
+
+        Args:
+        - full_circle (np.ndarray): Opaque input circle
+            
+        Out:
+        - outline_circle (np.ndarray): Transparent circle outline
+        """    
+        
+        # Get the outer boundaries of the input circle
+        xmin, xmax, ymin, ymax = NSP.utils.get_bounding_box(full_circle)
+        pix_per_rad = 425 / 8.4 # pixels per radius
+        pixrad = (xmax - xmin) / 2 # Pixel radius of input circle
+        degrad = pixrad/pix_per_rad # Degree radius of input circle
+        # Create new circle
+        outline_circle = NSP.utils.make_circle_mask(425, 213, 213, degrad * (425/8.4), fill="n", margin_width=5)
+        if plot:
+            # Plot new circle
+            plt.figure()
+            plt.imshow(outline_circle)
+            plt.axis('off')
+        
+        return outline_circle, pixrad
+
+
+    def _plot_red_circle(image, circle):
+        """Helper function to plot a red circle on an image
+
+        Args:
+            image (np.ndarray): Input image
+            circle (tuple): The circle to plot on the image, in the format (x, y, radius)
+
+        """    
+        # Create a new figure and axes
+        fig, ax = plt.subplots(1)
+
+        # Display the image
+        ax.imshow(image, cmap='gray')
+
+        # Create a circle patch
+        circ = patches.Circle((circle[1], circle[0]), circle[2], edgecolor='r', facecolor='none', linewidth=2.4)
+
+        # Add the patch to the axes
+        ax.add_patch(circ)
+
+        plt.show()    
     
 # This class only contains strictly non-functional methods, they form no part of the main functionality of the NSP.
 # However, they do serve as useful tools to explore the data and a basis for optimal decision-making regarding the procedures.
@@ -3329,6 +3379,85 @@ class Stimuli():
         plt.style.use('default')  # Apply dark background theme
 
         return imgs, masks, img_nos, payload_full, payload_crop
+        
+        
+    def get_img_extremes(
+        self,
+        X: np.ndarray,
+        n: int,
+        start_img:int=0,
+        top: str = "unpred",
+        layer: bool = 5,
+        add_circle: bool = True,
+        plot:bool=True,
+        verbose: bool = True,
+    ):
+        """
+        Returns the indices of the top or bottom n values in each column of the input array X.
+
+        Parameters:
+        X (ndarray): Input array of shape (m, n).
+        n (int): Number of indices to return.
+        top (bool, optional): If True, returns the indices of the top n values. If False, returns the indices of the bottom n values. Default is True.
+
+        Returns:
+        ndarray: Array of shape (n, n_columns), where n_columns is the number of columns in X. Each column contains the indices of the top or bottom n values.
+        """
+
+        # Argsort returns the indices that would sort the array
+        sorted_indices = np.argsort(X, axis=0)
+
+        final_img = start_img + n
+
+        # We want the top or bottom n, so we take the last or first n rows
+        if top == "unpred":
+            n_indices = sorted_indices[-final_img:-start_img if start_img != 0 else None]
+            # The rows are in ascending order, so we reverse them to get descending order
+            n_indices = n_indices[::-1]
+            topbottom_str = "top unpredictable"
+        else:
+            n_indices = sorted_indices[start_img:final_img]
+            topbottom_str = "top predictable"
+            
+        if plot:
+            # Plot the value distribution
+            plt.figure()
+            if top == "unpred":
+                plt.plot(sorted(X[:, layer])[-final_img:])
+            else:
+                plt.plot(sorted(X[:, layer])[:final_img])
+            plt.title(f"Value distribution - {topbottom_str} Layer {layer}")
+            plt.show()
+
+        if add_circle:
+            mask = self.nsp.utils.make_circle_mask(
+                425, 213, 213, (425 / 8.4), fill="n", margin_width=5
+            ).reshape((425, 425))
+            mask_3d = np.dstack([np.abs(mask)] * 3).astype(bool)
+        else:
+            mask_3d = 1
+                
+        if plot:
+            for i in range(0, n):
+                this_img = n_indices[i, layer]
+                img = self.show_stim(
+                    img_no=this_img, small=True, hide=True, crop=False
+                )[0]
+                
+                # Apply the mask
+                img_masked = img.copy()  # Create a copy to avoid modifying the original image
+                img_masked[mask_3d] = img.max()
+
+                plt.figure()
+                plt.imshow(img_masked)
+                plt.axis('off')
+                plt.title(f"Image {this_img} - {topbottom_str} Layer {layer}")
+
+        if verbose:
+            print(f"Returning {n} {topbottom_str} images for layer {layer}...")
+
+        return n_indices
+        
         
 class Analysis():
     
