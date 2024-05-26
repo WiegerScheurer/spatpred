@@ -794,6 +794,8 @@ class Utilities():
         brain_affine = subj_brain.affine
         brain_shape = subj_brain.shape
         brain_np = self.coords2numpy(coords, brain_shape, keep_vals)
+        if keep_vals is not True:
+            brain_np = brain_np.astype(float)
         enc_brain_nii = nib.Nifti1Image(brain_np, affine=brain_affine)
         
         if save_nifti:
