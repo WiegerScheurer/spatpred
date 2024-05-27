@@ -2452,6 +2452,39 @@ class Stimuli():
             
         return test_image, image_no
 
+    def mask_img(self, img_no:(str | int)="random", radius:int=1, small:bool=True):
+        """
+        Apply a circular mask to an image.
+
+        Parameters:
+        - img_no: str or int, optional (default: "random")
+            The image number or label to apply the mask to. If "random", a random image will be selected.
+        - radius: int, optional (default: 1)
+            The radius of the circular mask.
+
+        Returns:
+        - masked_img: np.ndarray, the masked image
+        """
+        img = self.show_stim(img_no=img_no, small=False, hide=True, crop=False)[0]
+
+        mask = self.nsp.utils.make_circle_mask(
+            425, 213, 213, radius * (425 / 8.4), fill="y", margin_width=1
+        ).reshape((425, 425))
+        mask_3d = np.dstack([mask] * 3)
+
+        masked_img = img * mask_3d
+
+        smallfactor = 2 if small else 1
+                    
+        # Create a new figure with a larger size
+        plt.figure(figsize=(10/smallfactor, 10/smallfactor))
+
+        plt.imshow(masked_img)
+
+        plt.axis('off')
+        
+        return masked_img
+        
     def calc_rms_contrast_lab(self, rgb_image:np.ndarray, img_idx:int, mask_w_in:np.ndarray, rf_mask_in:np.ndarray, 
                             normalise:bool=True, plot:bool=False, cmap:str='gist_gray', 
                             crop_post:bool=False, lab_idx:int=0) -> float:
@@ -4014,9 +4047,22 @@ class Analysis():
 
         plt.show()
 
-    def assign_layers(self, subject:str, prf_dict:dict, roi_masks:dict, rois:list, cmap, cnn_type:str='alex', 
-                      plot_on_brain:bool=True, file_tag:str='', save_imgs:bool=False, basis_param:str='betas',
-                      which_reg:str='unpred', man_title:(str | None)=None, return_nifti:bool=False):
+    def assign_layers(self, subject:str, 
+                      prf_dict:dict, 
+                      roi_masks:dict, 
+                      rois:list, 
+                      cmap, 
+                      cnn_type:str='alex', 
+                      plot_on_brain:bool=True, 
+                      file_tag:str='', 
+                      save_imgs:bool=False, 
+                      basis_param:str='betas',
+                      which_reg:str='unpred', 
+                      man_title:(str | None)=None, 
+                      return_nifti:bool=False,
+                      first_lay:(int | None)=None,
+                      last_lay:(int | None)=None,
+                      direct_folder:(str | None)=None):
         """
         Assigns layers to voxels based on the maximum beta value across layers for each voxel.
 
@@ -4032,34 +4078,69 @@ class Analysis():
             basis_param (str, optional): The basis for assigning layers. Defaults to 'betas', alternative is 'r' or 'delta_r'.
             which_reg (str, optional): The type of regression to use. Defaults to 'unpred'.
         """    
+        import fnmatch
         first_lay = 0
         last_lay = 5 if cnn_type == 'alex' or cnn_type == 'alexnet' else 6
-        
-        if which_reg == 'unpred':
-            feattype = f'{cnn_type}_unpred'
-        elif which_reg == 'encoding':
-            feattype = 'allvox_alexunet'
-        elif which_reg == 'encoding_smallpatch':
-            feattype = 'smallpatch_allvox_alexunet'
-            
         n_layers = last_lay - first_lay
-        
+
         if basis_param == 'betas':
             param_col = 5
         elif basis_param == 'r':
             param_col = 3
         elif basis_param == 'delta_r':
             param_col = 6
-        
-        for layer in range(first_lay,last_lay): # Loop over the layers of the alexnet
-            cnn_layer = f'er{str(layer)}' if which_reg == 'encoding' or which_reg == 'encoding_smallpatch' else f'{str(layer)}'
-            cordict, coords = self.load_regresults(subject, prf_dict, roi_masks, feattype, cnn_layer, plot_on_viscortex=False, plot_result='r', file_tag=file_tag, verbose=False, reg_folder=which_reg)
-            coords['delta_r'] = coords['r'] - coords['r_shuf'] # Compute the delta_r values
+            
+        if direct_folder is None:
+            if which_reg == 'unpred':
+                feattype = f'{cnn_type}_unpred'
+            elif which_reg == 'encoding':
+                feattype = 'allvox_alexunet'
+            elif which_reg == 'encoding_smallpatch':
+                feattype = 'smallpatch_allvox_alexunet'
                 
-            if layer == first_lay:
-                all_betas = np.hstack((np.array(coords)[:,:3], np.array(coords)[:,param_col].reshape(-1,1)))
-            else:
-                all_betas = np.hstack((all_betas, np.array(coords)[:,param_col].reshape(-1,1)))
+        
+            for layer in range(first_lay,last_lay): # Loop over the layers of the alexnet
+                cnn_layer = f'er{str(layer)}' if which_reg == 'encoding' or which_reg == 'encoding_smallpatch' else f'{str(layer)}'
+                cordict, coords = self.load_regresults(subject, prf_dict, roi_masks, feattype, cnn_layer, plot_on_viscortex=False, plot_result='r', file_tag=file_tag, verbose=False, reg_folder=which_reg)
+                
+                coords['delta_r'] = coords['r'] - coords['r_shuf'] # Compute the delta_r values
+                    
+                if layer == first_lay:
+                    all_betas = np.hstack((np.array(coords)[:,:3], np.array(coords)[:,param_col].reshape(-1,1)))
+                else:
+                    all_betas = np.hstack((all_betas, np.array(coords)[:,param_col].reshape(-1,1)))
+        else:
+            # for layer in range(first_lay,last_lay): # Loop over the layers of the alexnet
+            # for layer in range(0, (last_lay - first_lay)): # Loop over the layers of the alexnet
+            layer = first_lay if first_lay is not None else 0
+            for layerfile in os.listdir(f'{self.nsp.own_datapath}/{subject}/brainstats/{direct_folder}'):
+                print(layerfile)
+                if fnmatch.fnmatch(layerfile, '*regcor_dict.pkl'):
+                    with open(f'{self.nsp.own_datapath}/{subject}/brainstats/{direct_folder}/{layerfile}', 'rb') as f:
+                        cordict = pickle.load(f)
+                if fnmatch.fnmatch(layerfile, '*regcor_scores.npy'):
+                    coords_np = np.load(f'{self.nsp.own_datapath}/{subject}/brainstats/{direct_folder}/{layerfile}')
+                    coords = pd.DataFrame(coords_np, columns=['x', 'y', 'z', 'r', 'r_shuf', 'beta'])
+                    del coords_np
+                    print(f'Now looking at layer numero {layer}')
+                    
+                    coords['delta_r'] = coords['r'] - coords['r_shuf'] # Compute the delta_r values
+             
+                    if layer == first_lay:
+                        all_betas = np.hstack((np.array(coords)[:,:3], np.array(coords)[:,param_col].reshape(-1,1)))
+                    else:
+                        all_betas = np.hstack((all_betas, np.array(coords)[:,param_col].reshape(-1,1)))
+                    layer += 1
+
+                        
+                # cnn_layer = f'er{str(layerno)}' if which_reg == 'encoding' or which_reg == 'encoding_smallpatch' else f'{str(layer)}'
+            
+                # # Load the necessary files directly from the reg_folder
+                # with open(f'{reg_folder}/regcordict.pkl', 'rb') as f:
+                #     cordict = pickle.load(f)
+                # with open(f'{reg_folder}/regscores.pkl', 'rb') as f:
+                #     coords = pickle.load(f)
+                    
                 
         for n_roi, roi in enumerate(rois):
             n_roivoxels = len(cordict['X'][roi][0])
@@ -4121,7 +4202,6 @@ class Analysis():
         legend = plt.legend(handles, labels, title='CNN\nLayer', loc='center right', bbox_to_anchor=(1.15, 0.5),
                 ncol=1, fancybox=False, shadow=False, fontsize=10)
         
-
         if man_title is None:
             plt.title(f'Layer assignment {which_reg} {cnn_type} {basis_param}-based')
         else:
@@ -4140,7 +4220,6 @@ class Analysis():
                                all_betas[:,:3].astype(int), 
                                glass_brain=True, 
                                cmap=glass_cmap, 
-                                # cmap='coolwarm_r', 
                                save_img=save_imgs, 
                                img_path=f'{save_path}_glassbrain.png')
             
