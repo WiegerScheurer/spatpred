@@ -1120,7 +1120,99 @@ class Utilities():
         ax.add_patch(circ)
 
         plt.show()    
+
+    def get_layer_file(self, filename:str, layer_str:(str | None)='layer '):
+        """Function to extract the layer number from a filename.
+        
+        PROBLEM OF THIS IS THAT IT CURRENTLY ONLY PLUCKS OUT THE FIRST LAYER NUMBER IT FINDS
+        SO ONLY WORKS WHEN COMBINED WITH THE FILTER_SUFFICES ONE.
+        I WANT TO MAKE SURE IT ALSO CONTINUES TO WORK WHEN THE LAYER NUMBER IS NOT THE FIRST NUMBER IN THE FILENAME
+
+        Args:
+            filename (str): The filename string to extract the layer number from.
+            layer_str (str, optional): _description_. Defaults to 'layer '.
+
+        Returns:
+            int: The extracted integer representing the layer number of the file.
+        """    
+        def _extract_layno(filename, layer_str):
+            pattern = rf'{layer_str}(\d+)'
+            match = re.search(pattern, filename)
+            return int(match.group(1)) if match else None
+
+        # List of layer_str values to try
+        layer_str_values = [layer_str, 'layer', 'lay']
+
+        # Try each layer_str value until a match is found
+        for layer_str in layer_str_values:
+            layno = _extract_layno(filename, layer_str)
+            if layno is not None:
+                return layno
+
+        # If no match is found, return 100
+        return 100
     
+    def get_layer_files(self, filenames: list[str], layer_str: (str | None) = 'layer '):
+        """Function to group filenames by layer number.
+
+        Args:
+            filenames (list[str]): The list of filenames to group by layer number.
+            layer_str (str, optional): _description_. Defaults to 'layer '.
+
+        Returns:
+            dict: A dictionary where the keys are layer numbers and the values are lists of filenames.
+        """
+        def _extract_layno(filename, layer_str):
+            pattern = rf'{layer_str}(\d+)'
+            match = re.search(pattern, filename)
+            return int(match.group(1)) if match else None
+
+        # List of layer_str values to try
+        layer_str_values = [layer_str, 'layer', 'lay']
+
+        # Dictionary to hold the results
+        layer_files = {}
+
+        # Process each filename
+        for filename in filenames:
+            # Try each layer_str value until a match is found
+            for layer_str in layer_str_values:
+                layno = _extract_layno(filename, layer_str)
+                if layno is not None:
+                    # If the layer number is already in the dictionary, append the filename to the list
+                    if layno in layer_files:
+                        layer_files[layno].append(filename)
+                    # Otherwise, add a new list with the filename to the dictionary
+                    else:
+                        layer_files[layno] = [filename]
+                    # Stop trying layer_str values as soon as a match is found
+                    break
+
+        return layer_files
+    
+    def _filter_suffices(self, filename: str | list, suffix: str):
+        """
+        Filter the suffix from the given filename or list of filenames.
+
+        Parameters:
+        - filename (str | list): The filename or list of filenames to filter.
+        - suffix (str): The suffix to remove from the filenames.
+
+        Returns:
+        - str | list | None: The filtered filename or list of filenames. Returns None if the input is not a string or a list.
+        """
+
+        if isinstance(filename, str):  # For single filenames
+            if filename.endswith(suffix):
+                return filename[: -len(suffix)]
+        elif isinstance(filename, list):  # For entire lists of strings
+            filtered_files = list(
+                filter(lambda x: self.nsp.utils._filter_suffices(x, "_delta_r.pkl"), filename)
+            )
+            return filtered_files
+        else:
+            return None
+
 # This class only contains strictly non-functional methods, they form no part of the main functionality of the NSP.
 # However, they do serve as useful tools to explore the data and a basis for optimal decision-making regarding the procedures.
 class Explorations():
@@ -4110,10 +4202,17 @@ class Analysis():
                 else:
                     all_betas = np.hstack((all_betas, np.array(coords)[:,param_col].reshape(-1,1)))
         else:
-            # for layer in range(first_lay,last_lay): # Loop over the layers of the alexnet
-            # for layer in range(0, (last_lay - first_lay)): # Loop over the layers of the alexnet
             layer = first_lay if first_lay is not None else 0
-            for layerfile in os.listdir(f'{self.nsp.own_datapath}/{subject}/brainstats/{direct_folder}'):
+
+            # Get the list of filenames
+            filenames = os.listdir(f'{self.nsp.own_datapath}/{subject}/brainstats/{direct_folder}')
+
+            # Sort the filenames based on the layer number
+            sorted_filenames = sorted(filenames, key=self.nsp.utils._extract_layno)
+            print(sorted_filenames)
+            
+            for layerfile in sorted_filenames:
+            # for layerfile in os.listdir(f'{self.nsp.own_datapath}/{subject}/brainstats/{direct_folder}'):
                 print(layerfile)
                 if fnmatch.fnmatch(layerfile, '*regcor_dict.pkl'):
                     with open(f'{self.nsp.own_datapath}/{subject}/brainstats/{direct_folder}/{layerfile}', 'rb') as f:
@@ -4131,15 +4230,6 @@ class Analysis():
                     else:
                         all_betas = np.hstack((all_betas, np.array(coords)[:,param_col].reshape(-1,1)))
                     layer += 1
-
-                        
-                # cnn_layer = f'er{str(layerno)}' if which_reg == 'encoding' or which_reg == 'encoding_smallpatch' else f'{str(layer)}'
-            
-                # # Load the necessary files directly from the reg_folder
-                # with open(f'{reg_folder}/regcordict.pkl', 'rb') as f:
-                #     cordict = pickle.load(f)
-                # with open(f'{reg_folder}/regscores.pkl', 'rb') as f:
-                #     coords = pickle.load(f)
                     
                 
         for n_roi, roi in enumerate(rois):
