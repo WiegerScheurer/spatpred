@@ -64,7 +64,7 @@ sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
 
 import lgnpy.CEandSC.lgn_statistics
-from lgnpy.CEandSC.lgn_statistics import LGN, lgn_statistics
+from lgnpy.CEandSC.lgn_statistics import LGN, lgn_statistics, loadmat
 
 from unet_recon.inpainting import UNet
 
@@ -490,26 +490,83 @@ class Utilities():
         
     # Utility function to visualize dictionary structures
     def print_dict_structure(self, d, indent=0):
+        """
+        Prints the structure of a nested dictionary.
+
+        Args:
+            d (dict): The dictionary to print the structure of.
+            indent (int): The number of spaces to indent each level of the structure.
+
+        Returns:
+            None
+        """
         for key, value in d.items():
             print(' ' * indent + str(key))
             if isinstance(value, dict):
                 self.print_dict_structure(value, indent + 4)
                 
     def print_large(self, item):
+        """
+        Print a large item without truncation.
+
+        Args:
+            item: The item to be printed.
+
+        Returns:
+            None
+        """
         with np.printoptions(threshold=np.inf):
             print(item)
             
+    def get_circle_center(self, mask):
+        """Get the center of the circle defined by the mask"""
+        if mask[0, 0] == 1 or mask[0, 0] is True:
+            mask = ~mask
+            
+        bounds = self.get_bounding_box(mask)
+        x = bounds[0] + ((bounds[1] - bounds[0]) // 2)
+        y = bounds[2] + ((bounds[3] - bounds[2]) // 2)
+        return x,y
+            
     # Function to create the Gaussian image
     def make_gaussian_2d(self, size, center_row, center_col, sigma):
+        """
+        Generate a 2D Gaussian array.
+
+        Args:
+            size (int): Size of the output array.
+            center_row (float): Row coordinate of the center of the Gaussian.
+            center_col (float): Column coordinate of the center of the Gaussian.
+            sigma (float): Standard deviation of the Gaussian.
+
+        Returns:
+            numpy.ndarray: 2D Gaussian array.
+
+        """
         rows = np.arange(size)
         cols = np.arange(size)
         rows, cols = np.meshgrid(rows, cols, indexing='ij')
         exponent = -((rows - center_row)**2 / (2 * sigma**2) + (cols - center_col)**2 / (2 * sigma**2))
         gaussian = np.exp(exponent)
-        return gaussian        
+        return gaussian
     
     # Function to create a circle mask
     def make_circle_mask(self, size, center_row, center_col, radius, fill='y', margin_width=1):
+        """
+        Creates a circular mask with optional margin and fill options.
+
+        Args:
+            size (int): The size of the mask (assumed to be square).
+            center_row (int): The row index of the center of the circle.
+            center_col (int): The column index of the center of the circle.
+            radius (int): The radius of the circle.
+            fill (str, optional): Specifies whether to fill the circle ('y') or return the outline ('n'). Defaults to 'y'.
+            margin_width (int, optional): The width of the margin around the circle. Defaults to 1.
+
+        Returns:
+            numpy.ndarray: The circular mask.
+
+        """
         rows = np.arange(size)
         cols = np.arange(size)
         rows, cols = np.meshgrid(rows, cols, indexing='ij')
@@ -532,6 +589,25 @@ class Utilities():
             return -outline_circle_mask
         
     def css_gaussian_cut(self, figdim:np.ndarray, center_y:np.ndarray, center_x:np.ndarray, sigma:np.ndarray):
+        """
+        Generate a stack of 2D Gaussian arrays with trimmed sizes based on the given parameters.
+
+        Parameters:
+        - figdim: numpy.ndarray, shape (N,)
+            Array containing the dimensions of each 2D Gaussian array in the stack.
+        - center_y: numpy.ndarray, shape (N,)
+            Array containing the y-coordinates of the center of each Gaussian array.
+        - center_x: numpy.ndarray, shape (N,)
+            Array containing the x-coordinates of the center of each Gaussian array.
+        - sigma: numpy.ndarray, shape (N,)
+            Array containing the standard deviation (sigma) of each Gaussian array.
+
+        Returns:
+        - gaussian: numpy.ndarray, shape (N, M, M)
+            Stack of 2D Gaussian arrays with trimmed sizes, where N is the number of arrays in the stack
+            and M is the maximum dimension among all arrays in the stack.
+        """
+        
         # Ensure all inputs are numpy arrays and have the same shape
         figdim = np.asarray(figdim).reshape(-1, 1, 1)
         center_y = np.asarray(center_y).reshape(-1, 1, 1)
@@ -1073,7 +1149,7 @@ class Utilities():
         return new_cmap
     
     
-    def _get_circle_outline(full_circle:np.ndarray, plot:bool=False):
+    def _get_circle_outline(self, full_circle:np.ndarray, plot:bool=False, deg_per_pixel:(float | None)=None, patch_center:tuple=(213, 213)):
         """Helper function to get the outer boundaries of an input circle
 
         Args:
@@ -1084,12 +1160,14 @@ class Utilities():
         """    
         
         # Get the outer boundaries of the input circle
-        xmin, xmax, ymin, ymax = NSP.utils.get_bounding_box(full_circle)
-        pix_per_rad = 425 / 8.4 # pixels per radius
-        pixrad = (xmax - xmin) / 2 # Pixel radius of input circle
-        degrad = pixrad/pix_per_rad # Degree radius of input circle
+        _, _, ymin, ymax = self.get_bounding_box(full_circle)
+        if deg_per_pixel is None:
+            deg_per_pixel = 8.4 / 425
+        pix_per_deg = 1 / deg_per_pixel # pixels per radius
+        pixrad = (ymax - ymin) / 2 # Pixel radius of input circle
+        degrad = pixrad/pix_per_deg # Degree radius of input circle
         # Create new circle
-        outline_circle = NSP.utils.make_circle_mask(425, 213, 213, degrad * (425/8.4), fill="n", margin_width=5)
+        outline_circle = self.make_circle_mask(full_circle.shape[0], patch_center[1], patch_center[0], degrad * (pix_per_deg), fill="n", margin_width=5)
         if plot:
             # Plot new circle
             plt.figure()
@@ -2577,9 +2655,10 @@ class Stimuli():
         
         return masked_img
         
-    def calc_rms_contrast_lab(self, rgb_image:np.ndarray, img_idx:int, mask_w_in:np.ndarray, rf_mask_in:np.ndarray, 
+    def calc_rms_contrast_lab(self, rgb_image:np.ndarray, mask_w_in:(np.ndarray | None)=None, rf_mask_in:(np.ndarray | None)=None, 
                             normalise:bool=True, plot:bool=False, cmap:str='gist_gray', 
-                            crop_post:bool=False, lab_idx:int=0) -> float:
+                            crop_post:bool=False, nsd_idx:(int | None)=None, lab_idx:int=0, 
+                            cropped_input:bool=True) -> float:
         """"
         Function that calculates Root Mean Square (RMS) contrast after converting RGB to LAB, 
         which follows the CIELAB colour space. This aligns better with how visual input is
@@ -2594,44 +2673,71 @@ class Stimuli():
             cmap (str): Matplotlib colourmap for the plot, default 'gist_gray'
             crop_post (bool): If True, crop the image after calculation (to enable comparison of
                 RMS values to images cropped prior to calculation), default False
+            nsd_idx (int | None): Optional selection of a specific natural scene image (from the NSD dataset), default None
             lab_idx (int): Optional selection of different LAB channels, default 0
+            cropped_input (bool): If True, the input image is already cropped, default True
 
         Returns:
             float: Root Mean Square visual contrast of input img
         """
+        x_min, x_max, y_min, y_max = self.nsp.utils.get_bounding_box(rf_mask_in)
+        
         # Convert RGB image to LAB colour space
         lab_image = color.rgb2lab(rgb_image)
         
         # First channel [0] is Luminance, second [1] is green-red, third [2] is blue-yellow
         ar_in = lab_image[:, :, lab_idx] # Extract the L channel for luminance values, assign to input array
-            
+
+        if cropped_input is False:
+            ar_in = ar_in[y_min:y_max, x_min:x_max]
+            mask_w_in = mask_w_in[y_min:y_max, x_min:x_max]
+            rf_mask_in = rf_mask_in[y_min:y_max, x_min:x_max]
+        
+        mask_w_in = np.ones((rgb_image.shape[:-1])) if mask_w_in is None else mask_w_in
+        rf_mask_in = np.ones((rgb_image.shape[:-1])) if rf_mask_in is None else rf_mask_in
+        
         if normalise:
             ar_in /= ar_in.max()
-        
+            
+         # Difference between each pixel luminance and mean patch luminance
         square_contrast = np.square(ar_in - ar_in[rf_mask_in].mean())
         msquare_contrast = (mask_w_in * square_contrast).sum()
         
-        x_min, x_max, y_min, y_max = self.nsp.utils.get_bounding_box(rf_mask_in)
+        
+        # square_contrast = square_contrast[y_min:y_max, x_min:x_max]
+        # mask_w_in = mask_w_in[y_min:y_max, x_min:x_max]
 
         if crop_post:     
-            square_contrast = square_contrast[x_min:x_max, y_min:y_max]
-            mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
+            square_contrast = square_contrast[y_min:y_max, x_min:x_max]
+            mask_w_in = mask_w_in[y_min:y_max, x_min:x_max]
+        
+        if nsd_idx is None:
+            raw_img = rgb_image
+            idx_str = ''
+        else:
+            raw_img = self.show_stim(img_no=nsd_idx, small=True, hide=True)[0]
+            idx_str = f' {nsd_idx}'
+        
+        rms = np.sqrt(msquare_contrast)
         
         if plot:
             _, axs = plt.subplots(1, 4, figsize=(20, 5))
             plt.subplots_adjust(wspace=0.01)
-            axs[0].imshow(self.nsp.stimuli.show_stim(img_no=img_idx,hide=True)[0])
+            axs[0].imshow(raw_img)
             axs[0].axis('off')
-            axs[0].set_title(f'Natural scene {img_idx}', fontsize=18)
-            axs[1].imshow(rgb_image[x_min:x_max, y_min:y_max])
+            axs[0].set_title(f'Natural scene{idx_str}', fontsize=18)
+            
+            axs[1].imshow(rgb_image[y_min:y_max, x_min:x_max]) # Because rows,cols
             axs[1].axis('off')
-            axs[3].set_title(f'RMS = {np.sqrt(msquare_contrast):.2f}', fontsize=18)
+            
             axs[2].imshow(square_contrast, cmap=cmap)
             axs[2].axis('off') 
+            
             axs[3].imshow(mask_w_in * square_contrast, cmap=cmap)
+            axs[3].set_title(f'RMS = {rms:.2f}', fontsize=18)
             axs[3].axis('off') 
             
-        return np.sqrt(msquare_contrast)
+        return rms
     
     # These two functions are coupled to run the feature computations in parallel.
     # This saves a lot of time. Should be combined with the feature_df function to assign
@@ -2662,8 +2768,8 @@ class Stimuli():
             mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
             rf_mask_in = rf_mask_in[x_min:x_max, y_min:y_max]
             
-        return self.calc_rms_contrast_lab(ar_in, i, mask_w_in, rf_mask_in, normalise=normalise, 
-                                    plot=plot_contrast, cmap=cmap, crop_post=crop_post, lab_idx=lab_idx)
+        return self.calc_rms_contrast_lab(ar_in,  mask_w_in, rf_mask_in, normalise=normalise, 
+                                    plot=plot_contrast, cmap=cmap, crop_post=crop_post, nsd_idx=i, lab_idx=lab_idx)
         
     # This function is paired with rms_single to mass calculate the visual features using parallel computation.
     def rms_all(self, start, n, ecc_max = 1, plot_original:bool=False, plot_contrast:bool=True, loc = 'center', crop_prior:bool = False, crop_post:bool = True, save_plot:bool = False):
@@ -2679,6 +2785,148 @@ class Stimuli():
 
         rms_dict = rms_dict.set_index(np.array(img_vec))
         return rms_dict
+
+
+    def get_scce_contrast(
+        self,
+        rgb_image,
+        plot="n",
+        cmap="gist_gray",
+        crop_prior: bool = False,
+        crop_post: bool = False,
+        save_plot: bool = False,
+        return_imfovs: bool = True,
+        imfov_overlay: bool = False,
+        config_path:(str | None)=None,
+        lgn_instance:(LGN | None)=None,
+        patch_center:(tuple | None)=None,
+        deg_per_pixel:(float | None)=None
+    ):
+        if config_path is None:
+            config_path = '/home/rfpred/notebooks/alien_nbs/lgnpy/lgnpy/CEandSC/default_config.yml'
+
+        with open(config_path, 'r') as f:
+            config = yaml.load(f, Loader=yaml.UnsafeLoader)
+
+        lgn = LGN(config=config, default_config_path=config_path)
+
+        threshold_lgn = loadmat(filepath='/home/rfpred/notebooks/alien_nbs/lgnpy/ThresholdLGN.mat')['ThresholdLGN']
+
+        lgn_out = lgn_statistics(
+            im=rgb_image,
+            file_name="noname.tiff",
+            config=config,
+            force_recompute=True,
+            cache=False,
+            home_path="./notebooks/alien_nbs/",
+            verbose=False,
+            verbose_filename=False,
+            threshold_lgn=threshold_lgn,
+            compute_extra_statistics=False,
+            crop_prior=True,
+            plot_imfovs=False,
+            return_imfovs=return_imfovs,
+            lgn_instance=lgn_instance,
+            patch_center=patch_center
+        )
+
+        ce = np.mean(lgn_out[0][:, :, 0])
+        sc = np.mean(lgn_out[1][:, :, 0])
+        beta = np.mean(lgn_out[2][:, :, 0])
+        gamma = np.mean(lgn_out[3][:, :, 0])
+        edge_dict = lgn_out[4]
+        imfovbeta = lgn_out[5]
+        imfovgamma = lgn_out[6]
+
+        patch_x, patch_y = self.nsp.utils.get_circle_center(imfovbeta)
+        # patch_x = self.nsp.utils.get_bounding_box(imfovbeta)[0] + ((self.nsp.utils.get_bounding_box(imfovbeta)[1] - self.nsp.utils.get_bounding_box(imfovbeta)[0])/2)
+        # patch_y = self.nsp.utils.get_bounding_box(imfovbeta)[2] + ((self.nsp.utils.get_bounding_box(imfovbeta)[3] - self.nsp.utils.get_bounding_box(imfovbeta)[2])/2)
+
+        if imfov_overlay:
+            _, beta_rad = self.nsp.utils._get_circle_outline(imfovbeta, deg_per_pixel=deg_per_pixel, patch_center=(patch_x, patch_y))
+            _, gamma_rad = self.nsp.utils._get_circle_outline(imfovgamma, deg_per_pixel=deg_per_pixel, patch_center=(patch_x, patch_y))
+
+        # beta_rad = lgn_instance.get_attr("")
+        
+        if plot == "y":
+            fig, axs = plt.subplots(2, 3, figsize=(15, 10))
+            plt.subplots_adjust(wspace=0.01, hspace=0.01)
+
+            images = ["par1", "par2", "par3", "mag1", "mag2", "mag3"]
+            for i, img_name in enumerate(images):
+                img = lgn_out[4][img_name]
+
+                axs[i // 3, i % 3].imshow(img, cmap=cmap)
+                if imfov_overlay:
+                    imfov_x = patch_x
+                    imfov_y = patch_y
+                    circle = (imfov_x, imfov_y, beta_rad if "par" in img_name else gamma_rad)
+                    # Create a circle patch
+                    circ = patches.Circle((circle[0], circle[1]), circle[2], edgecolor='r', facecolor='none', linewidth=2.4)
+                    # Add the patch to the axes
+                    axs[i // 3, i % 3].add_patch(circ)
+                axs[i // 3, i % 3].axis("off")
+
+            plt.tight_layout()
+
+            if save_plot:
+                fig.savefig(
+                    f"rms_crop_prior_{str(crop_prior)}_crop_post_{str(crop_post)}.png"
+                )
+
+        return ce, sc, beta, gamma, imfovbeta, imfovgamma, edge_dict
+
+    def scce_single(
+        self,
+        args,
+        ecc_max=2.8,
+        loc="center",
+        plot="n",
+        cmap: str = "gist_gray",
+        return_imfovs: bool = False,
+        imfov_overlay: bool = False,
+        config_path:(str | None)=None,
+        lgn_instance:(LGN | None)=None
+    ):
+        i, start, n, plot, loc, crop_prior, crop_post, save_plot = args
+        dim = self.show_stim(hide=True)[0].shape[0]
+        radius = ecc_max * (dim / 8.4)
+
+        if loc == "center":
+            x = y = (dim + 1) / 2
+        
+        elif loc == "irrelevant_patch":
+            x = y = radius + 10
+
+        # This shit is not used, I use the imfovbeta and imfovgamma
+        mask_w_in = self.nsp.utils.css_gaussian_cut(dim, x, y, radius).reshape((425, 425))
+        rf_mask_in = self.nsp.utils.make_circle_mask(dim, x, y, radius, fill="y", margin_width=0)
+        full_ar_in = ar_in = self.show_stim(img_no=i, hide=True)[0]
+
+        if i % 100 == 0:
+            print(f"Processing image number: {i} out of {n + start}")
+
+        # Crop the image first, then provide this as input to the visfeat function
+        if crop_prior:
+
+            x_min, x_max, y_min, y_max = self.nsp.utils.get_bounding_box(rf_mask_in)
+            ar_in = ar_in[x_min:x_max, y_min:y_max]
+            mask_w_in = mask_w_in[x_min:x_max, y_min:y_max]
+            rf_mask_in = rf_mask_in[x_min:x_max, y_min:y_max]
+
+        return self.get_scce_contrast(
+            ar_in,
+            plot=plot,
+            cmap=cmap,
+            crop_prior=crop_prior,
+            crop_post=crop_post,
+            save_plot=save_plot,
+            return_imfovs=return_imfovs,
+            imfov_overlay=imfov_overlay,
+            config_path=config_path,
+            lgn_instance=lgn_instance
+        )
+
 
     # Function to get the visual contrast features and predictability estimates
     # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
