@@ -2839,14 +2839,10 @@ class Stimuli():
         imfovgamma = lgn_out[6]
 
         patch_x, patch_y = self.nsp.utils.get_circle_center(imfovbeta)
-        # patch_x = self.nsp.utils.get_bounding_box(imfovbeta)[0] + ((self.nsp.utils.get_bounding_box(imfovbeta)[1] - self.nsp.utils.get_bounding_box(imfovbeta)[0])/2)
-        # patch_y = self.nsp.utils.get_bounding_box(imfovbeta)[2] + ((self.nsp.utils.get_bounding_box(imfovbeta)[3] - self.nsp.utils.get_bounding_box(imfovbeta)[2])/2)
 
         if imfov_overlay:
             _, beta_rad = self.nsp.utils._get_circle_outline(imfovbeta, deg_per_pixel=deg_per_pixel, patch_center=(patch_x, patch_y))
             _, gamma_rad = self.nsp.utils._get_circle_outline(imfovgamma, deg_per_pixel=deg_per_pixel, patch_center=(patch_x, patch_y))
-
-        # beta_rad = lgn_instance.get_attr("")
         
         if plot == "y":
             fig, axs = plt.subplots(2, 3, figsize=(15, 10))
