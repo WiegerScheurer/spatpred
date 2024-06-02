@@ -3609,6 +3609,70 @@ class Stimuli():
         masks = [mask] * n_imgs
 
         return imgs, masks, img_nos
+
+    # Faster and more sparse computation of the unpred features, does require preparing
+    # PIL lists of images and masks beforehand.        
+    def comp_unpred(
+        self,
+        cnn_type: str = "alex",
+        pretrain_version: str = "places20k",
+        eval_mask_factor: float = 1.2,
+        input_imgs: list | None = None,
+        input_masks: list | None = None,
+        plot_eval_mask: bool = False,
+    ):
+        """
+        Computes the unpredictability of images using a U-Net model.
+
+        Args:
+            cnn_type (str, optional): The type of CNN model to use. Defaults to "alex".
+            pretrain_version (str, optional): The version of pre-trained weights to use. 
+                Defaults to "places20k".
+            eval_mask_factor (float, optional): The factor to scale the evaluation mask size. 
+                Defaults to 1.2.
+            input_imgs (list, optional): The list of input images. Defaults to None.
+            input_masks (list, optional): The list of input masks. Defaults to None.
+            plot_eval_mask (bool, optional): Whether to plot the evaluation mask. Defaults to False.
+
+        Returns:
+            payload_crop: The result of the U-Net analysis.
+        """
+        
+        # Load in the U-Net
+        if pretrain_version == "places20k":
+            pretrain = "pconv_circ-places20k.pth"
+        elif pretrain_version == "places60k":
+            pretrain = "pconv_circ-places60k-fine.pth"
+        elif pretrain_version == "original":
+            pretrain = "pretrained_pconv.pth"
+        else:
+            raise TypeError(
+                "Please select a valid pretrain version: places20k, places60k or original"
+            )
+
+        unet = UNet(checkpoint_name=pretrain, feature_model=cnn_type)
+
+        imgs = input_imgs
+        masks = input_masks
+        img_nos = list(range(0, (len(imgs) + 1)))
+
+        # Get the evaluation mask based on the evaluation mask size factor argument.
+        eval_mask = self.nsp.utils.scale_square_mask(
+            ~np.array(masks[0]),
+            min_size=((eval_mask_factor / 1.5) * 100),
+            scale_fact=eval_mask_factor,
+        )
+
+        if plot_eval_mask:
+            plt.imshow(eval_mask)
+            plt.axis("off")
+
+        # Run them through the U-Net
+        payload_crop = unet.analyse_images(
+            imgs, masks, return_recons=True, eval_mask=eval_mask
+        )
+
+        return payload_crop
         
     # Allround function to run the U-Net and create intuitive plots of the resulting predictability estimates.
     def predplot(self, subject:str = None, start_img:int = 0, n_imgs:int = 5, mask_loc:str = 'center', ecc_max:float = 1, select_ices = 'subject_based', 
@@ -3644,7 +3708,6 @@ class Stimuli():
             
         # Get the evaluation mask based on the evaluation mask size factor argument.
         eval_mask = self.nsp.utils.scale_square_mask(~np.array(masks[0]), min_size=((eval_mask_factor/1.5)*100), scale_fact= eval_mask_factor)
-
 
         # Run the images through the U-Net and time how long it takes.
         start_time = time.time()
