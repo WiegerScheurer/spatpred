@@ -1101,7 +1101,6 @@ class Utilities():
         print(f'Standard deviation: {np.std(data)}')
         return 
     
-    
     def display_cmap(self, cmap):
         plt.figure(figsize=(5, 2))
         plt.imshow(np.outer(np.ones(10), np.linspace(0, 1, 256)), aspect="auto", cmap=cmap)
