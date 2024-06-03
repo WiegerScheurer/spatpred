@@ -150,103 +150,134 @@ sc = NSP.stimuli.get_scce(subject, 'sc')
 ce = NSP.stimuli.get_scce(subject, 'ce')
 Xbl = pd.concat([rms, sc, ce], axis=1).values
 
-which_cnn = 'vgg-b'
+# which_cnn = 'vgg-b'
 # which_cnn = 'alexnet'
-# which_cnn = 'alexnet_new'
+which_cnn = 'alexnet_new'
 n_layers = 5 if which_cnn == 'alexnet' else 6
 
 Xpred = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=False, ssim=False, pixel_loss=False, 
                                  L1=False, MSE=True, verbose=True, outlier_sd_bound=5, subject=subject) # wait untill all are computed of alexnet
 
 print(f'Xpred has these dimensions: {Xpred.shape}')
-
+    
+if which_cnn == 'alexnet_new': # Remove this later, only for clarity of files
+    which_cnn = 'alexnet'
+    
 for layer in range(0, Xpred.shape[1]):
+    feat = f'{which_cnn}_lay{layer}'
     Xalex = Xpred[:,layer].reshape(-1,1)
     X = np.hstack((Xbl, Xalex))
     print(f'X has these dimensions: {X.shape}')
     X_shuf = np.copy(X)
     np.random.shuffle(X_shuf)
-
-    obj, _ = NSP.analyse.analysis_chain(subject=subject,
-                                     ydict=ydict, 
-                                     X=X, # The baseline model + current unpredictability layer
-                                     alpha=10, 
-                                     voxeldict=voxeldict, 
-                                     cv=5, 
-                                     rois=rois, 
-                                     X_uninformative=Xbl, # The baseline model
-                                     fit_icept=False, 
-                                     save_outs=True,
-                                     regname=f'/{which_cnn}_unpred_lay{layer}{tag}',
-                                     shuf_or_baseline='baseline')
     
-    # This is for the relative R scores.
-    rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
-    rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
-
-    # plot the relative R scores
-    NSP.analyse.plot_brain(prf_dict, 
-                           roi_masks, 
-                           subject, 
-                           NSP.utils.cap_values(np.copy(rel_scores_np), 0, 10), 
-                           'plasma',
-                           False, 
-                           save_img=True, 
-                           img_path=f'/home/rfpred/imgs/reg/{which_cnn}_unpred_lay{layer}_regcorplot{tag}.png')
-
-    # This is for the betas
-    plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))
-    plot_bets_np = NSP.utils.coords2numpy(plot_bets, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
-
-    # plot the betas
-    NSP.analyse.plot_brain(prf_dict, 
-                           roi_masks, 
-                           subject, 
-                           NSP.utils.cap_values(np.copy(plot_bets_np), 0, 10), 
-                           'plasma',
-                           False, 
-                           save_img=True, 
-                           img_path=f'/home/rfpred/imgs/reg/{which_cnn}_unpred_lay{layer}_regbetaplot{tag}.png')
+    reg_df = NSP.analyse.analysis_chain_slim(subject='subj01',
+                             ydict=ydict,
+                             voxeldict=voxeldict,
+                             X=X,
+                             alpha=.1,
+                             cv=5,
+                             rois=rois,
+                             X_alt=Xbl, # The baseline model
+                             fit_icept=False,
+                             save_outs=True,
+                             regname=feat,
+                             plot_hist=True,
+                             alt_model_type="baseline model",
+                             save_folder='unpred',
+                             X_str=f'{feat} model')
 
 
-for layer in range(0,Xpred.shape[1]):
-    delta_r_layer = pd.read_pickle(f'{NSP.own_datapath}/{subject}/brainstats/unpred/{which_cnn}_unpred_lay{layer}{tag}_delta_r.pkl').values[0].flatten()
-    if layer == 0:
-        all_delta_r = delta_r_layer
-    else:
-        all_delta_r = np.vstack((all_delta_r, delta_r_layer))
+############# THIS CODE BELOW IS THE OLD< WOKRING CODE, STILL CONTAINS A LOT OF RELEVANT THINGS, LIKE PLOTTING#####
+
+
+# for layer in range(0, Xpred.shape[1]):
+#     Xalex = Xpred[:,layer].reshape(-1,1)
+#     X = np.hstack((Xbl, Xalex))
+#     print(f'X has these dimensions: {X.shape}')
+#     X_shuf = np.copy(X)
+#     np.random.shuffle(X_shuf)
+
+#     obj, _ = NSP.analyse.analysis_chain(subject=subject,
+#                                      ydict=ydict, 
+#                                      X=X, # The baseline model + current unpredictability layer
+#                                      alpha=10, 
+#                                      voxeldict=voxeldict, 
+#                                      cv=5, 
+#                                      rois=rois, 
+#                                      X_uninformative=Xbl, # The baseline model
+#                                      fit_icept=False, 
+#                                      save_outs=True,
+#                                      regname=f'/{which_cnn}_unpred_lay{layer}{tag}',
+#                                      shuf_or_baseline='baseline')
+    
+#     # This is for the relative R scores.
+#     rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
+#     rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+
+#     # plot the relative R scores
+#     NSP.analyse.plot_brain(prf_dict, 
+#                            roi_masks, 
+#                            subject, 
+#                            NSP.utils.cap_values(np.copy(rel_scores_np), 0, 10), 
+#                            'plasma',
+#                            False, 
+#                            save_img=True, 
+#                            img_path=f'/home/rfpred/imgs/reg/{which_cnn}_unpred_lay{layer}_regcorplot{tag}.png')
+
+#     # This is for the betas
+#     plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))
+#     plot_bets_np = NSP.utils.coords2numpy(plot_bets, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+
+#     # plot the betas
+#     NSP.analyse.plot_brain(prf_dict, 
+#                            roi_masks, 
+#                            subject, 
+#                            NSP.utils.cap_values(np.copy(plot_bets_np), 0, 10), 
+#                            'plasma',
+#                            False, 
+#                            save_img=True, 
+#                            img_path=f'/home/rfpred/imgs/reg/{which_cnn}_unpred_lay{layer}_regbetaplot{tag}.png')
+
+
+# for layer in range(0,Xpred.shape[1]):
+#     delta_r_layer = pd.read_pickle(f'{NSP.own_datapath}/{subject}/brainstats/unpred/{which_cnn}_unpred_lay{layer}{tag}_delta_r.pkl').values[0].flatten()
+#     if layer == 0:
+#         all_delta_r = delta_r_layer
+#     else:
+#         all_delta_r = np.vstack((all_delta_r, delta_r_layer))
         
-df = (pd.DataFrame(all_delta_r, columns = rois))
-print(df)
+# df = (pd.DataFrame(all_delta_r, columns = rois))
+# print(df)
 
-plt.clf()
+# plt.clf()
 
-df.reset_index(inplace=True)
+# df.reset_index(inplace=True)
 
-# Melt the DataFrame to long-form or tidy format
-df_melted = df.melt('index', var_name='ROI', value_name='b')
+# # Melt the DataFrame to long-form or tidy format
+# df_melted = df.melt('index', var_name='ROI', value_name='b')
 
-fig, ax = plt.subplots()
+# fig, ax = plt.subplots()
 
-# Create the line plot
-sns.lineplot(x='index', y='b', hue='ROI', data=df_melted, marker='o', ax=ax)
+# # Create the line plot
+# sns.lineplot(x='index', y='b', hue='ROI', data=df_melted, marker='o', ax=ax)
 
-ax.set_xticks(range(n_layers))  # Set x-axis ticks to be integers from 0 to 4
-ax.set_xlabel(f'{which_cnn} Layer')
-ax.set_ylabel('Delta R Value')
-ax.set_title(f'Delta R Value per {which_cnn} Layer')
+# ax.set_xticks(range(n_layers))  # Set x-axis ticks to be integers from 0 to 4
+# ax.set_xlabel(f'{which_cnn} Layer')
+# ax.set_ylabel('Delta R Value')
+# ax.set_title(f'Delta R Value per {which_cnn} Layer')
 
-# Save the plot
-fig.savefig(f'{NSP.own_datapath}/{subject}/brainstats/{which_cnn}_unpred_delta_r_plot{tag}.png')
+# # Save the plot
+# fig.savefig(f'{NSP.own_datapath}/{subject}/brainstats/{which_cnn}_unpred_delta_r_plot{tag}.png')
 
-plt.show()
-plt.clf()
+# plt.show()
+# plt.clf()
 
-NSP.analyse.assign_layers(subject, prf_dict, roi_masks, rois, '', 
-                          cnn_type=which_cnn, 
-                          plot_on_brain=True, 
-                          file_tag=tag, 
-                          save_imgs=True)
+# NSP.analyse.assign_layers(subject, prf_dict, roi_masks, rois, '', 
+#                           cnn_type=which_cnn, 
+#                           plot_on_brain=True, 
+#                           file_tag=tag, 
+#                           save_imgs=True)
 
 print('Het zit er weer op kameraad')
 

@@ -206,30 +206,60 @@ for layer in range(0, 5):
     X_shuf = np.copy(X) # Get control X matrix which is a shuffled version of original X matrix
     np.random.shuffle(X_shuf)
 
-    obj,_  = NSP.analyse.analysis_chain(subject=subject,
-                                     ydict=ydict, 
-                                     X=X, 
-                                     alpha=10, 
-                                     voxeldict=voxeldict, 
-                                     cv=5, 
-                                     rois=rois, 
-                                     X_uninformative=X_shuf, 
-                                     fit_icept=False, 
-                                     save_outs=True,
-                                     regname=f'smallpatch_allvox_alexunet_layer{layer}{file_tag}')
+    reg_df = NSP.analyse.analysis_chain_slim(subject='subj01',
+                            ydict=ydict,
+                            voxeldict=voxeldict,
+                            X=X,
+                            alpha=.1,
+                            cv=5,
+                            rois=rois,
+                            X_alt=X_shuf, # The baseline model
+                            fit_icept=False,
+                            save_outs=True,
+                            regname=f'alexnet_lay{relu_lays[layer]}{file_tag}',
+                            plot_hist=True,
+                            alt_model_type="shuffled model",
+                            save_folder='encoding',
+                            X_str=f'alexnet lay{relu_lays[layer]} model')
+
+
+
+############### OLD, FUNCTIONAL CODE::: ################
+
+# for layer in range(0, 5):
+#     print(f'Running regression for layer: {layer}')
     
-    rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
+#     # X = NSP.stimuli.unet_featmaps(list_layers=[layer], scale='full') # Get X matrix
+#     relu_lays = [1, 4, 7, 9, 11]
+#     X = NSP.stimuli.alex_featmaps(relu_lays[layer], subject)
+#     print(f'X has these dimensions: {X.shape}')
+#     X_shuf = np.copy(X) # Get control X matrix which is a shuffled version of original X matrix
+#     np.random.shuffle(X_shuf)
 
-    rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+#     obj,_  = NSP.analyse.analysis_chain(subject=subject,
+#                                      ydict=ydict, 
+#                                      X=X, 
+#                                      alpha=10, 
+#                                      voxeldict=voxeldict, 
+#                                      cv=5, 
+#                                      rois=rois, 
+#                                      X_uninformative=X_shuf, 
+#                                      fit_icept=False, 
+#                                      save_outs=True,
+#                                      regname=f'smallpatch_allvox_alexunet_layer{layer}{file_tag}')
+    
+#     rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
 
-    # Plot relative R scores
-    NSP.analyse.plot_brain(prf_dict, 
-                           roi_masks, 
-                           subject, 
-                           brain_numpy=NSP.utils.cap_values(np.copy(rel_scores_np), None, None), 
-                           cmap='coolwarm', 
-                           save_img=True, 
-                           img_path=f'/home/rfpred/imgs/reg/smallpatch_allvox_alexunet_layer{layer}_regcorplot{file_tag}.png')
+#     rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
+
+#     # Plot relative R scores
+#     NSP.analyse.plot_brain(prf_dict, 
+#                            roi_masks, 
+#                            subject, 
+#                            brain_numpy=NSP.utils.cap_values(np.copy(rel_scores_np), None, None), 
+#                            cmap='coolwarm', 
+#                            save_img=True, 
+#                            img_path=f'/home/rfpred/imgs/reg/smallpatch_allvox_alexunet_layer{layer}_regcorplot{file_tag}.png')
 
     # # This is for the betas
     # plot_bets = np.hstack((obj[:,:3], obj[:,5].reshape(-1,1)))

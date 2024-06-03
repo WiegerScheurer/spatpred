@@ -1229,7 +1229,7 @@ class Utilities():
         # If no match is found, return 100
         return 100
     
-    def get_layer_files(self, filenames: list[str], layer_str: (str | None) = 'layer '):
+    def get_layer_files2(self, filenames: list[str], layer_str: (str | None) = 'layer '):
         """Function to group filenames by layer number.
 
         Args:
@@ -4182,6 +4182,133 @@ class Analysis():
         plt.title('Residual Plot')
         plt.show()  
         
+    def analysis_chain_slim(
+            self,
+            subject: str,
+            ydict: Dict[str, np.ndarray],
+            voxeldict: Dict[str, VoxelSieve],
+            X: np.ndarray,
+            alpha: float,
+            cv: int,
+            rois: list,
+            X_alt: np.ndarray,
+            fit_icept: bool = False,
+            save_outs: bool = False,
+            regname: (str | None) = "", # remove
+            plot_hist: bool = True, 
+            alt_model_type: str = "alternative model", # remove
+            save_folder: str | None = None, # remove
+            X_str: str | None = None, # remove
+        ) -> pd.DataFrame:
+        """Function to run a chain of analyses on the input data for each of the four regions of interest (ROIs).
+            Includes comparisons with an uninformative dependent variable X matrix (such as a shuffled 
+            version of the original X matrix), to assess the quality of the model in a relative way.
+            Returns an array of which the first 3 columns contain the voxel coordinates (xyz) and the 
+            fourth contains the across cross validation fold mean correlation R scores between the actual
+            and predicted dependent variables (y vs. y_hat).
+
+        Args:
+        - ydict (np.ndarray): The dictionary containing the dependent variables y-matrices for each ROI.
+        - X (np.ndarray): The independent variables X-matrix.
+        - alpha (float): The regularisation parameter of the Ridge regression model.
+        - cv (int): The number of cross-validation folds.
+        - rois (list): The list of regions of interest (ROIs) to analyse.
+        - X_alt (np.ndarray): The alternative model's X-matrix to compare the model against.
+        - fit_icept (bool, optional): Whether or not to fit an intercept. If both X and y matrices are z-scored
+                It is highly recommended to set it to False, otherwise detecting effects becomes difficult. Defaults to False.
+        - save_outs (bool, optional): Whether or not to save the outputs. Defaults to False.
+
+        Returns:
+        - np.ndarray: Object containing the voxel coordinates and the mean R scores for each ROI. This can be
+                efficiently turned into a numpy array using NSP.utils.coords2numpy, which in turn can be converted 
+                into a nifti file using nib.Nifti1Image(np.array, affine), in which the affine can be extracted
+                from a readily available nifti file from the specific subject (using your_nifti.affine).
+        """
+        r_values = {}
+        r_uninformative = {}
+        regcor_dict = {}  # Dictionary to store cor_scores
+        regcor_dict['X'] = {}
+        
+        if save_outs:
+            save_path = f'{self.nsp.own_datapath}/{subject}/results/{save_folder}'
+            os.makedirs(save_path, exist_ok=True)
+        
+        # Calculate scores for the given X matrix
+        for roi in rois:
+            y = ydict[roi]
+            model_og = self.run_ridge_regression(X, y, alpha=alpha, fit_icept=False)
+            _, cor_scores = self.score_model(X, y, model_og, cv=cv)
+            r_values[roi] = np.mean(cor_scores, axis=0)
+            regcor_dict['X'][roi] = cor_scores  # Save cor_scores to dictionary
+
+            xyz = voxeldict[roi].xyz
+            # Get a vector with the roi name repeated for each voxel
+            roi_vec = np.array([roi] * len(xyz)).reshape(-1,1)
+            
+            this_coords = np.hstack((xyz, roi_vec, np.array(r_values[roi]).reshape(-1,1)))
+            this_coefs = np.mean(model_og.coef_, axis=1).reshape(-1,1)
+            
+            if roi == 'V1':
+                coords = this_coords
+                beta_coefs = this_coefs
+            else:
+                coords = np.vstack((coords, this_coords))
+                beta_coefs = np.vstack((beta_coefs, this_coefs))
+
+        regcor_dict['X_shuffled'] = {}
+        
+        # Calculate scores for the uninformative/baseline X matrix
+        for roi in rois:
+            y = ydict[roi]
+            model_comp = self.run_ridge_regression(X_alt, y, alpha=alpha, fit_icept=fit_icept)
+            _, cor_scores = self.score_model(X_alt, y, model_comp, cv=cv)
+            r_uninformative[roi] = np.mean(cor_scores, axis=0)
+            regcor_dict['X_shuffled'][roi] = cor_scores  # Save cor_scores to dictionary
+            if roi == 'V1':
+                uninf_scores = r_uninformative[roi].reshape(-1,1)
+            else:
+                uninf_scores = np.vstack((uninf_scores, r_uninformative[roi].reshape(-1,1)))
+
+        delta_r_df = pd.DataFrame()
+        
+        for i, roi in enumerate(rois[:4]):
+            # Calculate and store the delta-R values 
+            if roi == 'V1':
+                all_vox_delta_r = (r_values[roi] - r_uninformative[roi]).reshape(-1,1)
+            else:
+                all_vox_delta_r = np.vstack((all_vox_delta_r, (r_values[roi] - r_uninformative[roi]).reshape(-1, 1)))
+
+            this_delta_r = round(np.mean(r_values[roi]) - np.mean(r_uninformative[roi]), 5) # TODO: is this the same as first delta_r /vox and then mean?
+            
+            delta_r_df[roi] = [this_delta_r]
+            
+            if plot_hist:
+                if roi == 'V1': # Create a figure with 4 subplots
+                    fig, axs = plt.subplots(2, 2, figsize=(8, 8))
+                    # Flatten the axs array for easy iteration
+                    axs = axs.flatten()
+                
+                # Underlay with the histogram of r_uninformative[roi] values
+                axs[i].hist(r_uninformative[roi], bins=25, edgecolor=None, alpha=1, label=alt_model_type, color='burlywood')
+                # Plot the histogram of r_values[roi] values in the i-th subplot
+                axs[i].hist(r_values[roi], bins=25, edgecolor='black', alpha=0.5, label=X_str, color='dodgerblue')
+                axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
+                axs[i].legend() if roi == 'V1' else None
+
+                if roi == 'V4': # Add title and display the figure
+                    plt.suptitle(f'{regname}', fontsize=16)
+                    plt.tight_layout()
+                    plt.show()
+                
+                plt.savefig(f'{save_path}/{regname}_plot.png') if save_outs else None
+                    
+        coords = np.hstack((coords, uninf_scores, all_vox_delta_r.reshape(-1,1), beta_coefs)) # also added beta coefficients as last column. very rough but works
+                
+        coords_df = pd.DataFrame(coords, columns=['x', 'y', 'z', 'roi', 'R', 'R_alt_model', 'delta_r', 'betas'])
+                    
+        coords_df.to_csv(f'{save_path}/{regname}_regdf.csv', index=False) if save_outs else None
+
+        return coords_df    
     
     def analysis_chain(self, subject:str, ydict:Dict[str, np.ndarray], voxeldict:Dict[str, VoxelSieve], 
                        X:np.ndarray, alpha:float, cv:int, rois:list, X_uninformative:np.ndarray, 
