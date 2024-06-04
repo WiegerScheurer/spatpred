@@ -3241,10 +3241,7 @@ class Stimuli():
         Out:
         - X_all: np.array containing the feature maps extracted at the specified layers of the AlexNet model
         """
-        
-        # if smallpatch:
         smallpatch_str = '_smallpatch' if smallpatch else ''
-        # else: 
         
         full_img_alex = []
         layers = [layers] if type(layers) is int else layers
@@ -3295,8 +3292,6 @@ class Stimuli():
             plt.show()
         
         return full_img_alex    
-    
-    
     
     # Create design matrix containing ordered indices of stimulus presentation per subject
     def imgs_designmx(self):
@@ -4572,7 +4567,7 @@ class Analysis():
 
         plt.show()
 
-    def assign_layers(self, subject:str, 
+    def assign_layers_old(self, subject:str, 
                       prf_dict:dict, 
                       roi_masks:dict, 
                       rois:list, 
