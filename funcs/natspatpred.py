@@ -11,6 +11,7 @@ from multiprocessing import Pool
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import h5py
+import fnmatch
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -56,7 +57,7 @@ from torchvision.models.feature_extraction import (create_feature_extractor,
                                                    get_graph_node_names)
 from tqdm.notebook import tqdm
 
-print('soepstengesl')
+# print('soepstengesl')
 
 os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred/')
@@ -67,7 +68,6 @@ import lgnpy.CEandSC.lgn_statistics
 from lgnpy.CEandSC.lgn_statistics import LGN, lgn_statistics, loadmat
 
 from unet_recon.inpainting import UNet
-
 
 class VoxelSieve:
     """
@@ -4598,7 +4598,6 @@ class Analysis():
             basis_param (str, optional): The basis for assigning layers. Defaults to 'betas', alternative is 'r' or 'delta_r'.
             which_reg (str, optional): The type of regression to use. Defaults to 'unpred'.
         """    
-        import fnmatch
         first_lay = 0
         last_lay = 5 if cnn_type == 'alex' or cnn_type == 'alexnet' else 6
         n_layers = last_lay - first_lay
@@ -4817,7 +4816,7 @@ class NatSpatPred():
 
     # TODO: Expand this initialise in such way that it creates all the globally relevant attributes by calling on methods from the
     # nested classes
-    def initialise(self):
+    def initialise(self, verbose:bool=True):
         self.utils = Utilities(self)
         self.cortex = Cortex(self)
         self.stimuli = Stimuli(self)
@@ -4827,8 +4826,8 @@ class NatSpatPred():
         
         self.attributes = [attr for attr in dir(self) if not attr.startswith('_')] # Filter out both the 'dunder' and hidden methods
         self.attributes_unfiltered = [attr for attr in dir(self) if not attr.startswith('__')] # Filter out only the 'dunder' methods
-        
-        print(f'Naturalistic Spatial Prediction class: {Fore.LIGHTWHITE_EX}Initialised{Style.RESET_ALL}')
-        print('\nClass contains the following attributes:')
-        for attr in self.attributes:
-            print(f"{Fore.BLUE} .{attr}{Style.RESET_ALL}")
+        if verbose:
+            print(f'Naturalistic Spatial Prediction class: {Fore.LIGHTWHITE_EX}Initialised{Style.RESET_ALL}')
+            print('\nClass contains the following attributes:')
+            for attr in self.attributes:
+                print(f"{Fore.BLUE} .{attr}{Style.RESET_ALL}")
