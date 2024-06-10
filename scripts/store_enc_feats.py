@@ -44,8 +44,8 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False):
     """
     # Load in the feature maps for the specified layer of the CNN, dimensionality reduction has already been applied
     featmaps_pc = np.load(
-        # f"{NSP.own_datapath}/visfeats/cnn_featmaps/featmaps/featmaps_layfeatures.{cnn_layer}.npz"
-        f"{NSP.own_datapath}/visfeats/cnn_featmaps/featmaps/featmaps_smallpatch_layfeatures.{cnn_layer}.npz"
+        f"{NSP.own_datapath}/visfeats/cnn_featmaps/featmaps/featmaps_layfeatures.{cnn_layer}.npz"
+        # f"{NSP.own_datapath}/visfeats/cnn_featmaps/featmaps/featmaps_smallpatch_layfeatures.{cnn_layer}.npz"
     )
 
     # Convert the dictionary-like object to a numpy array
@@ -60,8 +60,8 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False):
 
     os.makedirs(f"{NSP.own_datapath}/{subject}/encoding", exist_ok=True)
     np.save(
-        # "%s/%s/encoding/regprepped_featmaps_layer%s"
-        "%s/%s/encoding/regprepped_featmaps_smallpatch_layer%s"
+        "%s/%s/encoding/regprepped_featmaps_layer%s"
+        # "%s/%s/encoding/regprepped_featmaps_smallpatch_layer%s"
         % (NSP.own_datapath, subject, cnn_layer),
         Xsubj,
     )
@@ -75,7 +75,7 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False):
 relu_lays = [1, 4, 7, 9, 11]
 
 # for subject in NSP.subjects:
-for subject in ['subj01']:
+for subject in ['subj02']:
     for cnn_layer in relu_lays:
         _ = _pull_featmaps(subject, cnn_layer, verbose=True)
 

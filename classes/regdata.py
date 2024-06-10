@@ -374,10 +374,13 @@ class RegData:
             df = self._weigh_mean_layer(verbose=verbose, copy_df=df)
             assign_str = "Mean Weighted Layer"
 
+        lay_colours = max(self.cnn_layers) - self.cnn_layers[0] + 1
+
+
         barcmap = LinearSegmentedColormap.from_list(
             "NavyBlueVeryLightGreyDarkRed",
             ["#000080", "#CCCCCC", "#FFA500", "#FF0000"],
-            N=max(self.cnn_layers),
+            N=lay_colours,
         )
 
         # Calculate the proportions of max_indices within each ROI

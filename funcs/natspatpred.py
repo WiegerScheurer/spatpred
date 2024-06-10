@@ -881,7 +881,8 @@ class Utilities():
             nifti_save_path = f'{self.nsp.own_datapath}/{subject}/surf_niftis'
             os.makedirs(nifti_save_path, exist_ok=True)
             if save_path is None:
-                save_path = f"{nifti_save_path}/{file_name}.nii.gz"
+                # save_path = f"{nifti_save_path}/{file_name}.nii.gz"
+                save_path = f"{nifti_save_path}/{file_name}.nii"
             nib.save(enc_brain_nii, save_path)
             
         return enc_brain_nii
@@ -1572,11 +1573,12 @@ class Cortex():
         viscortex_mask (numpy array): A sum of all ROI masks for the first subject.
         """
         binary_masks = {}
-
-        for subj_no in range(1, len(self.nsp.subjects) + 1):
+        viscortex_masks = {}
+        # for subj_no in range(1, len(self.nsp.subjects) + 1):
+        for subject in self.nsp.subjects:
             if verbose:
                 print(f'Fetching roi masks for subject {Fore.LIGHTBLUE_EX}{subj_no}{Style.RESET_ALL}')
-            mask_dir = f'{self.nsp.nsd_datapath}/nsddata/ppdata/subj0{subj_no}/func1mm/roi'
+            mask_dir = f'{self.nsp.nsd_datapath}/nsddata/ppdata/subj0{subject[-1]}/func1mm/roi'
 
             # read in and sort all the filenames in the mapped masks folder for each subject
             non_binary_masks = sorted(file for file in os.listdir(mask_dir) if '_mask.nii' in file)
@@ -1587,12 +1589,15 @@ class Cortex():
                 for key, subj_binary_mask in subj_binary_masks.items():
                     print(f" - {Fore.BLUE}{key[:2]}{Style.RESET_ALL}: {np.sum(subj_binary_mask)} voxels")
                     
-            binary_masks[f'subj0{subj_no}'] = subj_binary_masks
+            binary_masks[subject] = subj_binary_masks
+            rois = [roi[:2] for roi in binary_masks[subject].keys()]
+            viscortex_masks[subject] = sum(binary_masks[subject][f'{roi}_mask'] for roi in rois)
+            
 
-        rois = [roi[:2] for roi in binary_masks['subj01'].keys()]
-        viscortex_mask = sum(binary_masks['subj01'][f'{roi}_mask'] for roi in rois)
         
-        return rois, binary_masks, viscortex_mask
+        # viscortex_mask = sum(binary_masks['subj01'][f'{roi}_mask'] for roi in rois)
+        
+        return rois, binary_masks, viscortex_masks
     
     # This function should be reduced to just storing the subject specific np.arrays,, much more efficient.
     # I'll keep this version, but I'll comment out the unneccesary shit

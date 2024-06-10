@@ -1,9 +1,15 @@
 #!/bin/bash
 
-for session in {01..40}; do
-    aws s3 cp s3://natural-scenes-dataset/nsddata_betas/ppdata/subj01/func1mm/betas_fithrf_GLMdenoise_RR/betas_session${session}.nii.gz /home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/subj01/func1mm/betas_fithrf_GLMdenoise_RR/
-    echo "Processing session $session"
+for subj_num in {03..08}; do
+    for session in {01..40}; do
+        aws s3 cp s3://natural-scenes-dataset/nsddata_betas/ppdata/subj${subj_num}/func1mm/betas_fithrf_GLMdenoise_RR/betas_session${session}.nii.gz /home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/subj${subj_num}/func1mm/betas_fithrf_GLMdenoise_RR/
+        echo "Processing session $session for subj$subj_num"
+    done
 done
+# for session in {01..40}; do
+#     aws s3 cp s3://natural-scenes-dataset/nsddata_betas/ppdata/subj0${subj_num}/func1mm/betas_fithrf_GLMdenoise_RR/betas_session${session}.nii.gz /home/rfpred/data/natural-scenes-dataset/nsddata_betas/ppdata/subj0${subj_num}/func1mm/betas_fithrf_GLMdenoise_RR/
+#     echo "Processing session $session for subj0$subj_num"
+# done
 
 # to run, first run this line in the terminal to give the file permissions:
 # chmod +x mask_visualrois.sh

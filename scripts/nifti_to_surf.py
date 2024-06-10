@@ -61,7 +61,6 @@ predparser.add_argument(
     default="cubic"
 )
 
-
 args = predparser.parse_args()
 
 print(args, "\n")
@@ -77,11 +76,8 @@ from nsdcode.nsd_mapdata import NSDmapdata
 from nsdcode.nsd_output import nsd_write_fs
 from nsdcode.utils import makeimagestack
 
-# subject = "subj01"
-
-# subjix = subject[-1]
 base_path = os.path.join("/home", "rfpred", "data", "natural-scenes-dataset")
-print(base_path)
+
 subjix = int(args.subject[-1])
 
 for hemisphere in ["lh", "rh"]:
