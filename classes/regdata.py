@@ -424,7 +424,11 @@ class RegData:
         plt.show()
 
     def mean_lines(
-            self, fit_polynom: bool = False, polynom_order: int = 2, verbose: bool = True, plot_catplot: bool = True
+            self, fit_polynom: bool = False, 
+            polynom_order: int = 2, 
+            verbose: bool = True, 
+            plot_catplot: bool = True,
+            title : str = None
         ):
             """
             Plots the mean values of each ROI across layers.
@@ -510,4 +514,9 @@ class RegData:
             (catplot.ax if plot_catplot else ax).legend(
                 handles=[patches.Patch(color=roi_to_color[roi], label=roi) for roi in rois]
             )
+            
+            if title is not None:
+                (catplot.ax if plot_catplot else ax).set_title(title)
+
+            
             plt.show()

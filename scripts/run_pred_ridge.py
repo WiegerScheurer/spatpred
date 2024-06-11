@@ -9,48 +9,49 @@ os.environ["OMP_NUM_THREADS"] = "5"
 import os
 import sys
 import numpy as np
-import random
-import time
-import matplotlib.pyplot as plt
+# import random
+# import time
+# import matplotlib.pyplot as plt
 import pandas as pd
-import torch
-import seaborn as sns
+# import torch
+# import seaborn as sns
+# import nibabel as nib
+# import pickle
+# import torchvision.models as models
 import nibabel as nib
-import pickle
-import torchvision.models as models
-import nibabel as nib
-import h5py
-import scipy.stats.mstats as mstats
-import copy
+# import h5py
+# import scipy.stats.mstats as mstats
+# import copy
+import argparse
 
-from nilearn import plotting
-from scipy import stats
-from scipy.ndimage import binary_dilation
-from PIL import Image
-from importlib import reload
-from scipy.io import loadmat
-from matplotlib.ticker import MultipleLocator, NullFormatter
-from sklearn.cross_decomposition import PLSRegression
-from sklearn.linear_model import LinearRegression, Lasso, Ridge
-from colorama import Fore, Style
-from matplotlib.colors import LinearSegmentedColormap
-from matplotlib import colormaps
-from torch.utils.data import Dataset, DataLoader
-from torch.nn import Module
-from torchvision import transforms
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA, IncrementalPCA
-from sklearn.impute import SimpleImputer
-from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
-from tqdm import tqdm
-from matplotlib.lines import Line2D
-from sklearn.model_selection import KFold
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import cross_val_score, KFold, cross_val_predict
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-from math import sqrt
-from typing import Dict, Tuple, Union
-from scipy.special import softmax
+# from nilearn import plotting
+# from scipy import stats
+# from scipy.ndimage import binary_dilation
+# from PIL import Image
+# from importlib import reload
+# from scipy.io import loadmat
+# from matplotlib.ticker import MultipleLocator, NullFormatter
+# from sklearn.cross_decomposition import PLSRegression
+# from sklearn.linear_model import LinearRegression, Lasso, Ridge
+# from colorama import Fore, Style
+# from matplotlib.colors import LinearSegmentedColormap
+# from matplotlib import colormaps
+# from torch.utils.data import Dataset, DataLoader
+# from torch.nn import Module
+# from torchvision import transforms
+# from sklearn.preprocessing import StandardScaler
+# from sklearn.decomposition import PCA, IncrementalPCA
+# from sklearn.impute import SimpleImputer
+# from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
+# from tqdm import tqdm
+# from matplotlib.lines import Line2D
+# from sklearn.model_selection import KFold
+# from sklearn.linear_model import LinearRegression
+# from sklearn.model_selection import cross_val_score, KFold, cross_val_predict
+# from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+# from math import sqrt
+# from typing import Dict, Tuple, Union
+# from scipy.special import softmax
 
 os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred/')
@@ -72,6 +73,12 @@ from funcs.natspatpred import NatSpatPred, VoxelSieve
 NSP = NatSpatPred()
 NSP.initialise()
 
+predparser = argparse.ArgumentParser(description='Get the predictability estimates for a range of images of a subject')
+
+predparser.add_argument('subject', type=str, help='The subject')
+
+args = predparser.parse_args()
+
 # TODO: also return the cor_scores for the uninformative x matrix and create brainplots where
 # the r-values are plotted on the brain for both the informative and uninformative x matrices
 # Or well, more importantly find a way to visualise how they compare, because otherwise it's
@@ -83,7 +90,7 @@ tag = 'MSE_presentatie_plotjes'
 ############ CONSTRAINED VOXEL SELECTION Y-MATRIX ################
 ##### ALSO RUN THIS FOR THE PRED FEATS SEPARATELY WITHOUT THE BASELINE #########
 
-subject = 'subj01'
+subject = args.subject
 max_size = 2
 min_size = .15
 patchbound = 1
@@ -145,18 +152,21 @@ for roi in rois:
 #                NSP.stimuli.baseline_feats(baseline_strings[1]), 
 #                NSP.stimuli.baseline_feats(baseline_strings[2])))
 
-rms = NSP.stimuli.get_rms(subject)
-sc = NSP.stimuli.get_scce(subject, 'sc')
-ce = NSP.stimuli.get_scce(subject, 'ce')
-Xbl = pd.concat([rms, sc, ce], axis=1).values
+# These [:ydict["V1"].shape[0]] indices are used to cutoff the full design matrices
+# as not all subjects completed all 40 sessions.
+rms = NSP.stimuli.get_rms(subject)[:ydict["V1"].shape[0]]
+sc = NSP.stimuli.get_scce(subject, 'sc')[:ydict["V1"].shape[0]]
+ce = NSP.stimuli.get_scce(subject, 'ce')[:ydict["V1"].shape[0]]
+Xbl = pd.concat([rms, sc, ce], axis=1).values[:ydict["V1"].shape[0]]
 
-# which_cnn = 'vgg-b'
+which_cnn = 'vgg-b'
 # which_cnn = 'alexnet'
-which_cnn = 'alexnet_new'
+# which_cnn = 'alexnet_new'
 n_layers = 5 if which_cnn == 'alexnet' else 6
 
 Xpred = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=False, ssim=False, pixel_loss=False, 
-                                 L1=False, MSE=True, verbose=True, outlier_sd_bound=5, subject=subject) # wait untill all are computed of alexnet
+                                 L1=False, MSE=True, verbose=True, outlier_sd_bound=5, subject=subject)[:ydict["V1"].shape[0]]
+ # wait untill all are computed of alexnet
 
 print(f'Xpred has these dimensions: {Xpred.shape}')
     
@@ -171,7 +181,7 @@ for layer in range(0, Xpred.shape[1]):
     X_shuf = np.copy(X)
     np.random.shuffle(X_shuf)
     
-    reg_df = NSP.analyse.analysis_chain_slim(subject='subj01',
+    reg_df = NSP.analyse.analysis_chain_slim(subject=subject,
                              ydict=ydict,
                              voxeldict=voxeldict,
                              X=X,

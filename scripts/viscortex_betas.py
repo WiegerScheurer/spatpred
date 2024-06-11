@@ -31,8 +31,6 @@ from funcs.natspatpred import NatSpatPred
 NSP = NatSpatPred()
 NSP.initialise()
 
-
-
 predparser = argparse.ArgumentParser(description='Get the predictability estimates for a range of images of a subject')
 
 predparser.add_argument('start', type=int, help='The starting index')

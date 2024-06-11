@@ -9,48 +9,49 @@ os.environ["OMP_NUM_THREADS"] = "10"
 import os
 import sys
 import numpy as np
-import random
-import time
-import matplotlib.pyplot as plt
-import pandas as pd
-import torch
-import seaborn as sns
+# import random
+# import time
+# import matplotlib.pyplot as plt
+# import pandas as pd
+# import torch
+# import seaborn as sns
+# import nibabel as nib
+# import pickle
+# import torchvision.models as models
 import nibabel as nib
-import pickle
-import torchvision.models as models
-import nibabel as nib
-import h5py
-import scipy.stats.mstats as mstats
-import copy
+# import h5py
+# import scipy.stats.mstats as mstats
+# import copy
+import argparse
 
-from nilearn import plotting
-from scipy import stats
-from scipy.ndimage import binary_dilation
-from PIL import Image
-from importlib import reload
-from scipy.io import loadmat
-from matplotlib.ticker import MultipleLocator, NullFormatter
-from sklearn.cross_decomposition import PLSRegression
-from sklearn.linear_model import LinearRegression, Lasso, Ridge
-from colorama import Fore, Style
-from matplotlib.colors import LinearSegmentedColormap
-from matplotlib import colormaps
-from torch.utils.data import Dataset, DataLoader
-from torch.nn import Module
-from torchvision import transforms
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA, IncrementalPCA
-from sklearn.impute import SimpleImputer
-from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
-from tqdm import tqdm
-from matplotlib.lines import Line2D
-from sklearn.model_selection import KFold
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import cross_val_score, KFold, cross_val_predict
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-from math import sqrt
-from typing import Dict, Tuple, Union
-from scipy.special import softmax
+# from nilearn import plotting
+# from scipy import stats
+# from scipy.ndimage import binary_dilation
+# from PIL import Image
+# from importlib import reload
+# from scipy.io import loadmat
+# from matplotlib.ticker import MultipleLocator, NullFormatter
+# from sklearn.cross_decomposition import PLSRegression
+# from sklearn.linear_model import LinearRegression, Lasso, Ridge
+# from colorama import Fore, Style
+# from matplotlib.colors import LinearSegmentedColormap
+# from matplotlib import colormaps
+# from torch.utils.data import Dataset, DataLoader
+# from torch.nn import Module
+# from torchvision import transforms
+# from sklearn.preprocessing import StandardScaler
+# from sklearn.decomposition import PCA, IncrementalPCA
+# from sklearn.impute import SimpleImputer
+# from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
+# from tqdm import tqdm
+# from matplotlib.lines import Line2D
+# from sklearn.model_selection import KFold
+# from sklearn.linear_model import LinearRegression
+# from sklearn.model_selection import cross_val_score, KFold, cross_val_predict
+# from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+# from math import sqrt
+# from typing import Dict, Tuple, Union
+# from scipy.special import softmax
 
 os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred/')
@@ -79,6 +80,13 @@ NSP.initialise()
 
 rois, roi_masks, viscortex_mask = NSP.cortex.visrois_dict(verbose=False)
 prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
+
+predparser = argparse.ArgumentParser(description='Get the predictability estimates for a range of images of a subject')
+
+predparser.add_argument('subject', type=str, help='The subject')
+
+args = predparser.parse_args()
+
 
 ############ CONSTRAINED VOXEL SELECTION Y-MATRIX ################
 ##### ALSO RUN THIS FOR THE PRED FEATS SEPARATELY WITHOUT THE BASELINE #########
@@ -180,7 +188,7 @@ prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 
 ################### FULL VISUAL CORTEX (V1, V2, V3, V4) REGRESSIONS ###############
 
-subject = 'subj01'
+subject = args.subject
 file_tag = '_fullviscortex'
 voxeldict = {}
 for roi in rois:
@@ -201,12 +209,12 @@ for layer in range(0, 5):
     
     # X = NSP.stimuli.unet_featmaps(list_layers=[layer], scale='full') # Get X matrix
     relu_lays = [1, 4, 7, 9, 11]
-    X = NSP.stimuli.alex_featmaps(relu_lays[layer], subject)
+    X = NSP.stimuli.alex_featmaps(relu_lays[layer], subject)[:ydict["V1"].shape[0]]
     print(f'X has these dimensions: {X.shape}')
     X_shuf = np.copy(X) # Get control X matrix which is a shuffled version of original X matrix
     np.random.shuffle(X_shuf)
 
-    reg_df = NSP.analyse.analysis_chain_slim(subject='subj01',
+    reg_df = NSP.analyse.analysis_chain_slim(subject=subject,
                             ydict=ydict,
                             voxeldict=voxeldict,
                             X=X,
