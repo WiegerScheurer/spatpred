@@ -62,6 +62,7 @@ import importlib
 from importlib import reload
 import funcs.natspatpred
 import unet_recon.inpainting
+import argparse
 importlib.reload(funcs.natspatpred)
 importlib.reload(unet_recon.inpainting)
 from unet_recon.inpainting import UNet
@@ -77,6 +78,13 @@ NSP.initialise()
 
 rois, roi_masks, viscortex_mask = NSP.cortex.visrois_dict(verbose=False)
 prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
+
+predparser = argparse.ArgumentParser(description='Get the predictability estimates for a range of images of a subject')
+
+predparser.add_argument('subject', type=str, help='The subject')
+
+args = predparser.parse_args()
+
 
 ############ CONSTRAINED VOXEL SELECTION Y-MATRIX ################
 ##### ALSO RUN THIS FOR THE PRED FEATS SEPARATELY WITHOUT THE BASELINE #########
@@ -178,18 +186,8 @@ prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 
 ################### FULL VISUAL CORTEX (V1, V2, V3, V4) REGRESSIONS ###############
 
-subject = 'subj01'
-tag = '_baseline'
-# voxeldict = {}
-# for roi in rois:
-#     print_attr = True if roi == rois[len(rois)-1] else False
-#     voxeldict[roi] = VoxelSieve(NSP, prf_dict, roi_masks,
-#                                 subject=subject, 
-#                                 roi=roi,
-#                                 print_attributes=print_attr,
-#                                 fixed_n_voxels=None)
+subject = args.subject
 
-subject = 'subj01'
 max_size = 2
 min_size = .15
 patchbound = 1
@@ -223,10 +221,10 @@ for roi in rois:
 
 baseline_strings = ['rms', 'ce', 'sc']
 
-rms = NSP.stimuli.get_rms(subject)
-sc = NSP.stimuli.get_scce(subject, 'sc')
-ce = NSP.stimuli.get_scce(subject, 'ce')
-baseline = pd.concat([rms, sc, ce], axis=1)
+rms = NSP.stimuli.get_rms(subject)[:ydict["V1"].shape[0]]
+sc = NSP.stimuli.get_scce(subject, 'sc')[:ydict["V1"].shape[0]]
+ce = NSP.stimuli.get_scce(subject, 'ce')[:ydict["V1"].shape[0]]
+baseline = pd.concat([rms, sc, ce], axis=1)[:ydict["V1"].shape[0]]
 
 for feat_no in range(0,4):
     feat = baseline_strings[feat_no] if feat_no < 3 else "full_baseline"
@@ -236,7 +234,7 @@ for feat_no in range(0,4):
     X_shuf = np.copy(X)
     np.random.shuffle(X_shuf)
     
-    reg_df = NSP.analyse.analysis_chain_slim(subject='subj01',
+    reg_df = NSP.analyse.analysis_chain_slim(subject=subject,
                              ydict=ydict,
                              voxeldict=voxeldict,
                              X=X,
@@ -252,32 +250,6 @@ for feat_no in range(0,4):
                              save_folder='baseline',
                              X_str=f'{feat} model')
     
-    
-# for feat_no in range(0,4):    
-#     feat = baseline_strings[feat_no] if feat_no < 3 else baseline_strings
-#     print(f'Running regression for baseline feature: {feat}')
-#     X = baseline[feat].values.reshape(-1,1) if feat_no < 3 else baseline[feat].values
-#     print(f'X has these dimensions: {X.shape}')
-#     X_shuf = np.copy(X)
-#     np.random.shuffle(X_shuf)
-
-#     obj,_ = NSP.analyse.analysis_chain(subject=subject,
-#                                      ydict=ydict, 
-#                                      X=X, 
-#                                      alpha=10, 
-#                                      voxeldict=voxeldict, 
-#                                      cv=5, 
-#                                      rois=rois, 
-#                                      X_uninformative=X_shuf, 
-#                                      fit_icept=False, 
-#                                      save_outs=True,
-#                                      regname=f'{feat}{tag}',
-#                                      shuf_or_baseline='s')
-    
-#     rel_obj = np.hstack((obj[:,:3], (obj[:,3] - obj[:,4]).reshape(-1,1)))
-
-#     rel_scores_np = NSP.utils.coords2numpy(rel_obj, roi_masks[subject][f'{roi}_mask'].shape, keep_vals=True)
-
 print('Het zit er weer op kameraad')
 
 

@@ -31,14 +31,16 @@ from funcs.natspatpred import NatSpatPred
 NSP = NatSpatPred()
 NSP.initialise()
 
-rois, roi_masks, viscortex_mask = NSP.cortex.visrois_dict(verbose=True)
+
 
 predparser = argparse.ArgumentParser(description='Get the predictability estimates for a range of images of a subject')
 
-predparser.add_argument('start', type=int, help='The starting index of the images to get the predictability estimates for')
-predparser.add_argument('n_sessions', type=int, help='The ending index of the images to get the predictability estimates for')
-predparser.add_argument('subject', type=str, help='The subject to get the predictability estimates for')
+predparser.add_argument('start', type=int, help='The starting index')
+predparser.add_argument('n_sessions', type=int, help='The ending index')
+predparser.add_argument('subject', type=str, help='The subject')
 
 args = predparser.parse_args()
+rois, roi_masks, viscortex_masks = NSP.cortex.visrois_dict(verbose=True)
 
-NSP.datafetch.get_betas(args.subject, viscortex_mask, roi_masks, args.start, args.n_sessions)
+# NSP.datafetch.get_betas(args.subject, viscortex_masks[args.subject], roi_masks, args.start, args.n_sessions)
+NSP.datafetch.get_betas(args.subject, roi_masks, args.start, args.n_sessions)

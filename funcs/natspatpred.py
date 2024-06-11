@@ -355,6 +355,32 @@ class DataFetch():
         """        
         betapath = f'{self.nsp.nsd_datapath}/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/'
 
+        # for session in range(start_session, start_session + n_sessions): # If start = 1 and n = 10 it goes 1 2 3 4 5 6 7 8 9 10
+        #     print(f'Working on session: {session}')
+        #     session_str = f'{session:02d}'
+        #     session_data = nib.load(f"{betapath}betas_session{session_str}.nii.gz").get_fdata(caching='unchanged')
+
+        #     for roi in roi_masks[subject].keys():
+        #         print(f'Working on roi: {roi}')
+        #         roi_mask = roi_masks[subject][roi]
+        #         filtbet = session_data[roi_mask.astype(bool)]
+
+        #         # Get the indices of the True values in the mask
+        #         if session == 1:  # only get indices for the first session
+        #             x, y, z = np.where(roi_mask)
+        #             x = x.reshape(-1, 1)
+        #             y = y.reshape(-1, 1)
+        #             z = z.reshape(-1, 1)
+        #             voxbetas = np.concatenate((x, y, z, filtbet), axis=1)
+        #         else:
+        #             voxbetas = filtbet
+        #         print(f'Current size of voxbetas: {voxbetas.shape}')        
+                    
+        #         np.save(f'{self.nsp.own_datapath}/{subject}/betas/{roi[:2]}/beta_stack_session{session_str}.npy', voxbetas)
+        #         print(f'Saved beta_stack_session{session_str}.npy')
+            
+        #     del session_data
+        
         for session in range(start_session, start_session + n_sessions): # If start = 1 and n = 10 it goes 1 2 3 4 5 6 7 8 9 10
             print(f'Working on session: {session}')
             session_str = f'{session:02d}'
@@ -375,10 +401,14 @@ class DataFetch():
                 else:
                     voxbetas = filtbet
                 print(f'Current size of voxbetas: {voxbetas.shape}')        
-                    
-                np.save(f'{self.nsp.own_datapath}/{subject}/betas/{roi[:2]}/beta_stack_session{session_str}.npy', voxbetas)
+
+                # Create the directory if it doesn't exist
+                save_dir = f'{self.nsp.own_datapath}/{subject}/betas/{roi[:2]}'
+                os.makedirs(save_dir, exist_ok=True)
+
+                np.save(f'{save_dir}/beta_stack_session{session_str}.npy', voxbetas)
                 print(f'Saved beta_stack_session{session_str}.npy')
-            
+
             del session_data
             
     # What I Now need to figure out is whether it is doable to just save the aggregated version of this, or 
@@ -1577,7 +1607,7 @@ class Cortex():
         # for subj_no in range(1, len(self.nsp.subjects) + 1):
         for subject in self.nsp.subjects:
             if verbose:
-                print(f'Fetching roi masks for subject {Fore.LIGHTBLUE_EX}{subj_no}{Style.RESET_ALL}')
+                print(f'Fetching roi masks for subject {Fore.LIGHTBLUE_EX}{subject[-1]}{Style.RESET_ALL}')
             mask_dir = f'{self.nsp.nsd_datapath}/nsddata/ppdata/subj0{subject[-1]}/func1mm/roi'
 
             # read in and sort all the filenames in the mapped masks folder for each subject
@@ -1593,8 +1623,6 @@ class Cortex():
             rois = [roi[:2] for roi in binary_masks[subject].keys()]
             viscortex_masks[subject] = sum(binary_masks[subject][f'{roi}_mask'] for roi in rois)
             
-
-        
         # viscortex_mask = sum(binary_masks['subj01'][f'{roi}_mask'] for roi in rois)
         
         return rois, binary_masks, viscortex_masks
