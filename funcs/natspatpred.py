@@ -908,7 +908,7 @@ class Utilities():
         if save_nifti:
             if file_name is None:
                 file_name = 'an_unknown_brain'
-            nifti_save_path = f'{self.nsp.own_datapath}/{subject}/surf_niftis'
+            nifti_save_path = f'{self.nsp.own_datapath}/{subject}/stat_volumes'
             os.makedirs(nifti_save_path, exist_ok=True)
             if save_path is None:
                 # save_path = f"{nifti_save_path}/{file_name}.nii.gz"
