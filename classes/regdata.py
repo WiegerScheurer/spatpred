@@ -5,6 +5,7 @@ import pickle
 import random
 import re
 import sys
+import math
 import time
 from importlib import reload
 from math import sqrt
@@ -77,66 +78,6 @@ class RegData:
         self.statistic = statistic
         self.cnn_layers = None
         self._build_df(subject, folder, model, statistic)
-
-    # def _build_df(
-    #     self,
-    #     subject: str,
-    #     folder: str,
-    #     model: str,
-    #     statistic: str,
-    #     main_df: bool = True,
-    # ):
-    #     # Directory containing the CSV files
-    #     directory = f"{NSP.own_datapath}/{subject}/results/{folder}/"
-
-    #     # List of filenames in the directory
-    #     filenames = os.listdir(directory)
-
-    #     # Empty DataFrame to store the results
-    #     df = pd.DataFrame()
-
-    #     # Variable to store the 'roi' column from the first file
-    #     roi_column = None
-
-    #     for filename in filenames:
-    #         # Check if the filename starts with the model name
-    #         if filename.startswith(model) and filename.endswith(".csv"):
-    #             # Get the layer number from the filename
-    #             layno = NSP.utils.get_layer_file(filename, "lay")
-
-    #             # Read the CSV file into a DataFrame
-    #             file_df = pd.read_csv(os.path.join(directory, filename))
-
-    #             # Store the 'roi' column from the first file
-    #             if roi_column is None and "roi" in file_df.columns:
-    #                 roi_column = file_df["roi"]
-
-    #             # Select the statistic column and rename it
-    #             file_df = file_df[[statistic]].rename(
-    #                 columns={statistic: f"{statistic}_{layno+1}"}
-    #             )
-
-    #             # Add the column to the result DataFrame
-    #             if df.empty:
-    #                 df = file_df
-    #             else:
-    #                 df = pd.concat([df, file_df], axis=1)
-
-    #     # Sort the remaining columns
-    #     df = df.sort_index(
-    #         axis=1,
-    #         key=lambda x: x.map(lambda y: int(re.findall(f"{statistic}_(\d+)", y)[0])),
-    #     )
-
-    #     # Add the 'roi' column to the DataFrame
-    #     if roi_column is not None:
-    #         df.insert(0, "roi", roi_column)
-
-    #     if main_df:
-    #         self.df = df
-    #         self.cnn_layers = list(range(1, len(self.df.columns[1:]) + 1))
-    #     else:
-    #         return df
         
     def _build_df(
         self,
@@ -199,11 +140,7 @@ class RegData:
         # Add the xyz columns to the DataFrame
         if xyz_columns is not None and add_xyz:
             df = pd.concat([xyz_columns, df], axis=1)
-        
-        # if main_df:
-        #     self.df = df
-        #     self.cnn_layers = list(range(1, len(self.df.columns[1:]) + 1))
-        # else:
+
         if main_df:
             self.df = df
             # Find the indices of the columns that start with the statistic name
@@ -212,8 +149,6 @@ class RegData:
     
             return df
 
-    
-        
     def _stat_to_nifti(self, max_or_weighted: str = "weighted", verbose: bool = True):
         pass
     
@@ -551,3 +486,50 @@ class RegData:
 
             
             plt.show()
+            
+            
+        
+    def _delta_r_lines(self):
+        """
+        Method to plot the delta_r values for each voxel in each ROI across the layers of the CNN model.
+
+        """        
+        
+        model_str = "VGG-b" if self.model == "vgg-b" else "AlexNet"
+        # regresults = RegData(folder="unpred", model=model, statistic="delta_r")
+        regresults = self.df.copy()
+
+        # regresults._weigh_mean_layer()
+        df_reset = regresults.reset_index()
+
+        rois = df_reset['roi'].unique()
+        cols = df_reset.keys()[5:11]
+
+        grid_size = math.ceil(math.sqrt(len(rois)))  # Calculate grid size
+        fig, axs = plt.subplots(grid_size, grid_size, figsize=(10*grid_size, 10*grid_size))
+        fig.suptitle(f"Voxel specific ΔR across CNN layers for subject {self.subject[-1]}\n", fontsize=40, weight='normal')
+        # Get the colormap of desire
+        cmap = plt.get_cmap('Reds')
+
+        # Calculate global y min and max
+        global_y_min = df_reset[cols].min().min()
+        global_y_max = df_reset[cols].max().max()
+
+        for i, roi in enumerate(rois):
+            ax = axs[i//grid_size, i%grid_size]  # Determine the position of the subplot
+            data = df_reset[df_reset['roi'] == roi]
+            voxels = data['index'].unique()
+            for j, voxel in enumerate(voxels):
+                voxel_data = data[data['index'] == voxel]
+                # Use the colormap to get the color for this line
+                color = cmap(j / len(voxels))
+                ax.plot(cols, voxel_data[cols].values[0], label=f'Voxel {voxel}', color=color)
+            ax.set_title(f'{roi}', fontsize=30, weight="bold")  # Set title size
+            ax.tick_params(axis='both', which='major', labelsize=25)  # Set tick label size
+            ax.set_ylim([global_y_min, global_y_max])  # Set y min and max
+            ax.set_xticklabels([col[-1] for col in cols], fontsize=25)
+            ax.set_xlabel(f'{model_str} layer', fontsize=30)  # Set x label size
+            ax.set_ylabel("ΔR", fontsize=30)  # Set y label size
+
+        plt.tight_layout()
+        plt.show()
