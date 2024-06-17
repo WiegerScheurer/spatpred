@@ -347,7 +347,38 @@ class RegData:
             )
 
         return data if copy_df is not False else None
+    
+    def _get_mean(
+        self, verbose: bool = True, copy_df: bool | pd.DataFrame = False
+    ):
+        """
+        Get the mean value for each statistic row in the DataFrame.
 
+        Parameters:
+        - verbose (bool): If True, print a message indicating that the mean value has been added to the DataFrame.
+
+        Returns:
+        None
+        """
+        data = self.df if copy_df is False else copy_df
+
+        # Get the index of the maximum value in each row
+        mean_values = (
+            np.mean(data.values[:, self.cnn_layers], axis=1)
+        )
+        
+        assign_str = "Mean Statistic"
+        
+        # Add the max_indices as a new column
+        data[assign_str] = mean_values
+        
+        if verbose:
+            print(
+                "\033[1mDataFrame changed:\033[0m Added the mean value to the DataFrame."
+            )
+            
+        return data if copy_df is not False else None
+    
     def assign_layers(self, max_or_weighted: str = "weighted", verbose: bool = True, title: str = None):
         """
         Assigns layers to each ROI based on the maximum value in each row of a DataFrame.

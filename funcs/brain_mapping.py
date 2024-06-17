@@ -31,8 +31,11 @@ def reg_to_nifti(
     reg_stat: str = "delta_r",
     plot_brain: bool = False,
     plot_lay_assign: bool = False,
-    save_nifti: bool = True
+    save_nifti: bool = True,
+    mean_delta_r: bool = False,
+    verbose: bool = False
 ) -> None:
+    
     os.makedirs(f"{NSP.own_datapath}/{subject}/stat_volumes", exist_ok=True)
 
     if "prf_dict" not in locals():
@@ -40,11 +43,21 @@ def reg_to_nifti(
         prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 
     rd = RegData
+    
     results = rd(subject=subject, folder=reg_type, model=model, statistic=reg_stat)
+    
+    if mean_delta_r:
+        results._get_mean(verbose=False)
+        plot_lay_assign = False
+        stat_str = "Mean Statistic"
+        assign_stat = "mean_delta_r"
+    
     results._normalize_per_voxel(verbose=False)
     results._weigh_mean_layer(verbose=False)
     results._get_max_layer(verbose=False)
-    print(results.df)
+    
+    if verbose:
+        print(results.df)
 
     if assign_stat == "max":
         stat_str = "Max Layer"
@@ -53,13 +66,16 @@ def reg_to_nifti(
 
     new_df = results.df[["x", "y", "z", stat_str]]
 
+    
+    lay_assign_str = "" if mean_delta_r else "_layassign"
+
     NSP.utils.coords2nifti(
         subject,
         prf_dict,
         new_df.values,
         keep_vals=True,
         save_nifti=save_nifti,
-        save_path=f"{NSP.own_datapath}/{subject}/stat_volumes/{reg_type}_{model}_layassign_{assign_stat}.nii",
+        save_path=f"{NSP.own_datapath}/{subject}/stat_volumes/{reg_type}_{model}{lay_assign_str}_{assign_stat}.nii",
     )
 
     if plot_lay_assign:
@@ -68,7 +84,7 @@ def reg_to_nifti(
             title=f"{stat_str} Layer Assignment of Voxels Across Visual Cortex\n{model}, ΔR based (Baseline vs. Baseline + Unpredictability)",
         )
 
-    if plot_brain:
+    if plot_brain: # Only works when you save the nifti file
         # visualise the nifti
         img = nib.load(
             f"{NSP.own_datapath}/{subject}/stat_volumes/{reg_type}_{model}_layassign_{assign_stat}.nii"
