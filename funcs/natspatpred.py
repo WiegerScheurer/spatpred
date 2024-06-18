@@ -184,8 +184,8 @@ class VoxelSieve:
                  max_size:Optional[float]=None, min_size:Optional[float]=None, patchbound:Optional[float]=None, 
                  min_nsd_R2:Optional[int]=None, min_prf_R2:Optional[int]=None, print_attributes:bool=True, 
                  fixed_n_voxels:Optional[Union[str, int]]=None, 
-                 
-                 peripheral_center:Optional[tuple]=None, peri_angle:Optional[float]=None, peri_ecc:Optional[float]=None, verbose:bool=True):
+                 peripheral_center:Optional[tuple]=None, peri_angle:Optional[float]=None, peri_ecc:Optional[float]=None, 
+                 verbose:bool=True):
         """_summary_
 
         Args:
