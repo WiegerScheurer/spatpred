@@ -104,50 +104,88 @@ class VoxelSieve:
     def central_patch():
         pass
     
-    def _get_peri_bounds(self, patchbound:float, peripheral_center:Optional[tuple], peri_angle:Optional[float], peri_ecc:Optional[float], verbose:bool=True):
-        # Determine the center of the peripheral patch, if center is not given, but angle and eccentricity are
-        if peripheral_center == None and peri_angle != None and peri_ecc != None:
-            patchloc_triangle_s = peri_ecc
-            peri_y = round(peri_ecc * np.sin(np.radians(peri_angle)), 2)
-            peri_x = round(peri_ecc * np.cos(np.radians(peri_angle)), 2)
-            peripheral_center = (peri_x, peri_y)
-            if verbose:
-                print(f'Peripheral center at {peripheral_center}')
+    # def _get_peri_bounds(self, patchbound:float, peripheral_center:Optional[tuple], peri_angle:Optional[float], peri_ecc:Optional[float], verbose:bool=True):
+    #     # Determine the center of the peripheral patch, if center is not given, but angle and eccentricity are
+    #     if peripheral_center == None and peri_angle != None and peri_ecc != None:
+    #         patchloc_triangle_s = peri_ecc
+    #         peri_y = round(peri_ecc * np.sin(np.radians(peri_angle)), 2)
+    #         peri_x = round(peri_ecc * np.cos(np.radians(peri_angle)), 2)
+    #         peripheral_center = (peri_x, peri_y)
+    #         if verbose:
+    #             print(f'Peripheral center at {peripheral_center}')
         
-        if isinstance(peripheral_center, tuple):
-            # Determine the eccentricity of the patch using Pythagoras' theorem
-            patchloc_triangle_o = np.abs(peripheral_center[1])
-            patchloc_triangle_a = np.abs(peripheral_center[0])
-            patchloc_triangle_s = np.sqrt(patchloc_triangle_o**2 + patchloc_triangle_a**2) # Pythagoras triangle side s, patch center eccentricity
-            if verbose:
-                print(f'Patch localisation triangle with side lengths o: {round(patchloc_triangle_o, 2)}, a: {round(patchloc_triangle_a,2)}, s: {round(patchloc_triangle_s,2)}')
+    #     if isinstance(peripheral_center, tuple):
+    #         # Determine the eccentricity of the patch using Pythagoras' theorem
+    #         patchloc_triangle_o = np.abs(peripheral_center[1])
+    #         patchloc_triangle_a = np.abs(peripheral_center[0])
+    #         patchloc_triangle_s = np.sqrt(patchloc_triangle_o**2 + patchloc_triangle_a**2) # Pythagoras triangle side s, patch center eccentricity
+    #         if verbose:
+    #             print(f'Patch localisation triangle with side lengths o: {round(patchloc_triangle_o, 2)}, a: {round(patchloc_triangle_a,2)}, s: {round(patchloc_triangle_s,2)}')
             
-            # Determine the angle boundaries for the patch, also using Pythagoras
-            bound_triangle_a = patchloc_triangle_s
-            bound_triangle_o = patchbound
+    #         # Determine the angle boundaries for the patch, also using Pythagoras
+    #         bound_triangle_a = patchloc_triangle_s
+    #         bound_triangle_o = patchbound
         
-            patch_bound_angle = np.degrees(np.arctan(bound_triangle_o / bound_triangle_a))
-            patch_center_angle = np.degrees(np.arctan(np.abs(peripheral_center[1] / peripheral_center[0])))
+    #         patch_bound_angle = np.degrees(np.arctan(bound_triangle_o / bound_triangle_a))
+    #         patch_center_angle = np.degrees(np.arctan(np.abs(peripheral_center[1] / peripheral_center[0])))
             
-            if peripheral_center[0] >= 0 and peripheral_center[1] > 0: # top right
-                patch_center_angle = patch_center_angle
-            elif peripheral_center[0] < 0 and peripheral_center[1] > 0: # top left
-                patch_center_angle = 180 - patch_center_angle
-            elif peripheral_center[0] >= 0 and peripheral_center[1] < 0: # bottom right
-                patch_center_angle = 360 - patch_center_angle
-            elif peripheral_center[0] < 0 and peripheral_center[1] < 0: # bottom left
-                patch_center_angle = 180 + patch_center_angle
+    #         if peripheral_center[0] >= 0 and peripheral_center[1] > 0: # top right
+    #             patch_center_angle = patch_center_angle
+    #         elif peripheral_center[0] < 0 and peripheral_center[1] > 0: # top left
+    #             patch_center_angle = 180 - patch_center_angle
+    #         elif peripheral_center[0] >= 0 and peripheral_center[1] < 0: # bottom right
+    #             patch_center_angle = 360 - patch_center_angle
+    #         elif peripheral_center[0] < 0 and peripheral_center[1] < 0: # bottom left
+    #             patch_center_angle = 180 + patch_center_angle
                 
-            angle_min = patch_center_angle - patch_bound_angle
-            angle_max = patch_center_angle + patch_bound_angle
-            ecc_min = patchloc_triangle_s - bound_triangle_o
-            ecc_max = patchloc_triangle_s + bound_triangle_o
+    #         angle_min = patch_center_angle - patch_bound_angle
+    #         angle_max = patch_center_angle + patch_bound_angle
+    #         ecc_min = patchloc_triangle_s - bound_triangle_o
+    #         ecc_max = patchloc_triangle_s + bound_triangle_o
             
-            if verbose:
-                print(f'ecc_min: {round(ecc_min,2)}, ecc_max: {round(ecc_max,2)}')
-                print(f'Peripheral patch at angle {round(patch_center_angle,2)} with boundary angles at min: {round(angle_min,2)}, max: {round(angle_max,2)}')
+    #         if verbose:
+    #             print(f'ecc_min: {round(ecc_min,2)}, ecc_max: {round(ecc_max,2)}')
+    #             print(f'Peripheral patch at angle {round(patch_center_angle,2)} with boundary angles at min: {round(angle_min,2)}, max: {round(angle_max,2)}')
             
-        return peripheral_center, angle_min, angle_max, ecc_min, ecc_max
+    #     return peripheral_center, angle_min, angle_max, ecc_min, ecc_max
+    
+    # def _get_peri_bounds(self, patchbound:float, peripheral_center:Optional[tuple], peri_angle:Optional[float], peri_ecc:Optional[float], verbose:bool=True):
+    #     # Convert angles from degrees to radians
+    #     peri_angle_rad = np.deg2rad(peri_angle)
+
+    #     # Convert polar coordinates to Cartesian coordinates
+    #     peri_x = peri_ecc * np.cos(peri_angle_rad)
+    #     peri_y = peri_ecc * np.sin(peri_angle_rad)
+    #     peripheral_center = (peri_x, peri_y)
+
+    #     # Compute the distance from each voxel to the center of the patch
+    #     voxel_x = self.ecc * np.cos(np.deg2rad(self.angle))
+    #     voxel_y = self.ecc * np.sin(np.deg2rad(self.angle))
+    #     distances = np.sqrt((voxel_x - peripheral_center[0])**2 + (voxel_y - peripheral_center[1])**2)
+
+    #     # Select the voxels for which the distance plus the size is less than or equal to the patchbound
+    #     selected_voxels = distances + self.size <= patchbound
+
+    #     return selected_voxels
+    
+    def _get_peri_bounds(self, patchbound:float, peripheral_center:Optional[tuple], peri_angle:Optional[float], peri_ecc:Optional[float], leniency:float=0.0, verbose:bool=True):
+        # Convert angles from degrees to radians
+        peri_angle_rad = np.deg2rad(peri_angle)
+
+        # Convert polar coordinates to Cartesian coordinates
+        peri_x = peri_ecc * np.cos(peri_angle_rad)
+        peri_y = peri_ecc * np.sin(peri_angle_rad)
+        peripheral_center = (peri_x, peri_y)
+
+        # Compute the distance from each voxel to the center of the patch
+        voxel_x = self.ecc * np.cos(np.deg2rad(self.angle))
+        voxel_y = self.ecc * np.sin(np.deg2rad(self.angle))
+        distances = np.sqrt((voxel_x - peripheral_center[0])**2 + (voxel_y - peripheral_center[1])**2)
+
+        # Select the voxels for which the distance plus the size times (1 - leniency) is less than or equal to the patchbound
+        selected_voxels = distances + self.size * (1 - leniency) <= patchbound
+
+        return selected_voxels
     
     def vox_lim(self, cutoff:int):
         """Method to restrict the number of voxels after VoxelSieve class initiation.
@@ -185,8 +223,8 @@ class VoxelSieve:
                  min_nsd_R2:Optional[int]=None, min_prf_R2:Optional[int]=None, print_attributes:bool=True, 
                  fixed_n_voxels:Optional[Union[str, int]]=None, 
                  peripheral_center:Optional[tuple]=None, peri_angle:Optional[float]=None, peri_ecc:Optional[float]=None, 
-                 verbose:bool=True):
-        """_summary_
+                 leniency:Optional[float]=None, verbose:bool=True):
+        """ TODO: Write this 
 
         Args:
             NSP (_type_): _description_
@@ -194,7 +232,7 @@ class VoxelSieve:
             roi_masks (Dict): _description_
             subject (str): _description_
             roi (str): _description_
-            patchloc (str, optional): _description_. Defaults to 'center'.
+            patchloc (str, optional): _description_. Defaults to 'central'.
             max_size (Optional[float], optional): _description_. Defaults to None.
             min_size (Optional[float], optional): _description_. Defaults to None.
             patchbound (Optional[float], optional): _description_. Defaults to None.
@@ -205,8 +243,9 @@ class VoxelSieve:
             peripheral_center (Optional[tuple], optional): _description_. Defaults to None.
             peri_angle (Optional[float], optional): _description_. Defaults to None.
             peri_ecc (Optional[float], optional): _description_. Defaults to None.
+            leniency (Optional[float], optional): _description_. Defaults to None.
             verbose (bool, optional): _description_. Defaults to True.
-        """        
+        """
         self.patchbound = patchbound
         self.figdims = (425, 425) # Raw image size of NSD stimuli
 
@@ -228,11 +267,24 @@ class VoxelSieve:
         #                      RF not too large    &     RF within patch boundary      &    RF not too small    &    NSD R2 high enough      &    pRF R2 high enough
             self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) & (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
     
+        # elif patchloc == 'peripheral':
+        #     peripheral_center, angle_min, angle_max, ecc_min, ecc_max = self._get_peri_bounds(patchbound, peripheral_center, peri_angle, peri_ecc, verbose)
+        #     patch_x = central_coords + peripheral_center[0] * (self.figdims[0]/8.4) # in pixels
+        #     patch_y = central_coords + peripheral_center[1] * (self.figdims[0]/8.4) # in pixels
+        #     self.vox_pick = (self.size < max_size) & (self.size > min_size) & (self.angle < angle_max) & (self.angle > angle_min) & (self.ecc < ecc_max) & (self.ecc > ecc_min) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
+        
         elif patchloc == 'peripheral':
-            peripheral_center, angle_min, angle_max, ecc_min, ecc_max = self._get_peri_bounds(patchbound, peripheral_center, peri_angle, peri_ecc, verbose)
+            if peripheral_center is None and peri_angle and peri_ecc is not None:
+                # patchloc_triangle_s = peri_ecc
+                peri_y = round(peri_ecc * np.sin(np.radians(peri_angle)), 2)
+                peri_x = round(peri_ecc * np.cos(np.radians(peri_angle)), 2)
+                peripheral_center = (peri_x, peri_y)
+                if verbose:
+                    print(f'Peripheral center at {peripheral_center}')
+            leniency = 0.0 if leniency is None else leniency
+            self.vox_pick = self._get_peri_bounds(patchbound, peripheral_center, peri_angle, peri_ecc, leniency, verbose)
             patch_x = central_coords + peripheral_center[0] * (self.figdims[0]/8.4) # in pixels
-            patch_y = central_coords + peripheral_center[1] * (self.figdims[0]/8.4) # in pixels
-            self.vox_pick = (self.size < max_size) & (self.size > min_size) & (self.angle < angle_max) & (self.angle > angle_min) & (self.ecc < ecc_max) & (self.ecc > ecc_min) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
+            patch_y = central_coords + peripheral_center[1] * (self.figdims[0]/8.4)
         
         # Apply the vox_pick mask to all the attributes with voxel specific data
         self.patchcoords = (patch_x, patch_y) # Matrix indexing
