@@ -101,73 +101,7 @@ class VoxelSieve:
     __init__(self, prf_dict: Dict, roi_masks: Dict, NSP, subject: str, roi: str, max_size: float, min_size: float, patchbound: float, min_nsd_R2: int, min_prf_R2: int)
         Initializes the VoxelSieve instance with the given parameters.
     """
-    def central_patch():
-        pass
-    
-    # def _get_peri_bounds(self, patchbound:float, peripheral_center:Optional[tuple], peri_angle:Optional[float], peri_ecc:Optional[float], verbose:bool=True):
-    #     # Determine the center of the peripheral patch, if center is not given, but angle and eccentricity are
-    #     if peripheral_center == None and peri_angle != None and peri_ecc != None:
-    #         patchloc_triangle_s = peri_ecc
-    #         peri_y = round(peri_ecc * np.sin(np.radians(peri_angle)), 2)
-    #         peri_x = round(peri_ecc * np.cos(np.radians(peri_angle)), 2)
-    #         peripheral_center = (peri_x, peri_y)
-    #         if verbose:
-    #             print(f'Peripheral center at {peripheral_center}')
-        
-    #     if isinstance(peripheral_center, tuple):
-    #         # Determine the eccentricity of the patch using Pythagoras' theorem
-    #         patchloc_triangle_o = np.abs(peripheral_center[1])
-    #         patchloc_triangle_a = np.abs(peripheral_center[0])
-    #         patchloc_triangle_s = np.sqrt(patchloc_triangle_o**2 + patchloc_triangle_a**2) # Pythagoras triangle side s, patch center eccentricity
-    #         if verbose:
-    #             print(f'Patch localisation triangle with side lengths o: {round(patchloc_triangle_o, 2)}, a: {round(patchloc_triangle_a,2)}, s: {round(patchloc_triangle_s,2)}')
-            
-    #         # Determine the angle boundaries for the patch, also using Pythagoras
-    #         bound_triangle_a = patchloc_triangle_s
-    #         bound_triangle_o = patchbound
-        
-    #         patch_bound_angle = np.degrees(np.arctan(bound_triangle_o / bound_triangle_a))
-    #         patch_center_angle = np.degrees(np.arctan(np.abs(peripheral_center[1] / peripheral_center[0])))
-            
-    #         if peripheral_center[0] >= 0 and peripheral_center[1] > 0: # top right
-    #             patch_center_angle = patch_center_angle
-    #         elif peripheral_center[0] < 0 and peripheral_center[1] > 0: # top left
-    #             patch_center_angle = 180 - patch_center_angle
-    #         elif peripheral_center[0] >= 0 and peripheral_center[1] < 0: # bottom right
-    #             patch_center_angle = 360 - patch_center_angle
-    #         elif peripheral_center[0] < 0 and peripheral_center[1] < 0: # bottom left
-    #             patch_center_angle = 180 + patch_center_angle
-                
-    #         angle_min = patch_center_angle - patch_bound_angle
-    #         angle_max = patch_center_angle + patch_bound_angle
-    #         ecc_min = patchloc_triangle_s - bound_triangle_o
-    #         ecc_max = patchloc_triangle_s + bound_triangle_o
-            
-    #         if verbose:
-    #             print(f'ecc_min: {round(ecc_min,2)}, ecc_max: {round(ecc_max,2)}')
-    #             print(f'Peripheral patch at angle {round(patch_center_angle,2)} with boundary angles at min: {round(angle_min,2)}, max: {round(angle_max,2)}')
-            
-    #     return peripheral_center, angle_min, angle_max, ecc_min, ecc_max
-    
-    # def _get_peri_bounds(self, patchbound:float, peripheral_center:Optional[tuple], peri_angle:Optional[float], peri_ecc:Optional[float], verbose:bool=True):
-    #     # Convert angles from degrees to radians
-    #     peri_angle_rad = np.deg2rad(peri_angle)
 
-    #     # Convert polar coordinates to Cartesian coordinates
-    #     peri_x = peri_ecc * np.cos(peri_angle_rad)
-    #     peri_y = peri_ecc * np.sin(peri_angle_rad)
-    #     peripheral_center = (peri_x, peri_y)
-
-    #     # Compute the distance from each voxel to the center of the patch
-    #     voxel_x = self.ecc * np.cos(np.deg2rad(self.angle))
-    #     voxel_y = self.ecc * np.sin(np.deg2rad(self.angle))
-    #     distances = np.sqrt((voxel_x - peripheral_center[0])**2 + (voxel_y - peripheral_center[1])**2)
-
-    #     # Select the voxels for which the distance plus the size is less than or equal to the patchbound
-    #     selected_voxels = distances + self.size <= patchbound
-
-    #     return selected_voxels
-    
     def _get_peri_bounds(self, patchbound:float, peripheral_center:Optional[tuple], peri_angle:Optional[float], peri_ecc:Optional[float], leniency:float=0.0, verbose:bool=True):
         # Convert angles from degrees to radians
         peri_angle_rad = np.deg2rad(peri_angle)
@@ -266,13 +200,7 @@ class VoxelSieve:
             patch_x = patch_y = central_coords
         #                      RF not too large    &     RF within patch boundary      &    RF not too small    &    NSD R2 high enough      &    pRF R2 high enough
             self.vox_pick = (self.size < max_size) & (self.ecc+self.size < patchbound) & (self.size > min_size) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
-    
-        # elif patchloc == 'peripheral':
-        #     peripheral_center, angle_min, angle_max, ecc_min, ecc_max = self._get_peri_bounds(patchbound, peripheral_center, peri_angle, peri_ecc, verbose)
-        #     patch_x = central_coords + peripheral_center[0] * (self.figdims[0]/8.4) # in pixels
-        #     patch_y = central_coords + peripheral_center[1] * (self.figdims[0]/8.4) # in pixels
-        #     self.vox_pick = (self.size < max_size) & (self.size > min_size) & (self.angle < angle_max) & (self.angle > angle_min) & (self.ecc < ecc_max) & (self.ecc > ecc_min) & (self.nsd_R2 > min_nsd_R2) & (self.prf_R2 > min_prf_R2)
-        
+
         elif patchloc == 'peripheral':
             if peripheral_center is None and peri_angle and peri_ecc is not None:
                 # patchloc_triangle_s = peri_ecc
@@ -297,6 +225,7 @@ class VoxelSieve:
         self.ycoor = self.ycoor[self.vox_pick]
         self.xcoor = self.xcoor[self.vox_pick]
         self.xyz = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:, :3][self.vox_pick].astype(int)
+        self.patchmask = NSP.utils.make_circle_mask(self.figdims[0], patch_y, patch_x, patchbound * (425 / 8.4), fill='y')
         
         if type(fixed_n_voxels) == int:
             self.vox_lim(fixed_n_voxels)
@@ -406,32 +335,6 @@ class DataFetch():
             n_sessions (int): The amount of sessions to get the betas for
         """        
         betapath = f'{self.nsp.nsd_datapath}/nsddata_betas/ppdata/{subject}/func1mm/betas_fithrf_GLMdenoise_RR/'
-
-        # for session in range(start_session, start_session + n_sessions): # If start = 1 and n = 10 it goes 1 2 3 4 5 6 7 8 9 10
-        #     print(f'Working on session: {session}')
-        #     session_str = f'{session:02d}'
-        #     session_data = nib.load(f"{betapath}betas_session{session_str}.nii.gz").get_fdata(caching='unchanged')
-
-        #     for roi in roi_masks[subject].keys():
-        #         print(f'Working on roi: {roi}')
-        #         roi_mask = roi_masks[subject][roi]
-        #         filtbet = session_data[roi_mask.astype(bool)]
-
-        #         # Get the indices of the True values in the mask
-        #         if session == 1:  # only get indices for the first session
-        #             x, y, z = np.where(roi_mask)
-        #             x = x.reshape(-1, 1)
-        #             y = y.reshape(-1, 1)
-        #             z = z.reshape(-1, 1)
-        #             voxbetas = np.concatenate((x, y, z, filtbet), axis=1)
-        #         else:
-        #             voxbetas = filtbet
-        #         print(f'Current size of voxbetas: {voxbetas.shape}')        
-                    
-        #         np.save(f'{self.nsp.own_datapath}/{subject}/betas/{roi[:2]}/beta_stack_session{session_str}.npy', voxbetas)
-        #         print(f'Saved beta_stack_session{session_str}.npy')
-            
-        #     del session_data
         
         for session in range(start_session, start_session + n_sessions): # If start = 1 and n = 10 it goes 1 2 3 4 5 6 7 8 9 10
             print(f'Working on session: {session}')
@@ -2682,11 +2585,12 @@ class Stimuli():
         # Example code to show how to access the image files, these are all 73000 of them, as np.arrays
         # I keep it like this as it might be useful to also store the reconstructed images with the autoencoder
         # using a .hdf5 folder structure, but I can change this later on.
-
+            
         stim_dir = f'{self.nsp.nsd_datapath}/nsddata_stimuli/stimuli/nsd/'
-        stim_files = os.listdir(stim_dir)
+        stim_files = [f for f in os.listdir(stim_dir) if os.path.isfile(os.path.join(stim_dir, f))]
 
         with h5py.File(f'{stim_dir}{stim_files[0]}', 'r') as file:
+            
             img_brick_dataset = file['imgBrick']
             
             if img_no == 'random':

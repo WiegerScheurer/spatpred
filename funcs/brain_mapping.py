@@ -98,13 +98,22 @@ def reg_to_nifti(
             title=f"{stat_str} Layer Assignment of Voxels Across Visual Cortex\n{model}, ΔR based (Baseline vs. Baseline + Unpredictability)",
         )
 
-
 def vol_to_surf(
     subject: str,
     source_file_name: str,
     sourcespace: str = "func1pt0",
     surface_type: str = "pial",
     interpmethod: str = "cubic"):
+    """
+    Convert a volume to a surface representation using NSDmapdata.
+
+    Args:
+        subject (str): The subject identifier.
+        source_file_name (str): The name of the source file.
+        sourcespace (str, optional): The source space. Defaults to "func1pt0".
+        surface_type (str, optional): The surface type. Defaults to "pial".
+        interpmethod (str, optional): The interpolation method. Defaults to "cubic".
+    """
     base_path = NSP.nsd_datapath
     subjix = int(subject[-1])
 
