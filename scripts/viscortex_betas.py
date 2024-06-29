@@ -24,9 +24,9 @@ sys.path.append('/home/rfpred')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
 
-import funcs.natspatpred
-importlib.reload(funcs.natspatpred)
-from funcs.natspatpred import NatSpatPred
+import classes.natspatpred
+importlib.reload(classes.natspatpred)
+from classes.natspatpred import NatSpatPred
 
 NSP = NatSpatPred()
 NSP.initialise()

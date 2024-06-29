@@ -23,10 +23,10 @@ from PIL import Image
 from unet_recon.inpainting import UNet
 
 def reload_nsp():
-    import funcs.natspatpred
+    import classes.natspatpred
 
-    importlib.reload(funcs.natspatpred)
-    from funcs.natspatpred import NatSpatPred, VoxelSieve
+    importlib.reload(classes.natspatpred)
+    from classes.natspatpred import NatSpatPred, VoxelSieve
 
     NSP = NatSpatPred()
     NSP.initialise()
@@ -34,14 +34,14 @@ def reload_nsp():
 
 import importlib
 from importlib import reload
-import funcs.natspatpred
+import classes.natspatpred
 import unet_recon.inpainting
 
-importlib.reload(funcs.natspatpred)
+importlib.reload(classes.natspatpred)
 importlib.reload(unet_recon.inpainting)
 
 from unet_recon.inpainting import UNet
-from funcs.natspatpred import NatSpatPred, VoxelSieve
+from classes.natspatpred import NatSpatPred, VoxelSieve
 
 import lgnpy.CEandSC.lgn_statistics
 from lgnpy.CEandSC.lgn_statistics import lgn_statistics, loadmat, LGN

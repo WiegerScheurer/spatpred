@@ -766,7 +766,7 @@ class Utilities():
         return outline_circle, pixrad
 
 
-    def _plot_red_circle(image, circle):
+    def _plot_red_circle(self, image, circle):
         """Helper function to plot a red circle on an image
 
         Args:
@@ -787,7 +787,32 @@ class Utilities():
         ax.add_patch(circ)
 
         plt.show()    
+        
 
+    def _extract_layno(self, filename, layer_str:str='layer'):
+        """Extract the layer number from a string filename
+
+        Args:
+            filename (str): Filename
+            layer_str (str): String used for layer
+
+        Returns:
+            int: Layer number
+        """        
+        layer_str_values = [layer_str, 'layer ', 'lay', 'lay ', '_']
+
+        # Try each layer_str value until a match is found
+        for layer_str in layer_str_values:
+            pattern = rf'{layer_str}(\d+)'
+            match = re.search(pattern, filename)
+            output_number = int(match.group(1)) if match else None
+
+            if output_number is not None:
+                return output_number
+
+        # If no match is found after trying all layer_str values, return None
+        return None
+    
     def get_layer_file(self, filename:str, layer_str:(str | None)='layer '):
         """Function to extract the layer number from a filename.
         
@@ -802,17 +827,13 @@ class Utilities():
         Returns:
             int: The extracted integer representing the layer number of the file.
         """    
-        def _extract_layno(filename, layer_str):
-            pattern = rf'{layer_str}(\d+)'
-            match = re.search(pattern, filename)
-            return int(match.group(1)) if match else None
 
         # List of layer_str values to try
         layer_str_values = [layer_str, 'layer', 'lay']
 
         # Try each layer_str value until a match is found
         for layer_str in layer_str_values:
-            layno = _extract_layno(filename, layer_str)
+            layno = self._extract_layno(filename, layer_str)
             if layno is not None:
                 return layno
 
@@ -829,10 +850,7 @@ class Utilities():
         Returns:
             dict: A dictionary where the keys are layer numbers and the values are lists of filenames.
         """
-        def _extract_layno(filename, layer_str):
-            pattern = rf'{layer_str}(\d+)'
-            match = re.search(pattern, filename)
-            return int(match.group(1)) if match else None
+
 
         # List of layer_str values to try
         layer_str_values = [layer_str, 'layer', 'lay']

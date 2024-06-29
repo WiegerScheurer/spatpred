@@ -14,8 +14,8 @@ from nsdcode.utils import makeimagestack
 import nibabel as nib
 import matplotlib.pyplot as plt
 from nilearn import plotting
-import funcs.natspatpred
-from funcs.natspatpred import NatSpatPred
+import classes.natspatpred
+from classes.natspatpred import NatSpatPred
 import classes.regdata
 from classes.regdata import RegData
 

@@ -28,13 +28,13 @@ from unet_recon.inpainting import UNet
 from funcs.analyses import univariate_regression
 import importlib
 from multiprocessing import Pool
-import funcs.natspatpred
+import classes.natspatpred
 import unet_recon.inpainting
 import yaml
 import lgnpy.CEandSC.lgn_statistics
 from lgnpy.CEandSC.lgn_statistics import lgn_statistics, loadmat, LGN
 from unet_recon.inpainting import UNet
-from funcs.natspatpred import NatSpatPred, VoxelSieve
+from classes.natspatpred import NatSpatPred, VoxelSieve
 from lgnpy.CEandSC.lgn_statistics import lgn_statistics, loadmat, LGN
 
 

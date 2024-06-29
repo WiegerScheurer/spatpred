@@ -66,6 +66,7 @@ import lgnpy.CEandSC.lgn_statistics
 from lgnpy.CEandSC.lgn_statistics import LGN, lgn_statistics, loadmat
 
 from unet_recon.inpainting import UNet
+from classes.voxelsieve import VoxelSieve
 
 class Cortex():
     

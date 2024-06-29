@@ -41,21 +41,7 @@ from scipy.io import loadmat
 from scipy.ndimage import binary_dilation
 from scipy.special import softmax
 from scipy.stats import zscore as zs
-from skimage import color
-from sklearn.base import clone
-from sklearn.cross_decomposition import PLSRegression
-from sklearn.decomposition import PCA, IncrementalPCA
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import Lasso, LinearRegression, Ridge
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import KFold, cross_val_predict, cross_val_score
-from sklearn.preprocessing import StandardScaler
-from torch.nn import Module
-from torch.utils.data import DataLoader, Dataset
-from torchvision import transforms
-from torchvision.models.feature_extraction import (create_feature_extractor,
-                                                   get_graph_node_names)
-from tqdm.notebook import tqdm
+
 
 os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred/')

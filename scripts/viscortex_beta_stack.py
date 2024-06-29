@@ -11,9 +11,9 @@ sys.path.append('/home/rfpred/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
 
-import funcs.natspatpred
+import classes.natspatpred
 from unet_recon.inpainting import UNet
-from funcs.natspatpred import NatSpatPred, VoxelSieve
+from classes.natspatpred import NatSpatPred, VoxelSieve
 
 NSP = NatSpatPred()
 NSP.initialise()

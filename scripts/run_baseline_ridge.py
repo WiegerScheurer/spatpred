@@ -60,13 +60,13 @@ from funcs.analyses import univariate_regression
 
 import importlib
 from importlib import reload
-import funcs.natspatpred
+import classes.natspatpred
 import unet_recon.inpainting
 import argparse
-importlib.reload(funcs.natspatpred)
+importlib.reload(classes.natspatpred)
 importlib.reload(unet_recon.inpainting)
 from unet_recon.inpainting import UNet
-from funcs.natspatpred import NatSpatPred, VoxelSieve
+from classes.natspatpred import NatSpatPred, VoxelSieve
 
 NSP = NatSpatPred()
 NSP.initialise()

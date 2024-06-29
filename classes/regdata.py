@@ -54,10 +54,9 @@ sys.path.append("/home/rfpred/")
 sys.path.append("/home/rfpred/envs/rfenv/lib/python3.11/site-packages/")
 sys.path.append("/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode")
 
-import funcs.natspatpred
-from funcs.analyses import univariate_regression
-from classes.utilities import _extract_layno
-from funcs.natspatpred import NatSpatPred, VoxelSieve
+import classes.natspatpred
+# from classes.utilities import _extract_layno
+from classes.natspatpred import NatSpatPred, VoxelSieve
 from unet_recon.inpainting import UNet
 
 NSP = NatSpatPred()
@@ -237,7 +236,7 @@ class RegData:
         )
 
         # Multiply each value by its column index
-        weights = [(_extract_layno(col)) for col in df_normalized.columns]
+        weights = [(NSP.utils._extract_layno(col)) for col in df_normalized.columns]
         # if verbose:
         #     print(f"These are the weights for each column: {weights}")
 
@@ -357,10 +356,12 @@ class RegData:
         )
 
         # Plot the proportions using a stacked bar plot
-        ax = df_prop.plot(kind="bar", stacked=True, colormap=barcmap, edgecolor="none")
+        ax = df_prop.plot(kind="bar", stacked=True, colormap=barcmap, edgecolor="none", width=.8)
 
         # Add a y-axis label
         ax.set_ylabel("Layer assignment (%)")
+        ax.set_yticks([0, 0.5, 1])  # Set y-ticks
+        ax.set_yticklabels([0, 50, 100])
 
         leg_colours = [
             patches.Patch(
