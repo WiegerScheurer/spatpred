@@ -359,9 +359,11 @@ class RegData:
         ax = df_prop.plot(kind="bar", stacked=True, colormap=barcmap, edgecolor="none", width=.8)
 
         # Add a y-axis label
-        ax.set_ylabel("Layer assignment (%)")
+        ax.set_ylabel("Layer assignment (%)", fontsize=20)
         ax.set_yticks([0, 0.5, 1])  # Set y-ticks
-        ax.set_yticklabels([0, 50, 100])
+        ax.set_yticklabels([0, 50, 100], fontsize=16, fontweight='bold')  # Set y-tick labels
+        plt.xlabel("ROI", fontsize=20)
+        plt.xticks(fontsize=16, fontweight='bold')
 
         leg_colours = [
             patches.Patch(

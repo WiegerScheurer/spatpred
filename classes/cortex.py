@@ -1104,3 +1104,22 @@ class Cortex():
 
         plt.show()
         
+        
+    def vox_per_hemi(self, subject:str, voxeldict:dict | None, rois:list, roi_masks:dict | None=None, all_voxels:bool=False):
+        # Initialize an empty DataFrame
+        df = pd.DataFrame(columns=["lh", "rh"], index=rois)
+
+        for hemisphere in ["lh", "rh"]:
+            hemdat = nib.load(f"{NSP.nsd_datapath}/nsddata/ppdata/{subject}/func1mm/roi/{hemisphere}.prf-visualrois.nii.gz").get_fdata()
+            visroi_mask = hemdat > 0
+            if all_voxels:
+                for roi in rois:
+                    # Store the result in the DataFrame
+                    df.loc[roi, hemisphere] = roi_masks[subject][f"{roi}_mask"][visroi_mask].sum()
+            else:
+                for roi in rois:
+                    # Store the result in the DataFrame
+                    df.loc[roi, hemisphere] = NSP.utils.coords2numpy(voxeldict[roi].xyz, roi_masks[subject]["V1_mask"].shape)[visroi_mask].sum()
+
+        return df
+            

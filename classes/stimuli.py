@@ -680,8 +680,6 @@ class Stimuli():
         
         return X_all    
     
-    
-    
     def alex_featmaps(self, layers:(list | int)=[1, 4, 7, 9, 11], subject:str='subj01',
                     plot_corrmx:bool=True, smallpatch:bool=False):
         """
@@ -805,18 +803,6 @@ class Stimuli():
         cmap (str): The colormap to use for the heatmap. Default is 'copper_r'.
         """
         
-        # if cnn_type == 'alexnet':
-        #     file_str = 'all_predestims.h5'
-        #     predfeatnames = [name for name in list(self.features()[file_str].keys()) if name.endswith(loss_calc) and name.startswith(type)]
-        # elif cnn_type == 'vgg-b':
-        #     file_str = 'all_predestims_vgg-b.csv'
-        #     predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith(type)]
-        
-        # # predfeatnames = [name for name in list(self.features()['all_predestims.h5'].keys()) if name.endswith(loss_calc) and name.startswith(type)]
-
-        # # Build dataframe
-        # data = {name: self.features()[file_str][name] for name in predfeatnames}
-        
         # Get the subject specific-indices, only required as long as I haven't calculated all the features for all 73k
         indices = self.imgs_designmx()[subject]
 
@@ -834,7 +820,6 @@ class Stimuli():
         
         # Build dataframe
         data = {name: self.features()[file_str][name][indices] for name in predfeatnames}
-        
         
         df = pd.DataFrame(data)
 

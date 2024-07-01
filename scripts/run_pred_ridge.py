@@ -117,28 +117,6 @@ for roi in rois:
     
 max_n_voxels = np.min(n_voxels)
 
-# for roi in rois: # Limit the number of voxels based on the lowest number of available voxels across rois
-#     voxeldict[roi].vox_lim(max_n_voxels)
-#     print(f'{roi} voxels capped at: {max_n_voxels}')
-
-
-
-# OLD CODE
-# voxeldict = {}
-# for roi in rois:
-#     print_attr = True if roi == rois[len(rois)-1] else False
-#     voxeldict[roi] = VoxelSieve(NSP, prf_dict, roi_masks,
-#                                 subject=subject, 
-#                                 roi=roi, 
-#                                 patchloc='central',
-#                                 max_size=max_size, 
-#                                 min_size=min_size, 
-#                                 patchbound=patchbound, 
-#                                 min_nsd_R2=min_nsd_R2, 
-#                                 min_prf_R2=min_prf_R2,
-#                                 print_attributes=print_attr,
-#                                 fixed_n_voxels=None)
-
 ydict = {}
 for roi in rois:
     ydict[roi] = NSP.analyse.load_y(subject=subject, roi=roi, voxelsieve=voxeldict[roi], n_trials='all').T
