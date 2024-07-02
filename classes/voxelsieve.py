@@ -226,7 +226,11 @@ class VoxelSieve:
         self.ycoor = self.ycoor[self.vox_pick]
         self.xcoor = self.xcoor[self.vox_pick]
         self.xyz = prf_dict[subject]['proc'][f'{roi}_mask']['size'][:, :3][self.vox_pick].astype(int)
-        self.patchmask = np.flip(NSP.utils.make_circle_mask(self.figdims[0], patch_y, patch_x, patchbound * (425 / 8.4), fill='y'), 0).astype(bool)
+        if fixed_n_voxels == "all":
+            self.patchmask = np.ones((self.figdims[0], self.figdims[1])).astype(bool)
+            self.patchbound = 10 # arbitrary, needs to be larger than img
+        else:
+            self.patchmask = np.flip(NSP.utils.make_circle_mask(self.figdims[0], patch_y, patch_x, patchbound * (425 / 8.4), fill='y'), 0).astype(bool)
         
         if type(fixed_n_voxels) == int:
             self.vox_lim(fixed_n_voxels)

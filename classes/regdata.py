@@ -492,7 +492,7 @@ class RegData:
             
             
         
-    def _delta_r_lines(self):
+    def _delta_r_lines(self, cmap:str="Reds"):
         """
         Method to plot the delta_r values for each voxel in each ROI across the layers of the CNN model.
 
@@ -512,7 +512,8 @@ class RegData:
         fig, axs = plt.subplots(grid_size, grid_size, figsize=(10*grid_size, 10*grid_size))
         fig.suptitle(f"Voxel specific ΔR across CNN layers for subject {self.subject[-1]}\n", fontsize=40, weight='normal')
         # Get the colormap of desire
-        cmap = plt.get_cmap('Reds')
+        # cmap = plt.get_cmap('Reds')
+        cmap = plt.get_cmap(cmap)
 
         # Calculate global y min and max
         global_y_min = df_reset[cols].min().min()
