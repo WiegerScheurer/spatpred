@@ -313,7 +313,11 @@ class RegData:
             
         return data if copy_df is not False else None
     
-    def assign_layers(self, max_or_weighted: str = "weighted", verbose: bool = True, title: str = None):
+    def assign_layers(self, 
+                      max_or_weighted: str = "weighted", 
+                      verbose: bool = True, 
+                      title: str = None,
+                      input_df: pd.DataFrame = None):
         """
         Assigns layers to each ROI based on the maximum value in each row of a DataFrame.
 
@@ -325,10 +329,11 @@ class RegData:
             dataframe: The DataFrame with the '{assign_str} Layer' column added.
         """
 
-        df = self.df.copy()
-        print(
-            "Using a copy of the DataFrame for layer assignment, the original DataFrame will not be changed."
-        )
+        df = self.df.copy() if input_df is None else input_df
+        if verbose:
+            print(
+                "Using a copy of the DataFrame for layer assignment, the original DataFrame will not be changed."
+            )
         df = self._normalize_per_voxel(verbose=verbose, copy_df=df)
 
         if max_or_weighted == "max":
