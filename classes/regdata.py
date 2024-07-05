@@ -69,7 +69,7 @@ class RegData:
         subject: str = "subj01",
         folder: str | None = "unpred",
         model: str = "vgg-b",
-        statistic: str = "delta_r",
+        statistic: str = "delta_r", # delta_r, R_alt_model, or R
     ):
         self.subject = subject
         self.folder = folder
@@ -99,13 +99,12 @@ class RegData:
         # Variable to store the 'roi' column from the first file
         roi_column = None
         xyz_columns = None
-        
+        fileno = 0
         for filename in filenames:
             # Check if the filename starts with the model name
             if filename.startswith(model) and filename.endswith(".csv"):
                 # Get the layer number from the filename
-                layno = NSP.utils.get_layer_file(filename, "lay")
-
+                layno = NSP.utils.get_layer_file(filename, "lay") if self.folder == "unpred" else fileno
                 # Read the CSV file into a DataFrame
                 file_df = pd.read_csv(os.path.join(directory, filename))
 
@@ -126,6 +125,8 @@ class RegData:
                     df = file_df
                 else:
                     df = pd.concat([df, file_df], axis=1)
+                    
+                fileno +=1
 
         # Sort the remaining columns
         df = df.sort_index(
@@ -317,7 +318,8 @@ class RegData:
                       max_or_weighted: str = "weighted", 
                       verbose: bool = True, 
                       title: str = None,
-                      input_df: pd.DataFrame = None):
+                      input_df: pd.DataFrame = None,
+                      figsize: Tuple[float, float] = (6 , 5.5)):
         """
         Assigns layers to each ROI based on the maximum value in each row of a DataFrame.
 
@@ -352,7 +354,7 @@ class RegData:
             ["#000080", "#CCCCCC", "#FFA500", "#FF0000"],
             N=lay_colours,
         )
-
+        
         # Calculate the proportions of max_indices within each ROI
         df_prop = (
             df.groupby("roi")[assign_str]
@@ -361,14 +363,16 @@ class RegData:
         )
 
         # Plot the proportions using a stacked bar plot
-        ax = df_prop.plot(kind="bar", stacked=True, colormap=barcmap, edgecolor="none", width=.8)
+        ax = df_prop.plot(kind="bar", stacked=True, colormap=barcmap, edgecolor="none", width=.8, figsize=figsize)
 
         # Add a y-axis label
         ax.set_ylabel("Layer assignment (%)", fontsize=20)
         ax.set_yticks([0, 0.5, 1])  # Set y-ticks
         ax.set_yticklabels([0, 50, 100], fontsize=16, fontweight='bold')  # Set y-tick labels
+        ax.spines['top'].set_visible(False)  # Remove top border
+        ax.spines['right'].set_visible(False)  # Remove right border
         plt.xlabel("ROI", fontsize=20)
-        plt.xticks(fontsize=16, fontweight='bold')
+        plt.xticks(fontsize=16, fontweight='bold', rotation = 0)
 
         leg_colours = [
             patches.Patch(
@@ -423,7 +427,8 @@ class RegData:
 
             # Reshape the DataFrame
             df_melted = df.melt(
-                id_vars=present_id_vars, var_name="column", value_name="delta_r"
+                # id_vars=present_id_vars, var_name="column", value_name="delta_r"
+                id_vars=present_id_vars, var_name="column", value_name=self.statistic
             )
 
             # Extract numeric part from 'column' and convert to numeric
@@ -443,7 +448,7 @@ class RegData:
                 catplot = sns.catplot(
                     data=df_melted,
                     x="column",
-                    y="delta_r",
+                    y=self.statistic,
                     hue="roi",
                     jitter=True,
                     palette=roi_to_color,
@@ -461,7 +466,7 @@ class RegData:
                     sns.regplot(
                         data=roi_data,
                         x="column",
-                        y="delta_r",
+                        y=self.statistic,
                         scatter=False,
                         truncate=False,
                         order=polynom_order,
@@ -472,14 +477,15 @@ class RegData:
                     sns.lineplot(
                         data=roi_data,
                         x="column",
-                        y="delta_r",
+                        y=self.statistic,
                         color=roi_to_color[roi],
                         ax=catplot.ax if plot_catplot else ax,
                     )
 
             # Set the lower limit of the y-axis to 0
             (catplot.ax if plot_catplot else ax).set_ylim(bottom=0)
-            (catplot.ax if plot_catplot else ax).set_ylabel("ΔR Value")
+            stat_label = "ΔR" if self.statistic == "delta_r" else self.statistic
+            (catplot.ax if plot_catplot else ax).set_ylabel(f"{stat_label} Value")
             (catplot.ax if plot_catplot else ax).set_xlabel("CNN Layer")
             (catplot.ax if plot_catplot else ax).set_xticks(range(len(self.cnn_layers)))
             (catplot.ax if plot_catplot else ax).set_xticklabels([f"{i+1}" for i in range(len(self.cnn_layers))])
