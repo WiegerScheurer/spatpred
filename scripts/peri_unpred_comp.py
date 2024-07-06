@@ -157,12 +157,21 @@ for img_number, img in enumerate(imgs):
     patch_data.loc[len(patch_data)] = [rms, ce, sc]
 
 
-    # if img_number % 1 == 0:
+    # # if img_number % 1 == 0:
+    # file_path = f"{NSP.own_datapath}/visfeats/peripheral/rmsscce_ecc{args.eccentricity}_angle{args.angle}_intermediate.csv"
+    # write_header = not os.path.exists(file_path)
+    
+    # with open(file_path, 'a') as f:
+    #     patch_data.to_csv(f, header=write_header)
+    
+    new_row = pd.DataFrame([[rms, ce, sc]], columns=patch_data.columns)
+    patch_data = patch_data.append(new_row, ignore_index=True)
+
     file_path = f"{NSP.own_datapath}/visfeats/peripheral/rmsscce_ecc{args.eccentricity}_angle{args.angle}_intermediate.csv"
     write_header = not os.path.exists(file_path)
     
     with open(file_path, 'a') as f:
-        patch_data.to_csv(f, header=write_header)
+        new_row.to_csv(f, header=write_header)
             
             
-patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/rmsscce_ecc{args.eccentricity}_angle{args.angle}.csv")
+patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/rmsscce_ecc{args.eccentricity}_angle{args.angle}_grotehoer.csv")

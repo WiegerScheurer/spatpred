@@ -105,7 +105,7 @@ lgn = rl.lgn(config_file="default_config.yml")
 NSP = rl.nsp()
 NSP.initialise()
 
-n_imgs = 4
+n_imgs = 73000
 
 imgs, img_nos = NSP.stimuli.rand_img_list(
     n_imgs=n_imgs,
@@ -156,5 +156,9 @@ for img_number, img in enumerate(imgs):
 
     patch_data.loc[len(patch_data)] = [rms, ce, sc]
 
+    patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/rmsscce_ecc{args.eccentricity}_angle{args.angle}_intermediate.csv") if img_number % 100 == 0 else None
+    
+    
+patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/rmsscce_ecc{args.eccentricity}_angle{args.angle}.csv")
 
-    patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/rmsscce_ecc{args.eccentricity}_angle{args.angle}.csv") if img_number % 100 == 0 else None
+
