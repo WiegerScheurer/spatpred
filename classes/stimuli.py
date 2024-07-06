@@ -1042,7 +1042,10 @@ class Stimuli():
         if asPIL: mask = Image.fromarray(mask)
         masks = [mask] * n_imgs
 
-        return imgs, masks, img_nos
+        if add_masks:
+            return imgs, masks, img_nos
+        else:
+            return imgs, img_nos
 
     # Faster and more sparse computation of the unpred features, does require preparing
     # PIL lists of images and masks beforehand.        
