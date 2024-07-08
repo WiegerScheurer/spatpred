@@ -48,6 +48,18 @@ predparser.add_argument(
     type=int,
     help="The angle of the peripheral patch",
 )
+predparser.add_argument(
+    "startimg",
+    type=int,
+    help="The first image of this batch",
+)
+predparser.add_argument(
+    "endimg",
+    type=int,
+    help="The last image of this batch",
+)
+
+
 args = predparser.parse_args()
 
 print(args, "\n")
@@ -105,13 +117,16 @@ lgn = rl.lgn(config_file="default_config.yml")
 NSP = rl.nsp()
 NSP.initialise()
 
-n_imgs = 73000
+n_imgs = args.endimg - args.startimg
+print(f"Processing {n_imgs} images, going from {args.startimg} to {args.endimg}")
+select_ices = list(range(args.startimg, args.endimg))
 
 imgs, img_nos = NSP.stimuli.rand_img_list(
     n_imgs=n_imgs,
     asPIL=True,
     add_masks=False,
     # select_ices=NSP.stimuli.imgs_designmx()["subj01"][:n_imgs],
+    select_ices=select_ices
 )
 
 # eccentricity = 1.2
@@ -155,10 +170,11 @@ for img_number, img in enumerate(imgs):
     sc = np.nan_to_num(sc)
 
     patch_data.loc[len(patch_data)] = [rms, ce, sc]
-
-    patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/rmsscce_ecc{args.eccentricity}_angle{args.angle}_intermediate.csv") if img_number % 100 == 0 else None
+    
+    os.makedirs(f"{NSP.own_datapath}/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}", exist_ok=True)
+    patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}/rmsscce_ecc{args.eccentricity}_angle{args.angle}_{args.startimg}-{args.endimg}_intermediate.csv") if img_number % 100 == 0 else None
     
     
-patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/rmsscce_ecc{args.eccentricity}_angle{args.angle}.csv")
+patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}/rmsscce_ecc{args.eccentricity}_angle{args.angle}_{args.startimg}-{args.endimg}.csv")
 
 
