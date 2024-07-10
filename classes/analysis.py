@@ -444,10 +444,15 @@ class Analysis():
             _, cor_scores = self.score_model(X_alt, y, model_comp, cv=cv)
             r_uninformative[roi] = np.mean(cor_scores, axis=0)
             regcor_dict['X_shuffled'][roi] = cor_scores  # Save cor_scores to dictionary
+            
+            this_uninf_coefs = np.mean(model_comp.coef_, axis=1).reshape(-1,1)
+
             if roi == 'V1':
                 uninf_scores = r_uninformative[roi].reshape(-1,1)
+                uninf_coefs = this_uninf_coefs
             else:
                 uninf_scores = np.vstack((uninf_scores, r_uninformative[roi].reshape(-1,1)))
+                uninf_coefs = np.vstack((uninf_coefs, this_uninf_coefs))
 
         delta_r_df = pd.DataFrame()
         
@@ -482,9 +487,9 @@ class Analysis():
                 
                 plt.savefig(f'{save_path}/{regname}_plot.png') if save_outs else None
                     
-        coords = np.hstack((coords, uninf_scores, all_vox_delta_r.reshape(-1,1), beta_coefs)) # also added beta coefficients as last column. very rough but works
+        coords = np.hstack((coords, uninf_scores, all_vox_delta_r.reshape(-1,1), beta_coefs, uninf_coefs)) # also added beta coefficients as last column. very rough but works
                 
-        coords_df = pd.DataFrame(coords, columns=['x', 'y', 'z', 'roi', 'R', 'R_alt_model', 'delta_r', 'betas'])
+        coords_df = pd.DataFrame(coords, columns=['x', 'y', 'z', 'roi', 'R', 'R_alt_model', 'delta_r', 'betas', 'betas_alt_model'])
                     
         coords_df.to_csv(f'{save_path}/{regname}_regdf.csv', index=False) if save_outs else None
 

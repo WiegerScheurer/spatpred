@@ -115,6 +115,17 @@ class RegData:
                 if xyz_columns is None and "x" in file_df.columns and "y" in file_df.columns and "z" in file_df.columns:
                     xyz_columns = file_df[["x", "y", "z"]]
                 
+                if statistic == "delta_beta":
+                    # Check if the necessary columns exist
+                    if "betas_alt_model" in file_df.columns and "betas" in file_df.columns:
+                        # subtract the beta values from the baseline model
+                        baseline = file_df["betas_alt_model"]
+                        unpred_model = file_df["betas"]
+                        file_df["delta_beta"] = unpred_model - baseline
+                    else:
+                        print(f"Missing necessary columns in file {filename}")
+                        continue
+                    
                 # Select the statistic column and rename it
                 file_df = file_df[[statistic]].rename(
                     columns={statistic: f"{statistic}_{layno+1}"}
