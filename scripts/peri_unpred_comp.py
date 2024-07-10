@@ -156,7 +156,7 @@ for img_number, img in enumerate(imgs):
 
     patch_data.loc[len(patch_data)] = [rms, ce, sc]
 
-
+# This code is wrong, I was working in the wrong file. Adapt to the final working one I'll use in the rmsscce one.
     # # if img_number % 1 == 0:
     # file_path = f"{NSP.own_datapath}/visfeats/peripheral/rmsscce_ecc{args.eccentricity}_angle{args.angle}_intermediate.csv"
     # write_header = not os.path.exists(file_path)

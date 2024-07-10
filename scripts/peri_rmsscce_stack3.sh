@@ -1,7 +1,7 @@
 #!/bin/bash
 
 eccentricity=1.2
-angle=90
+angle=330
 # [90.0, 150.0, 210.0, 270.0, 330.0, 30.0]
 
 for startimg in $(seq 0 1000 72000); do

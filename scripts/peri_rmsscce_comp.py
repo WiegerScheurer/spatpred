@@ -172,7 +172,7 @@ for img_number, img in enumerate(imgs):
     patch_data.loc[len(patch_data)] = [rms, ce, sc]
     
     os.makedirs(f"{NSP.own_datapath}/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}", exist_ok=True)
-    patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}/rmsscce_ecc{args.eccentricity}_angle{args.angle}_{args.startimg}-{args.endimg}_intermediate.csv") if img_number % 100 == 0 else None
+    patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}/rmsscce_ecc{args.eccentricity}_angle{args.angle}_{args.startimg}-{args.endimg}_intermediate.csv") if img_number % 5 == 0 else None
     
     
 patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}/rmsscce_ecc{args.eccentricity}_angle{args.angle}_{args.startimg}-{args.endimg}.csv")
