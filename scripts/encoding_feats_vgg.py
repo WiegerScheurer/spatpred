@@ -8,7 +8,6 @@ import os
 # Limit the number of CPUs used to 2
 os.environ["OMP_NUM_THREADS"] = "10"
 
-import os
 import sys
 import numpy as np
 import torch
@@ -26,14 +25,14 @@ from sklearn.decomposition import IncrementalPCA
 from torchvision import models
 from typing import Dict, Tuple, Union, Optional
 
-
 os.chdir("/home/rfpred")
 sys.path.append("/home/rfpred/")
 sys.path.append("/home/rfpred/envs/rfenv/lib/python3.11/site-packages/")
 sys.path.append("/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode")
 
-# from unet_recon.inpainting import UNet
-from funcs.imgproc import rand_img_list, show_stim, get_imgs_designmx
+from classes.natspatpred import NatSpatPred
+NSP = NatSpatPred()
+NSP.initialise()
 
 # Define the run parameteres using argparse
 predparser = argparse.ArgumentParser(
@@ -54,9 +53,9 @@ args = predparser.parse_args()
 prf_region = "center_strict"
 
 # Load the pretrained AlexNet model
-model = models.alexnet(pretrained=True)
+model = models.vgg16_bn(pretrained=True)
 model.eval()  # Set the model to evaluation mode
-
+modeltype = model._get_name()
 
 class ImageDataset(Dataset):
     def __init__(self, image_ids, transform=None, crop: bool = True):
@@ -70,11 +69,11 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         img_id = self.image_ids[idx]
         if self.crop:
-            imgnp = show_stim(img_no=img_id, hide="y", small="y")[0][
+            imgnp = NSP.stimuli.show_stim(img_no=img_id, hide=True, small=True, crop=False)[0][
                 163:263, 163:263
             ]  # I CROP THEM, YOU SEE
         else:
-            imgnp = show_stim(img_no=img_id, hide="y", small="y")[0]
+            imgnp = NSP.stimuli.show_stim(img_no=img_id, hide=True, small=True, crop=False)[0]
 
         imgPIL = Image.fromarray(imgnp)  # Convert into PIL from np
 
@@ -109,7 +108,7 @@ fixed_n_comps = args.n_comps
 
 # image_ids = get_imgs_designmx()[args.subject][start:end] # This was for subject-specific image indices. Current line (below) is for all images.
 image_ids = list(range(0, train_batch))
-dataset = ImageDataset(image_ids, transform=preprocess, crop=True) # CHECK THIS CROP ARG
+dataset = ImageDataset(image_ids, transform=preprocess, crop=False) # CHECK THIS CROP ARG
 dataloader = DataLoader(dataset, batch_size=train_batch, shuffle=False)
 
 
@@ -226,15 +225,17 @@ def fit_pca(
         return None
 
 
+os.makedirs(f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/", exist_ok=True)
+
 # Fit PCA and get the fitted PCA object
-pca = fit_pca(
+pca, ft = fit_pca(
     feature_extractor,
     dataloader,
     # pca_save_path=f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/pca_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
-    pca_save_path=f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/pca_smallpatch_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
+    pca_save_path=f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/pca_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
     fixed_n_comps=fixed_n_comps,
-    train_batch=train_batch,
-)
+    train_batch=train_batch
+    )
 
 del dataloader, dataset
 
@@ -250,12 +251,20 @@ if pca is not None:
         feature_extractor, full_dataloader, pca, args.cnn_layer
     )
 else:
-    print("PCA fitting failed. Unable to apply PCA.")
+    print("PCA fitting failed. Unable to apply PCA, fock.")
+
+# np.savez(
+#     # f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/featmaps/featmaps_lay{this_layer}.npz",
+#     f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/featmaps/featmaps_smallpatch_lay{this_layer}.npz",
+#     *features_algo,
+# )
+
+os.makedirs(f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/", exist_ok=True)
 
 np.savez(
     # f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/featmaps/featmaps_lay{this_layer}.npz",
-    f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/featmaps/featmaps_smallpatch_lay{this_layer}.npz",
+    f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/featmaps_lay{this_layer}.npz",
     *features_algo,
 )
 
-print("Het is je gelukt, compagnon")
+print("Ook deze VGG (Visual Geometry Group) tori is je gelukt, generaal")
