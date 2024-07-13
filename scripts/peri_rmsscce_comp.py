@@ -119,6 +119,7 @@ NSP.initialise()
 
 n_imgs = args.endimg - args.startimg
 print(f"Processing {n_imgs} images, going from {args.startimg} to {args.endimg}")
+print(f"Patch eccentricity: {args.eccentricity}, patch angle: {args.angle}")
 select_ices = list(range(args.startimg, args.endimg))
 
 imgs, img_nos = NSP.stimuli.rand_img_list(
