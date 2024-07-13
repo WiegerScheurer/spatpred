@@ -228,7 +228,7 @@ def fit_pca(
 os.makedirs(f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/", exist_ok=True)
 
 # Fit PCA and get the fitted PCA object
-pca, ft = fit_pca(
+pca = fit_pca(
     feature_extractor,
     dataloader,
     # pca_save_path=f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/pca_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
@@ -241,6 +241,7 @@ del dataloader, dataset
 
 # Redefine the dataset and dataloader with the entire image set to apply the fitted PCA to.
 all_img_ids = list(range(0, 73000))  # All the NSD images
+# all_img_ids = list(NSP.stimuli.imgs_designmx()["subj01"]) # If it still is too heavy
 full_dataset = ImageDataset(all_img_ids, transform=preprocess, crop=False)
 full_dataloader = DataLoader(full_dataset, batch_size=apply_batch, shuffle=False)
 
