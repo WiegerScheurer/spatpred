@@ -510,7 +510,7 @@ class Stimuli():
         
         if subject is not None:    
             indices = self.imgs_designmx()[subject]
-        else: indices = np.ones((30000,)).astype(bool)
+        else: indices = np.ones((73000,)).astype(bool)
             
         if not content:
             predfeatnames = [name for name in predfeatnames if 'content' not in name]
