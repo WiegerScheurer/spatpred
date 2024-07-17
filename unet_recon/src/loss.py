@@ -34,6 +34,8 @@ class ReconLoss(nn.Module):
             self.extractor=VGGBlockFeatureExtractor()
         elif extractor=='vgg-bp':
             self.extractor=VGGBlockFeatureExtractor(only_maxpool=True)
+        elif extractor=='vgg-bn':
+            self.extractor=VGGBlockFeatureExtractor(batchnorm=True)
         else:
             raise ValueError('expecting "vgg" or "alex"')
 
@@ -165,9 +167,14 @@ class VGGBlockFeatureExtractor(nn.Module):
     MEAN = [0.485, 0.456, 0.406]
     STD = [0.229, 0.224, 0.225]
 
-    def __init__(self, only_maxpool=False):
+    def __init__(self, only_maxpool=False, batchnorm:bool=False):
         super().__init__()
-        vgg16 = models.vgg16(pretrained=True)
+        # if batchnorm:
+        #     vgg16 = models.vgg16_bn(pretrained=True)
+        # else:
+        #     vgg16 = models.vgg16(pretrained=True)
+            
+        vgg16 = models.vgg16_bn(pretrained=True) if batchnorm else models.vgg16(pretrained=True)    
         vgg16.eval()
         self.normalization = Normalization(self.MEAN, self.STD)
         self.only_maxpool = only_maxpool
@@ -175,6 +182,10 @@ class VGGBlockFeatureExtractor(nn.Module):
         if only_maxpool:
             # Extract only after max-pooling layers
             blocks_end_idx = [4, 9, 16, 23, 30]  # Indices after max-pool layers
+        elif batchnorm:
+            # Take the 3, 5, 8, 11, and last convolutional layers, and then the batchnorm output after those
+            blocks_end_idx = [8, 15, 25, 35, 41]
+            blocks_end_idx = [num -1 for num in blocks_end_idx] # Take the last convolutional layer before the batchnorm
         else:
             # Full blocks
             blocks_end_idx = [5, 10, 17, 24, 31]  # Include entire blocks

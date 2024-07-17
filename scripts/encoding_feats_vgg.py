@@ -53,7 +53,8 @@ args = predparser.parse_args()
 prf_region = "center_strict"
 
 # Load the pretrained AlexNet model
-model = models.vgg16_bn(pretrained=True)
+# model = models.vgg16_bn(pretrained=True)
+model = models.vgg16(pretrained=True)
 model.eval()  # Set the model to evaluation mode
 modeltype = model._get_name()
 
