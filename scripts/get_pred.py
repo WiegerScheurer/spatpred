@@ -33,7 +33,7 @@ predparser = argparse.ArgumentParser(description='Get the predictability estimat
 
 predparser.add_argument('start', type=int, help='The starting index of the images to get the predictability estimates for')
 predparser.add_argument('end', type=int, help='The ending index of the images to get the predictability estimates for')
-predparser.add_argument('subject', type=str, help='The subject to get the predictability estimates for')
+predparser.add_argument('--subject', type=str, help='The subject to get the predictability estimates for')
 
 args = predparser.parse_args()
 
@@ -53,6 +53,10 @@ from PIL import Image
 import glob,copy
 import matplotlib.pyplot as plt
 import numpy as np
+
+from classes.natspatpred import NatSpatPred
+NSP = NatSpatPred()
+NSP.initialise()
 
 # os.chdir('/home/rfpred/notebooks/alien_nbs/pred_comp')
 
@@ -203,7 +207,8 @@ def rand_img_list(n_imgs, asPIL:bool = True, add_masks:bool = True, mask_loc = '
         img_no = random.randint(0, 27999)
         if select_ices is not None:
             img_no = select_ices[i]
-        img = show_stim(img_no = img_no, hide = 'y')[0]
+        # img = show_stim(img_no = img_no, hide = 'y')[0]
+        img = NSP.stimuli.show_stim(img_no = img_no, hide=True, small=False, crop=False)[0]
 
         if i == 0:
             dim = img.shape[0]
@@ -234,7 +239,7 @@ def rand_img_list(n_imgs, asPIL:bool = True, add_masks:bool = True, mask_loc = '
 
 # Retrieve a number of random images, masks
 
-specific_imgs = [26282, 22273, 12338, 475, 18591, 22664, 27038, 11549, 27931, 26183, 26435, 2685, 8749, 3712, 20457, 7464, 6057]
+# specific_imgs = [26282, 22273, 12338, 475, 18591, 22664, 27038, 11549, 27931, 26183, 26435, 2685, 8749, 3712, 20457, 7464, 6057]
 # specific_imgs = list(range(0, 10, 1))
 dmx = get_imgs_designmx()
 # subj01_imgs = list(dmx[args.subject])[args.start:args.end] # Subject specific images
@@ -245,8 +250,8 @@ n_imgs = len(all_imgs)
 # imgs, masks, img_nos = rand_img_list(n_imgs, asPIL = True, add_masks = True, mask_loc = 'center', ecc_max = 1, select_ices = subj01_imgs, in_3d = False) # Subject specific images
 imgs, masks, img_nos = rand_img_list(n_imgs, asPIL = True, add_masks = True, mask_loc = 'center', ecc_max = 1, select_ices = all_imgs, in_3d = False)
 
-welke_plaat = random.randint(0, 73000)
-plaatje = show_stim(img_no = welke_plaat, small = 'y', hide = 'y')
+
+plaatje = NSP.stimuli.show_stim(img_no = 0, hide=True, small=False, crop=False)[0]
 ecc_max = 1
 dim = plaatje[0].shape[0]
 radius = ecc_max * (dim / 8.4)
@@ -259,9 +264,9 @@ elif loc == 'irrelevant_patch':
     x = y = radius + 10
 
 # The in stands for inverse in this case. For the inpainting we need the np.bool_ non-inverse images
-mask_w_in = css_gaussian_cut(dim, x, y, radius).reshape(425,425)
+# mask_w_in = css_gaussian_cut(dim, x, y, radius).reshape(425,425)
 rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
-full_ar_in = ar_in = show_stim(img_no = welke_plaat, hide = 'y')[0] 
+# full_ar_in = ar_in = show_stim(img_no = 0, hide=True, small=True, crop=False)[0] 
 # Get the boolean version of the non-inverse mask
 rf_mask_nsd = rf_mask_in == 0
 xmin,xmax,ymin,ymax = list(get_bounding_box(rf_mask_in))

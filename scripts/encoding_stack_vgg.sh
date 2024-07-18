@@ -9,6 +9,9 @@ n_comps=1000
 # Loop over the integer vector for cnn_layer
 # for cnn_layer in 1 4 7 9 11; do
 # for cnn_layer in 2 5 9 12 16 19 22 26 29 32 36 39 42; do
+
+# selected_indices = [0, 2, 5, 10, 17, 21, 24, 28] #### These are the vgg-16 non batchnorm layers I use for unpredfeats
+
 for cnn_layer in 5 10 17 24 31; do
     # Print the start time
     echo "Start time for cnn_layer $cnn_layer: $(date)"
