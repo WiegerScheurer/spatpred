@@ -4,7 +4,7 @@
 # dimensionality reduction on them using incremental PCA. Can take a while and can be adapted
 
 import os
-
+conda
 # Limit the number of CPUs used to 2
 os.environ["OMP_NUM_THREADS"] = "10"
 

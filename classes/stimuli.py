@@ -680,8 +680,8 @@ class Stimuli():
         
         return X_all    
     
-    def alex_featmaps(self, layers:(list | int)=[1, 4, 7, 9, 11], subject:str='subj01',
-                    plot_corrmx:bool=True, smallpatch:bool=False):
+    def alex_featmaps(self, layers=[1, 4, 7, 9, 11], subject:str='subj01',
+                    plot_corrmx:bool=True, smallpatch:bool=False, modeltype:str="alexnet"):
         """
         Load in the feature maps from the AlexNet model for a specific layer and subject
         
@@ -697,11 +697,11 @@ class Stimuli():
         smallpatch_str = '_smallpatch' if smallpatch else ''
         
         full_img_alex = []
-        layers = [layers] if type(layers) is int else layers
+        layers = [layers] if isinstance(layers, (int, str)) else layers
         for n_layer, cnn_layer in enumerate(layers):
             if n_layer == 0:
-                full_img_alex = np.load(f'{self.nsp.own_datapath}/{subject}/encoding/regprepped_featmaps{smallpatch_str}_layer{cnn_layer}.npy')
-            else: full_img_alex = np.hstack((full_img_alex, np.load(f'{self.nsp.own_datapath}/{subject}/encoding/regprepped_featmaps{smallpatch_str}_layer{cnn_layer}.npy')))
+                full_img_alex = np.load(f'{self.nsp.own_datapath}/{subject}/encoding/{modeltype}/regprepped_featmaps{smallpatch_str}_layer{cnn_layer}.npy')
+            else: full_img_alex = np.hstack((full_img_alex, np.load(f'{self.nsp.own_datapath}/{subject}/encoding/{modeltype}/regprepped_featmaps{smallpatch_str}_layer{cnn_layer}.npy')))
  
         if len(layers) < 5:
             plot_corrmx = False

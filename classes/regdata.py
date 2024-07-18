@@ -104,7 +104,9 @@ class RegData:
             # Check if the filename starts with the model name
             if filename.startswith(model) and filename.endswith(".csv"):
                 # Get the layer number from the filename
-                layno = NSP.utils.get_layer_file(filename, "lay") if self.folder == "unpred" else fileno
+                # layno = NSP.utils.get_layer_file(filename, "lay") if self.folder == "unpred" else fileno
+                layno = NSP.utils.get_layer_file(filename, "lay")
+                print(f"Processing file {filename} for layer {layno+1}")
                 # Read the CSV file into a DataFrame
                 file_df = pd.read_csv(os.path.join(directory, filename))
 
@@ -442,8 +444,18 @@ class RegData:
                 id_vars=present_id_vars, var_name="column", value_name=self.statistic
             )
 
-            # Extract numeric part from 'column' and convert to numeric
-            df_melted["column"] = df_melted["column"].str.extract("(\d+)").astype(int) - 1
+            # Get the unique values in the 'column' field
+            unique_values = df_melted["column"].unique()
+
+            # Sort the unique values
+            unique_values_sorted = np.sort(unique_values)
+
+            # Create a dictionary that maps each unique value to its rank order
+            value_to_rank = {value: i for i, value in enumerate(unique_values_sorted)}
+
+            # Replace the values in the 'column' field with their rank order
+            df_melted["column"] = df_melted["column"].map(value_to_rank)
+
             df_melted = df_melted.sort_values(by="column")
 
             rois = sorted(df_melted["roi"].unique(), key=lambda x: int(x.split("V")[1]))

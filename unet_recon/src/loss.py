@@ -36,8 +36,17 @@ class ReconLoss(nn.Module):
             self.extractor=VGGBlockFeatureExtractor(only_maxpool=True)
         elif extractor=='vgg-bn':
             self.extractor=VGGBlockFeatureExtractor(batchnorm=True)
+        elif extractor=='vgg-bn-full':
+            self.extractor=VGGFullFeatureExtractorCustom(only_conv=False, only_relu=False)
+        elif extractor=='vgg-bn-sel-conv':
+            self.extractor=VGGFullFeatureExtractorCustom(only_sel_conv=True)
+        elif extractor=='vgg-bn-relu':
+            self.extractor=VGGFullFeatureExtractorCustom(only_relu=True)
+        elif extractor=='vgg-bn-mp':
+            self.extractor=VGGFullFeatureExtractorCustom(only_mp=True)
         else:
             raise ValueError('expecting "vgg" or "alex"')
+
 
     def forward(self, input, mask, output, gt, save_gt_featmaps:bool=False):
         """todo: IF L1 vs L2 matters more than trivially, 
@@ -201,7 +210,7 @@ class VGGFullFeatureExtractor(nn.Module):
     MEAN = [0.485, 0.456, 0.406]
     STD = [0.229, 0.224, 0.225]
 
-    def __init__(self):
+    def __init__(self, only_conv:bool = False):
         super().__init__()
         vgg16 = models.vgg16(pretrained=True)
         vgg16.eval()
@@ -210,8 +219,48 @@ class VGGFullFeatureExtractor(nn.Module):
         features = []
         features.append(self.normalization)
         for layer in vgg16.features:
-            if isinstance(layer, (nn.Conv2d, nn.ReLU)):
-                features.append(layer)
+            if only_conv:
+                if isinstance(layer, nn.Conv2d):
+                    features.append(layer)
+            else:     
+                if isinstance(layer, (nn.Conv2d, nn.ReLU)):
+                    features.append(layer)
+        self.features = nn.ModuleList(features)
+        for param in self.features.parameters():
+            param.requires_grad = False
+
+    def forward(self, x):
+        outputs = []
+        for feature in self.features:
+            x = feature(x)
+            outputs.append(x)
+        return outputs
+    
+    
+class VGGFullFeatureExtractorCustom(nn.Module):
+    MEAN = [0.485, 0.456, 0.406]
+    STD = [0.229, 0.224, 0.225]
+
+    def __init__(self, only_conv:bool = False, only_relu:bool = False, only_sel_conv:bool = False):
+        super().__init__()
+        vgg16 = models.vgg16(pretrained=True)
+        vgg16.eval()
+        self.normalization = Normalization(self.MEAN, self.STD)
+        # Unpack all convolutional layers and ReLU activations, ignoring max-pooling
+        features = []
+        # features.append(self.normalization)
+        selected_indices = [0, 2, 5, 10, 17, 21, 24, 28]
+
+        for i, layer in enumerate(vgg16.features):
+            if only_sel_conv:
+                if isinstance(layer, nn.Conv2d) and i in selected_indices:
+                    features.append(layer)
+            elif only_relu:
+                if isinstance(layer, nn.ReLU):
+                    features.append(layer)
+            else:     
+                if isinstance(layer, (nn.Conv2d, nn.ReLU)):
+                    features.append(layer)
         self.features = nn.ModuleList(features)
         for param in self.features.parameters():
             param.requires_grad = False

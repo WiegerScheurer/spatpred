@@ -426,14 +426,17 @@ class Analysis():
             roi_vec = np.array([roi] * len(xyz)).reshape(-1,1)
             
             this_coords = np.hstack((xyz, roi_vec, np.array(r_values[roi]).reshape(-1,1)))
-            this_coefs = np.mean(model_og.coef_, axis=1).reshape(-1,1)
+            this_coefs = np.mean(model_og.coef_, axis=1).reshape(-1,1) # This is where I get the mean betas for each voxel
+            this_unpred_coef = model_og.coef_[:,-1] # This is supposed to get the beta coefficient for the last regressor (the unpredictability features)    
             
             if roi == 'V1':
                 coords = this_coords
                 beta_coefs = this_coefs
+                unpred_coefs = this_unpred_coef
             else:
                 coords = np.vstack((coords, this_coords))
                 beta_coefs = np.vstack((beta_coefs, this_coefs))
+                unpred_coefs = np.vstack((unpred_coefs, this_unpred_coef))
 
         regcor_dict['X_shuffled'] = {}
         

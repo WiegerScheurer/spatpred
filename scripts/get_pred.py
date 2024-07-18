@@ -173,8 +173,24 @@ def _make_img_3d(mask_in,):
     """for 2d array, copy to make 3-dimensional"""
     return(np.repeat(mask_in[:,:,np.newaxis],3,axis=2))
 
-unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
-# unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-b')
+# unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
+unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-bn-sel-conv')
+
+# unpred_out = predplot(
+#     subject=subject,
+#     start_img=1,
+#     n_imgs=len(manual_sel),
+#     mask_loc="center",
+#     ecc_max=1,
+#     # select_ices=[11549, 8749, 18976, 34142, 11146, 54482, 7464, 38567, 49124],
+#     select_ices=manual_sel,
+#     cnn_type="vgg-bn-sel-conv",
+#     pretrain_version="places20k",
+#     eval_mask_factor=np.sqrt(1.2),
+#     log_y_MSE="y",
+# )
+
+
 
 # NSD adapted:
 mask_radius=100
@@ -285,7 +301,7 @@ payload_light = {k: v for k, v in payload_nsd_crop.items() if k not in excl}
 
 print("succeeded")
 
-with h5py.File(f'/home/rfpred/data/custom_files/visfeats/pred/pred_payloads{args.start}_{args.end}_alexnet.h5', 'w') as hf:
+with h5py.File(f'/home/rfpred/data/custom_files/visfeats/pred/pred_payloads{args.start}_{args.end}_vgg8.h5', 'w') as hf:
     for key, value in payload_light.items():
         hf.create_dataset(key, data=value)
     print('Light payload saved succesfully')
