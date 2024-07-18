@@ -11,6 +11,7 @@ os.environ["OMP_NUM_THREADS"] = "10"
 import sys
 import numpy as np
 import torch
+import torch.nn as nn
 import argparse
 import joblib
 from PIL import Image
@@ -46,7 +47,7 @@ predparser.add_argument(
     "n_comps", type=int, help="The fixed number of principal components to extract"
 )  # Standard is 1000
 predparser.add_argument(
-    "cnn_layer", type=int, help="The layer to extract neural representations of"
+    "cnn_layer", help="The layer to extract neural representations of"
 )
 
 args = predparser.parse_args()
@@ -96,11 +97,14 @@ preprocess = transforms.Compose(
 
 train_nodes, _ = get_graph_node_names(model)
 print(train_nodes)
-this_layer = train_nodes[args.cnn_layer + 1]
+
+
+this_layer = train_nodes[args.cnn_layer + 1] if args.cnn_layer != "norm" else "x"
 
 # Which layer to extract the features from # Also add this as argparse thing.
 # model_layer = "features.2" #@param ["features.2", "features.5", "features.7", "features.9", "features.12", "classifier.2", "classifier.5", "classifier.6"] {allow-input: true}
 
+# if args.cnn_layer != "norm":
 feature_extractor = create_feature_extractor(model, return_nodes=[this_layer])
 
 train_batch = args.pca_fit_batch
@@ -112,16 +116,49 @@ image_ids = list(range(0, train_batch))
 dataset = ImageDataset(image_ids, transform=preprocess, crop=False) # CHECK THIS CROP ARG
 dataloader = DataLoader(dataset, batch_size=train_batch, shuffle=False)
 
+# Normalization Layer for VGG
+class Normalization(nn.Module):
+    def __init__(self, mean, std):
+        super(Normalization, self).__init__()
+        # .view the mean and std to make them [C x 1 x 1] so that they can
+        # directly work with image Tensor of shape [B x C x H x W].
+        # B is batch size. C is number of channels. H is height and W is width.
+        self.mean = torch.tensor(mean).view(-1, 1, 1)
+        # self.mean = 
+        self.std = torch.tensor(std).view(-1, 1, 1)
 
-def extract_features(feature_extractor, dataloader, pca, cnn_layer: int):
+    def forward(self, input):
+        # normalize img
+        if self.mean.type() != input.type():
+            self.mean = self.mean.to(input)
+            self.std = self.std.to(input)
+        return (input - self.mean) / self.std
+
+def extract_features(feature_extractor, dataloader, pca, cnn_layer: int|str):
     while True:  # Keep trying until successful
         try:
             features = []
             for i, d in tqdm(enumerate(dataloader), total=len(dataloader)):
+                # Calculate mean and std of the current batch
+                # mean = d.mean([0, 2, 3])
+                # std = d.std([0, 2, 3])
+                
+                MEAN = [0.485, 0.456, 0.406]
+                STD = [0.229, 0.224, 0.225]
+
                 # Extract features
-                ft = feature_extractor(d)
-                # Flatten the features
-                ft = torch.hstack([torch.flatten(l, start_dim=1) for l in ft.values()])
+                if cnn_layer == "norm":
+                    # Create an instance of the Normalization class
+                    normalizer = Normalization(MEAN, STD)
+                    # Normalize the input tensor
+                    # ft = [normalizer]
+                    ft = normalizer(d)
+                    # Flatten the normalised tensor
+                    ft = torch.flatten(ft, start_dim=1)
+                else:
+                    ft = feature_extractor(d)
+                    # Flatten the features
+                    ft = torch.hstack([torch.flatten(l, start_dim=1) for l in ft.values()])
 
                 # Print out some summary statistics of the features
                 print(
@@ -147,13 +184,30 @@ def extract_features(feature_extractor, dataloader, pca, cnn_layer: int):
             print("Restarting feature extraction...")
 
 
-def extract_features_and_check(d, feature_extractor):
+
+def extract_features_and_check(d, feature_extractor, cnn_layer):
     while True:  # Keep trying until successful
         try:
+            
+            # Calculate mean and std of the current batch
+            mean = d.mean([0, 2, 3])
+            std = d.std([0, 2, 3])
+
             # Extract features
-            ft = feature_extractor(d)
-            # Flatten the features
-            ft = torch.hstack([torch.flatten(l, start_dim=1) for l in ft.values()])
+            if cnn_layer == "norm":
+                # Create an instance of the Normalization class
+                normalizer = Normalization(mean, std)
+                # Normalize the input tensor
+                # ft = normalizer(d).to_sparse()
+                # ft = [normalizer]
+                ft = normalizer(d)
+                # Flatten the normalised tensor
+                ft = torch.flatten(ft, start_dim=1)
+            else: 
+                # Extract features
+                ft = feature_extractor(d)
+                # Flatten the features
+                ft = torch.hstack([torch.flatten(l, start_dim=1) for l in ft.values()])
 
             # Check for NaN values
             if np.isnan(ft.detach().numpy().any()):
@@ -176,6 +230,7 @@ def fit_pca(
     pca_save_path=None,
     fixed_n_comps: Optional[int] = None,
     train_batch: int = None,
+    cnn_layer: int|str = None,
 ):
     # Define PCA parameters
     pca = IncrementalPCA(n_components=None, batch_size=train_batch)
@@ -187,7 +242,7 @@ def fit_pca(
                 "Determining the number of components to maintain 95% of the variance..."
             )
             for _, d in tqdm(enumerate(dataloader), total=len(dataloader)):
-                ft = extract_features_and_check(d, feature_extractor)
+                ft = extract_features_and_check(d, feature_extractor, cnn_layer)
                 # Fit PCA to batch
                 pca.partial_fit(ft.detach().cpu().numpy())
 
@@ -207,7 +262,7 @@ def fit_pca(
         # Fit PCA to the entire dataset
         print("Fitting PCA with determined number of PCs to batch...")
         for _, d in tqdm(enumerate(dataloader), total=len(dataloader)):
-            ft = extract_features_and_check(d, feature_extractor)
+            ft = extract_features_and_check(d, feature_extractor, cnn_layer)
             # Fit PCA to batch
             pca.partial_fit(ft.detach().cpu().numpy())
 
@@ -235,7 +290,8 @@ pca = fit_pca(
     # pca_save_path=f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/pca_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
     pca_save_path=f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/pca_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
     fixed_n_comps=fixed_n_comps,
-    train_batch=train_batch
+    train_batch=train_batch,
+    cnn_layer=args.cnn_layer,
     )
 
 del dataloader, dataset

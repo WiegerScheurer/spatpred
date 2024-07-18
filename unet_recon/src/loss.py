@@ -157,10 +157,6 @@ class InpaintingLoss(nn.Module):
                 'perc': perc_loss,
                 'style': style_loss,
                 'tv': tv_loss}
-    # ,
-    #             'feats_out': feats_out, # WADDITION
-    #             'feats_comp': feats_comp, # WADDITION
-    #             'feats_gt': feats_gt} # WADDITION
 
 # Modified block-wise feature extractor
 class VGGBlockFeatureExtractor(nn.Module):
@@ -169,11 +165,6 @@ class VGGBlockFeatureExtractor(nn.Module):
 
     def __init__(self, only_maxpool=False, batchnorm:bool=False):
         super().__init__()
-        # if batchnorm:
-        #     vgg16 = models.vgg16_bn(pretrained=True)
-        # else:
-        #     vgg16 = models.vgg16(pretrained=True)
-            
         vgg16 = models.vgg16_bn(pretrained=True) if batchnorm else models.vgg16(pretrained=True)    
         vgg16.eval()
         self.normalization = Normalization(self.MEAN, self.STD)
@@ -183,9 +174,8 @@ class VGGBlockFeatureExtractor(nn.Module):
             # Extract only after max-pooling layers
             blocks_end_idx = [4, 9, 16, 23, 30]  # Indices after max-pool layers
         elif batchnorm:
-            # Take the 3, 5, 8, 11, and last convolutional layers, and then the batchnorm output after those
-            blocks_end_idx = [8, 15, 25, 35, 41]
-            blocks_end_idx = [num -1 for num in blocks_end_idx] # Take the last convolutional layer before the batchnorm
+            # Extract the blocks after convolutional layers from vgg-16 with batchnorm (vgg16_bn)
+            blocks_end_idx = [7, 14, 24, 34, 40]
         else:
             # Full blocks
             blocks_end_idx = [5, 10, 17, 24, 31]  # Include entire blocks
@@ -194,7 +184,7 @@ class VGGBlockFeatureExtractor(nn.Module):
         for i, end_idx in enumerate(blocks_end_idx):
             start_idx = blocks_end_idx[i-1] + 1 if i > 0 else 0
             block = vgg16.features[start_idx:end_idx + 1]
-            features.append(block)
+            features.append(block) # Hierdoor zijn het er 6
 
         self.features = nn.ModuleList(features)
         for param in self.features.parameters():
