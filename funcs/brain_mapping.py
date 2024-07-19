@@ -108,7 +108,8 @@ def vol_to_surf(
     source_file_name: str,
     sourcespace: str = "func1pt0",
     surface_type: str = "pial",
-    interpmethod: str = "cubic"):
+    interpmethod: str = "cubic",
+    custom_path: str|None = None):
     """
     Convert a volume to a surface representation using NSDmapdata.
 
@@ -133,7 +134,8 @@ def vol_to_surf(
 
         nsd_dir = nsd_datalocation(base_path=base_path)
         nsd_betas = nsd_datalocation(base_path=base_path, dir0="betas")
-        sourcedata = f"{NSP.own_datapath}/{subject}/stat_volumes/{source_file_name}.nii"
+        
+        sourcedata = f"{NSP.own_datapath}/{subject}/stat_volumes/{source_file_name}.nii" if custom_path is None else custom_path
         sourcespace = "func1pt0"
         targetspace = f"{hemisphere}.{surface_type}"  # lh.pial and rh.pial are needed for unfolding the cortex
 

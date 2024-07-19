@@ -3,8 +3,8 @@
 # This script runs the encoding_feats.py script to iterate over all the images.
 
 # Define the values for pca_fit_batch and n_comps
-pca_fit_batch=1000
-n_comps=1000
+pca_fit_batch=500
+n_comps=500
 
 # Loop over the integer vector for cnn_layer
 # for cnn_layer in 1 4 7 9 11; do
@@ -12,7 +12,8 @@ n_comps=1000
 
 # selected_indices = [0, 2, 5, 10, 17, 21, 24, 28] #### These are the vgg-16 non batchnorm layers I use for unpredfeats
 
-for cnn_layer in 0 2 21 28; do
+# for cnn_layer in 0 2 21 28; do
+for cnn_layer in 0 2; do
     # Print the start time
     echo "Start time for cnn_layer $cnn_layer: $(date)"
 

@@ -6,7 +6,7 @@
 import os
 # conda
 # Limit the number of CPUs used to 2
-# os.environ["OMP_NUM_THREADS"] = "10" # For layer 0 and 2 try to limit it to 1, so that there is no multi-threading issue
+# os.environ["OMP_NUM_THREADS"] = "1" # For layer 0 and 2 try to limit it to 1, so that there is no multi-threading issue
 
 import sys
 import numpy as np
@@ -107,7 +107,7 @@ this_layer = train_nodes[args.cnn_layer + 1] #if args.cnn_layer != "norm" else "
 feature_extractor = create_feature_extractor(model, return_nodes=[this_layer])
 
 train_batch = args.pca_fit_batch
-apply_batch = 1000  # The image batch over which the fitted PCA is applied later on.
+apply_batch = 500  # The image batch over which the fitted PCA is applied later on.
 fixed_n_comps = args.n_comps
 
 # image_ids = get_imgs_designmx()[args.subject][start:end] # This was for subject-specific image indices. Current line (below) is for all images.
