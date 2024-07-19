@@ -432,11 +432,11 @@ class Analysis():
             if roi == 'V1':
                 coords = this_coords
                 beta_coefs = this_coefs
-                unpred_coefs = this_unpred_coef
+                unpred_coefs = this_unpred_coef.reshape(-1,1)
             else:
                 coords = np.vstack((coords, this_coords))
                 beta_coefs = np.vstack((beta_coefs, this_coefs))
-                unpred_coefs = np.vstack((unpred_coefs, this_unpred_coef))
+                unpred_coefs = np.vstack((unpred_coefs, this_unpred_coef.reshape(-1,1)))
 
         regcor_dict['X_shuffled'] = {}
         
@@ -490,9 +490,9 @@ class Analysis():
                 
                 plt.savefig(f'{save_path}/{regname}_plot.png') if save_outs else None
                     
-        coords = np.hstack((coords, uninf_scores, all_vox_delta_r.reshape(-1,1), beta_coefs, uninf_coefs)) # also added beta coefficients as last column. very rough but works
+        coords = np.hstack((coords, uninf_scores, all_vox_delta_r.reshape(-1,1), beta_coefs, uninf_coefs, unpred_coefs)) # also added beta coefficients as last column. very rough but works
                 
-        coords_df = pd.DataFrame(coords, columns=['x', 'y', 'z', 'roi', 'R', 'R_alt_model', 'delta_r', 'betas', 'betas_alt_model'])
+        coords_df = pd.DataFrame(coords, columns=['x', 'y', 'z', 'roi', 'R', 'R_alt_model', 'delta_r', 'betas', 'betas_alt_model', 'beta_unpred'])
                     
         coords_df.to_csv(f'{save_path}/{regname}_regdf.csv', index=False) if save_outs else None
 

@@ -4,9 +4,9 @@
 # dimensionality reduction on them using incremental PCA. Can take a while and can be adapted
 
 import os
-conda
+# conda
 # Limit the number of CPUs used to 2
-os.environ["OMP_NUM_THREADS"] = "10"
+# os.environ["OMP_NUM_THREADS"] = "10" # For layer 0 and 2 try to limit it to 1, so that there is no multi-threading issue
 
 import sys
 import numpy as np
@@ -47,7 +47,7 @@ predparser.add_argument(
     "n_comps", type=int, help="The fixed number of principal components to extract"
 )  # Standard is 1000
 predparser.add_argument(
-    "cnn_layer", help="The layer to extract neural representations of"
+    "cnn_layer", type=int, help="The layer to extract neural representations of"
 )
 
 args = predparser.parse_args()
@@ -98,8 +98,7 @@ preprocess = transforms.Compose(
 train_nodes, _ = get_graph_node_names(model)
 print(train_nodes)
 
-
-this_layer = train_nodes[args.cnn_layer + 1] if args.cnn_layer != "norm" else "x"
+this_layer = train_nodes[args.cnn_layer + 1] #if args.cnn_layer != "norm" else "x"
 
 # Which layer to extract the features from # Also add this as argparse thing.
 # model_layer = "features.2" #@param ["features.2", "features.5", "features.7", "features.9", "features.12", "classifier.2", "classifier.5", "classifier.6"] {allow-input: true}
@@ -116,49 +115,15 @@ image_ids = list(range(0, train_batch))
 dataset = ImageDataset(image_ids, transform=preprocess, crop=False) # CHECK THIS CROP ARG
 dataloader = DataLoader(dataset, batch_size=train_batch, shuffle=False)
 
-# Normalization Layer for VGG
-class Normalization(nn.Module):
-    def __init__(self, mean, std):
-        super(Normalization, self).__init__()
-        # .view the mean and std to make them [C x 1 x 1] so that they can
-        # directly work with image Tensor of shape [B x C x H x W].
-        # B is batch size. C is number of channels. H is height and W is width.
-        self.mean = torch.tensor(mean).view(-1, 1, 1)
-        # self.mean = 
-        self.std = torch.tensor(std).view(-1, 1, 1)
-
-    def forward(self, input):
-        # normalize img
-        if self.mean.type() != input.type():
-            self.mean = self.mean.to(input)
-            self.std = self.std.to(input)
-        return (input - self.mean) / self.std
-
 def extract_features(feature_extractor, dataloader, pca, cnn_layer: int|str):
     while True:  # Keep trying until successful
         try:
             features = []
             for i, d in tqdm(enumerate(dataloader), total=len(dataloader)):
-                # Calculate mean and std of the current batch
-                # mean = d.mean([0, 2, 3])
-                # std = d.std([0, 2, 3])
-                
-                MEAN = [0.485, 0.456, 0.406]
-                STD = [0.229, 0.224, 0.225]
 
-                # Extract features
-                if cnn_layer == "norm":
-                    # Create an instance of the Normalization class
-                    normalizer = Normalization(MEAN, STD)
-                    # Normalize the input tensor
-                    # ft = [normalizer]
-                    ft = normalizer(d)
-                    # Flatten the normalised tensor
-                    ft = torch.flatten(ft, start_dim=1)
-                else:
-                    ft = feature_extractor(d)
-                    # Flatten the features
-                    ft = torch.hstack([torch.flatten(l, start_dim=1) for l in ft.values()])
+                ft = feature_extractor(d)
+                # Flatten the features
+                ft = torch.hstack([torch.flatten(l, start_dim=1) for l in ft.values()])
 
                 # Print out some summary statistics of the features
                 print(
@@ -189,25 +154,10 @@ def extract_features_and_check(d, feature_extractor, cnn_layer):
     while True:  # Keep trying until successful
         try:
             
-            # Calculate mean and std of the current batch
-            mean = d.mean([0, 2, 3])
-            std = d.std([0, 2, 3])
-
             # Extract features
-            if cnn_layer == "norm":
-                # Create an instance of the Normalization class
-                normalizer = Normalization(mean, std)
-                # Normalize the input tensor
-                # ft = normalizer(d).to_sparse()
-                # ft = [normalizer]
-                ft = normalizer(d)
-                # Flatten the normalised tensor
-                ft = torch.flatten(ft, start_dim=1)
-            else: 
-                # Extract features
-                ft = feature_extractor(d)
-                # Flatten the features
-                ft = torch.hstack([torch.flatten(l, start_dim=1) for l in ft.values()])
+            ft = feature_extractor(d)
+            # Flatten the features
+            ft = torch.hstack([torch.flatten(l, start_dim=1) for l in ft.values()])
 
             # Check for NaN values
             if np.isnan(ft.detach().numpy().any()):

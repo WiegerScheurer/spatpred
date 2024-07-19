@@ -491,7 +491,7 @@ class RegData:
                         x="column",
                         y=self.statistic,
                         scatter=False,
-                        truncate=False,
+                        truncate=True,
                         order=polynom_order,
                         color=roi_to_color[roi],
                         ax=catplot.ax if plot_catplot else ax,

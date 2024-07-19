@@ -44,8 +44,8 @@ def reg_to_nifti(
 
     rd = RegData
     
-    results = rd(subject=subject, folder=reg_type, model=model, statistic=reg_stat)
-    if reg_stat == "betas" or reg_stat == "delta_beta":
+    results = rd(subject=subject, folder=f"{reg_type}/{model}", model=model, statistic=reg_stat)
+    if reg_stat == "betas" or reg_stat == "delta_beta" or reg_stat == "beta_unpred":
         results._get_mean(verbose=False)
         stat_str = "Mean Statistic"
         plot_lay_assign = False

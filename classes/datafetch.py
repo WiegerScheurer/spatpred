@@ -299,3 +299,30 @@ class DataFetch():
 
         return result_cln
     
+    
+
+    def store_predestims(self, cnn_type:str):
+        """Function to store the separate batches of predictability estimates in one csv.
+
+        Args:
+            cnn_type (str): The type of cnn used to compute the predictability estimates
+
+        Returns:
+            pandas.core.frame.DataFrame: The stacked predictability estimates as a dataframe
+        """        
+        predstack = pd.DataFrame(self.load_pred_estims(cnn_type=cnn_type))
+        
+        # Convert the list for every batch into separate rows
+        predstack_exploded = predstack.apply(lambda x: x.explode())
+        
+        # Reset indices to turn it into a whole
+        predstack_exploded.reset_index(drop=True, inplace=True)
+        
+        # Save the dataframe to csv
+        predstack_exploded.to_csv(
+            f"{NSP.own_datapath}/visfeats/pred/all_predestims_{cnn_type}.csv", index=False
+        )
+        
+        return predstack_exploded
+        
+    

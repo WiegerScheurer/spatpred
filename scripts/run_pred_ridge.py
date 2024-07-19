@@ -95,14 +95,16 @@ sc = NSP.stimuli.get_scce(subject, 'sc')[:ydict["V1"].shape[0]]
 ce = NSP.stimuli.get_scce(subject, 'ce')[:ydict["V1"].shape[0]]
 Xbl = pd.concat([rms, sc, ce], axis=1).values[:ydict["V1"].shape[0]]
 
-which_cnn = 'vgg-b'
+which_cnn = 'vgg8'
 # which_cnn = 'alexnet'
 # which_cnn = 'alexnet_new'
-n_layers = 5 if which_cnn == 'alexnet' else 6
+# n_layers = 5 if which_cnn == 'alexnet' else 6
 
 Xpred = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=False, ssim=False, pixel_loss=False, 
                                  L1=False, MSE=True, verbose=True, outlier_sd_bound=5, subject=subject)[:ydict["V1"].shape[0]]
  # wait untill all are computed of alexnet
+
+n_layers = Xpred.shape[1]
 
 print(f'Xpred has these dimensions: {Xpred.shape}')
     
@@ -130,7 +132,7 @@ for layer in range(0, Xpred.shape[1]):
                              regname=feat,
                              plot_hist=True,
                              alt_model_type="baseline model",
-                             save_folder='unpred',
+                             save_folder=f'unpred/{which_cnn}/',
                              X_str=f'{feat} model')
 
 
