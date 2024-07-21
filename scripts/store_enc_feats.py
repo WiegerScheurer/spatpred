@@ -73,11 +73,12 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, modeltyp
 
 # The layers of AlexNet that are ReLU layers, others weren't extracted (yet)
 # relu_lays = [1, 4, 7, 9, 11]
-relu_lays = ["norm", 5, 10, 17, 24, 31]
+# relu_lays = ["norm", 5, 10, 17, 24, 31]
+relu_lays = [0, 2, 5, 10, 17, 21, 24, 28]
 
-# for subject in NSP.subjects:
-for subject in ['subj01']:
+for subject in NSP.subjects[1:]:
+# for subject in ['subj01']:
     for cnn_layer in relu_lays:
-        _ = _pull_featmaps(subject, cnn_layer, verbose=True, modeltype="vgg6")
+        _ = _pull_featmaps(subject, cnn_layer, verbose=True, modeltype="VGG")
 
 print("Ook dit script heeft de klus wederom geklaard, chapeau!")

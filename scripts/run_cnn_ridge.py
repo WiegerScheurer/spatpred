@@ -149,7 +149,8 @@ args = predparser.parse_args()
 ################### FULL VISUAL CORTEX (V1, V2, V3, V4) REGRESSIONS ###############
 
 subject = args.subject
-file_tag = '_fullviscortex'
+# file_tag = '_fullviscortex'
+file_tag = ''
 voxeldict = {}
 for roi in rois:
     print_attr = True if roi == rois[len(rois)-1] else False
@@ -164,7 +165,8 @@ for roi in rois:
     ydict[roi] = NSP.analyse.load_y(subject=subject, roi=roi, voxelsieve=voxeldict[roi], n_trials='all').T
     print(f'{roi} y-matrix has dimensions: {ydict[roi].shape}')
 
-relu_lays = ["norm", 5, 10, 17, 24, 31]
+# relu_lays = ["norm", 5, 10, 17, 24, 31]
+relu_lays = [0, 2, 5, 10, 17, 21, 24, 28]
 
 # for layer in range(0, 6):
 for layno, layer in enumerate(relu_lays):
