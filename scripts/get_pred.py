@@ -180,7 +180,7 @@ def _make_img_3d(mask_in,):
     return(np.repeat(mask_in[:,:,np.newaxis],3,axis=2))
 
 # unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
-unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg')
+unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-conv')
 
 # unpred_out = predplot(
 #     subject=subject,

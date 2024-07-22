@@ -109,7 +109,7 @@ feature_extractor = create_feature_extractor(model, return_nodes=[this_layer])
 train_batch = args.pca_fit_batch
 apply_batch = 500  # The image batch over which the fitted PCA is applied later on.
 fixed_n_comps = args.n_comps
-crop_imgs = True #IMPORTANT!!!!!!!!!!
+crop_imgs = False #IMPORTANT!!!!!!!!!!
 
 # image_ids = get_imgs_designmx()[args.subject][start:end] # This was for subject-specific image indices. Current line (below) is for all images.
 image_ids = list(range(0, train_batch))

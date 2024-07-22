@@ -12,7 +12,8 @@ n_comps=500
 
 # selected_indices = [0, 2, 5, 10, 17, 21, 24, 28] #### These are the vgg-16 non batchnorm layers I use for unpredfeats
 
-for cnn_layer in 0 2 5 10 17 21 24 28; do
+# for cnn_layer in 2 5 10 17 21 24 28; do # This is what still needs to be done for the smallpatches for the basleine encoding model
+for cnn_layer in 7 12 14 19 26; do # These are the remainders of the fullimg encoding model
     # Print the start time
     echo "Start time for cnn_layer $cnn_layer: $(date)"
 

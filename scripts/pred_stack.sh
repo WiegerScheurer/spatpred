@@ -6,7 +6,7 @@
 #!/bin/bash
 
 # Iterate over the first argument from 0 to 29750 in steps of 500
-for arg1 in $(seq 500 500 72500); do
+for arg1 in $(seq 0 500 72500); do
 # for arg1 in $(seq 5000 500 6500); do
     # Calculate arg2 as arg1 + 250
     arg2=$((arg1 + 500))

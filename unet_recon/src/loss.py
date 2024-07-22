@@ -30,6 +30,8 @@ class ReconLoss(nn.Module):
             self.extractor = AlexNetFeatureExtractor()
         elif extractor=='vgg': # features from all layers
             self.extractor = VGGFullFeatureExtractor()
+        elif extractor=='vgg-conv': # All convolutional layers
+            self.extractor = VGGFullFeatureExtractor(only_conv=True)
         elif extractor=='vgg-b':
             self.extractor=VGGBlockFeatureExtractor()
         elif extractor=='vgg-bp':
