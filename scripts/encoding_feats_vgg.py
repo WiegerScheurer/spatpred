@@ -109,6 +109,7 @@ feature_extractor = create_feature_extractor(model, return_nodes=[this_layer])
 train_batch = args.pca_fit_batch
 apply_batch = 500  # The image batch over which the fitted PCA is applied later on.
 fixed_n_comps = args.n_comps
+crop_imgs = True #IMPORTANT!!!!!!!!!!
 
 # image_ids = get_imgs_designmx()[args.subject][start:end] # This was for subject-specific image indices. Current line (below) is for all images.
 image_ids = list(range(0, train_batch))
@@ -233,12 +234,14 @@ def fit_pca(
 
 os.makedirs(f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/", exist_ok=True)
 
+smallpatch_str = "smallpatch_" if crop_imgs else ""
+
 # Fit PCA and get the fitted PCA object
 pca = fit_pca(
     feature_extractor,
     dataloader,
     # pca_save_path=f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/pca_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
-    pca_save_path=f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/pca_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
+    pca_save_path=f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/pca_{smallpatch_str}{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
     fixed_n_comps=fixed_n_comps,
     train_batch=train_batch,
     cnn_layer=args.cnn_layer,
@@ -271,7 +274,7 @@ os.makedirs(f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/", e
 
 np.savez(
     # f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/featmaps/featmaps_lay{this_layer}.npz",
-    f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/featmaps_lay{this_layer}.npz",
+    f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/featmaps_{smallpatch_str}lay{this_layer}.npz",
     *features_algo,
 )
 

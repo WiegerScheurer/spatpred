@@ -2,6 +2,8 @@
 
 # This script acquires the predictability estimates
 
+#  IMPORTANT!! THIS IS NOW PREPARED FOR THE FULL VGG16 RUN. 
+
 import os
 import sys
 
@@ -178,7 +180,7 @@ def _make_img_3d(mask_in,):
     return(np.repeat(mask_in[:,:,np.newaxis],3,axis=2))
 
 # unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
-unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-bn-sel-conv')
+unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg')
 
 # unpred_out = predplot(
 #     subject=subject,
@@ -306,7 +308,7 @@ payload_light = {k: v for k, v in payload_nsd_crop.items() if k not in excl}
 
 print("succeeded")
 
-with h5py.File(f'/home/rfpred/data/custom_files/visfeats/pred/pred_payloads{args.start}_{args.end}_vgg8.h5', 'w') as hf:
+with h5py.File(f'/home/rfpred/data/custom_files/visfeats/pred/pred_payloads{args.start}_{args.end}_vggfull.h5', 'w') as hf:
     for key, value in payload_light.items():
         hf.create_dataset(key, data=value)
     print('Light payload saved succesfully')
