@@ -45,8 +45,10 @@ from sklearn.preprocessing import StandardScaler
 from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
-from torchvision.models.feature_extraction import (create_feature_extractor,
-                                                   get_graph_node_names)
+from torchvision.models.feature_extraction import (
+    create_feature_extractor,
+    get_graph_node_names,
+)
 from tqdm import tqdm
 
 os.chdir("/home/rfpred")
@@ -55,6 +57,7 @@ sys.path.append("/home/rfpred/envs/rfenv/lib/python3.11/site-packages/")
 sys.path.append("/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode")
 
 import classes.natspatpred
+
 # from classes.utilities import _extract_layno
 from classes.natspatpred import NatSpatPred, VoxelSieve
 from unet_recon.inpainting import UNet
@@ -69,15 +72,17 @@ class RegData:
         subject: str = "subj01",
         folder: str | None = "unpred",
         model: str = "vgg-b",
-        statistic: str = "delta_r", # delta_r, R_alt_model, or R
+        statistic: str = "delta_r",  # delta_r, R_alt_model, or R
+        verbose: bool = False,
     ):
         self.subject = subject
         self.folder = folder
         self.model = model
         self.statistic = statistic
         self.cnn_layers = None
-        self._build_df(subject, folder, model, statistic)
-        
+        self.verbose = True
+        self._build_df(subject, folder, model, statistic, verbose=verbose)
+
     def _build_df(
         self,
         subject: str,
@@ -85,7 +90,8 @@ class RegData:
         model: str,
         statistic: str,
         main_df: bool = True,
-        add_xyz: bool = True
+        add_xyz: bool = True,
+        verbose: bool = True,
     ):
         # Directory containing the CSV files
         directory = f"{NSP.own_datapath}/{subject}/results/{folder}/"
@@ -106,7 +112,10 @@ class RegData:
                 # Get the layer number from the filename
                 # layno = NSP.utils.get_layer_file(filename, "lay") if self.folder == "unpred" else fileno
                 layno = NSP.utils.get_layer_file(filename, "lay")
-                print(f"Processing file {filename} for layer {layno+1}")
+
+                if verbose:
+                    print(f"Processing file {filename} for layer {layno+1}")
+
                 # Read the CSV file into a DataFrame
                 file_df = pd.read_csv(os.path.join(directory, filename))
 
@@ -114,12 +123,20 @@ class RegData:
                 if roi_column is None and "roi" in file_df.columns:
                     roi_column = file_df["roi"]
 
-                if xyz_columns is None and "x" in file_df.columns and "y" in file_df.columns and "z" in file_df.columns:
+                if (
+                    xyz_columns is None
+                    and "x" in file_df.columns
+                    and "y" in file_df.columns
+                    and "z" in file_df.columns
+                ):
                     xyz_columns = file_df[["x", "y", "z"]]
-                
+
                 if statistic == "delta_beta":
                     # Check if the necessary columns exist
-                    if "betas_alt_model" in file_df.columns and "betas" in file_df.columns:
+                    if (
+                        "betas_alt_model" in file_df.columns
+                        and "betas" in file_df.columns
+                    ):
                         # subtract the beta values from the baseline model
                         baseline = file_df["betas_alt_model"]
                         unpred_model = file_df["betas"]
@@ -127,7 +144,7 @@ class RegData:
                     else:
                         print(f"Missing necessary columns in file {filename}")
                         continue
-                    
+
                 # Select the statistic column and rename it
                 file_df = file_df[[statistic]].rename(
                     columns={statistic: f"{statistic}_{layno+1}"}
@@ -138,8 +155,8 @@ class RegData:
                     df = file_df
                 else:
                     df = pd.concat([df, file_df], axis=1)
-                    
-                fileno +=1
+
+                fileno += 1
 
         # Sort the remaining columns
         df = df.sort_index(
@@ -157,14 +174,16 @@ class RegData:
         if main_df:
             self.df = df
             # Find the indices of the columns that start with the statistic name
-            self.cnn_layers = [i for i, col in enumerate(self.df.columns) if col.startswith(statistic)]
+            self.cnn_layers = [
+                i for i, col in enumerate(self.df.columns) if col.startswith(statistic)
+            ]
         else:
-    
+
             return df
 
     def _stat_to_nifti(self, max_or_weighted: str = "weighted", verbose: bool = True):
         pass
-    
+
     def _zscore(self, verbose: bool = True, copy_df: bool | pd.DataFrame = False):
         """
         Z-score the values in the DataFrame.
@@ -190,7 +209,7 @@ class RegData:
         df_min = data.iloc[:, self.cnn_layers].min(axis=1)
         # df_max = data.iloc[:, 1:].max(axis=1)
         df_max = data.iloc[:, self.cnn_layers].max(axis=1)
-        
+
         data.iloc[:, self.cnn_layers] = (
             data.iloc[:, self.cnn_layers]
             .sub(df_min, axis=0)
@@ -295,10 +314,8 @@ class RegData:
             )
 
         return data if copy_df is not False else None
-    
-    def _get_mean(
-        self, verbose: bool = True, copy_df: bool | pd.DataFrame = False
-    ):
+
+    def _get_mean(self, verbose: bool = True, copy_df: bool | pd.DataFrame = False):
         """
         Get the mean value for each statistic row in the DataFrame.
 
@@ -311,28 +328,28 @@ class RegData:
         data = self.df if copy_df is False else copy_df
 
         # Get the index of the maximum value in each row
-        mean_values = (
-            np.mean(data.values[:, self.cnn_layers], axis=1)
-        )
-        
+        mean_values = np.mean(data.values[:, self.cnn_layers], axis=1)
+
         assign_str = "Mean Statistic"
-        
+
         # Add the max_indices as a new column
         data[assign_str] = mean_values
-        
+
         if verbose:
             print(
                 "\033[1mDataFrame changed:\033[0m Added the mean value to the DataFrame."
             )
-            
+
         return data if copy_df is not False else None
-    
-    def assign_layers(self, 
-                      max_or_weighted: str = "weighted", 
-                      verbose: bool = True, 
-                      title: str = None,
-                      input_df: pd.DataFrame = None,
-                      figsize: Tuple[float, float] = (6 , 5.5)):
+
+    def assign_layers(
+        self,
+        max_or_weighted: str = "weighted",
+        verbose: bool = True,
+        title: str = None,
+        input_df: pd.DataFrame = None,
+        figsize: Tuple[float, float] = (6, 5.5),
+    ):
         """
         Assigns layers to each ROI based on the maximum value in each row of a DataFrame.
 
@@ -361,13 +378,19 @@ class RegData:
 
         lay_colours = max(self.cnn_layers) - self.cnn_layers[0] + 1
 
+        # Light colourmap, worked better with fewer layers
+        # barcmap = LinearSegmentedColormap.from_list(
+        #     "NavyBlueVeryLightGreyDarkRed",
+        #     ["#000080", "#CCCCCC", "#FFA500", "#FF0000"],
+        #     N=lay_colours,
+        # )
 
         barcmap = LinearSegmentedColormap.from_list(
             "NavyBlueVeryLightGreyDarkRed",
-            ["#000080", "#CCCCCC", "#FFA500", "#FF0000"],
-            N=lay_colours,
+            ["#000039", "#000080", "#CCCCCC", "#FFA000", "#FF0025", "#800000"],
+            N=13,
         )
-        
+
         # Calculate the proportions of max_indices within each ROI
         df_prop = (
             df.groupby("roi")[assign_str]
@@ -376,21 +399,31 @@ class RegData:
         )
 
         # Plot the proportions using a stacked bar plot
-        ax = df_prop.plot(kind="bar", stacked=True, colormap=barcmap, edgecolor="none", width=.8, figsize=figsize)
+        ax = df_prop.plot(
+            kind="bar",
+            stacked=True,
+            colormap=barcmap,
+            edgecolor="none",
+            width=0.8,
+            figsize=figsize,
+        )
 
         # Add a y-axis label
         ax.set_ylabel("Layer assignment (%)", fontsize=20)
         ax.set_yticks([0, 0.5, 1])  # Set y-ticks
-        ax.set_yticklabels([0, 50, 100], fontsize=16, fontweight='bold')  # Set y-tick labels
-        ax.spines['top'].set_visible(False)  # Remove top border
-        ax.spines['right'].set_visible(False)  # Remove right border
+        ax.set_yticklabels(
+            [0, 50, 100], fontsize=16, fontweight="bold"
+        )  # Set y-tick labels
+        ax.spines["top"].set_visible(False)  # Remove top border
+        ax.spines["right"].set_visible(False)  # Remove right border
         plt.xlabel("ROI", fontsize=20)
-        plt.xticks(fontsize=16, fontweight='bold', rotation = 0)
+        plt.xticks(fontsize=16, fontweight="bold", rotation=0)
 
         leg_colours = [
             patches.Patch(
                 # color=barcmap(i / (len(self.cnn_layers) - 1)), label=str(layer)
-                color=barcmap(i / (len(self.cnn_layers) - 1)), label=str(layer - self.cnn_layers[0] + 1)
+                color=barcmap(i / (len(self.cnn_layers) - 1)),
+                label=str(layer - self.cnn_layers[0] + 1),
                 # color=barcmap(i / (len(self.cnn_layers) - self.cnn_layers[0])), label=str(layer)
             )
             for i, layer in enumerate(self.cnn_layers)
@@ -408,130 +441,134 @@ class RegData:
             fontsize=10,
         )
         if title is None:
-            plt.title(f"Layer assignment {self.folder} {self.model} {self.statistic} {max_or_weighted}")
+            plt.title(
+                f"Layer assignment {self.folder} {self.model} {self.statistic} {max_or_weighted}"
+            )
         else:
             plt.title(title)
-            
+
         plt.show()
 
     def mean_lines(
-            self, fit_polynom: bool = False, 
-            polynom_order: int = 2, 
-            verbose: bool = True, 
-            plot_catplot: bool = True,
-            title : str = None
-        ):
-            """
-            Plots the mean values of each ROI across layers.
+        self,
+        fit_polynom: bool = False,
+        polynom_order: int = 2,
+        verbose: bool = True,
+        plot_catplot: bool = True,
+        title: str = None,
+    ):
+        """
+        Plots the mean values of each ROI across layers.
 
-            Parameters:
-            - results (pd.DataFrame): The DataFrame containing the results.
+        Parameters:
+        - results (pd.DataFrame): The DataFrame containing the results.
 
-            Returns:
-                None
-            """
-            df = self.df.copy()
+        Returns:
+            None
+        """
+        df = self.df.copy()
 
-            # Assuming df is your DataFrame
-            present_id_vars = ("x", "y", "z", "roi", "Max Layer", "Mean Weighted Layer")
+        # Assuming df is your DataFrame
+        present_id_vars = ("x", "y", "z", "roi", "Max Layer", "Mean Weighted Layer")
 
-            # Create a tuple of column names that exist in both the DataFrame and the tuple
-            present_id_vars = tuple(col for col in present_id_vars if col in df.columns)
+        # Create a tuple of column names that exist in both the DataFrame and the tuple
+        present_id_vars = tuple(col for col in present_id_vars if col in df.columns)
 
-            # Reshape the DataFrame
-            df_melted = df.melt(
-                # id_vars=present_id_vars, var_name="column", value_name="delta_r"
-                id_vars=present_id_vars, var_name="column", value_name=self.statistic
+        # Reshape the DataFrame
+        df_melted = df.melt(
+            # id_vars=present_id_vars, var_name="column", value_name="delta_r"
+            id_vars=present_id_vars,
+            var_name="column",
+            value_name=self.statistic,
+        )
+
+        # Get the unique values in the 'column' field
+        unique_values = df_melted["column"].unique()
+
+        # Sort the unique values
+        unique_values_sorted = np.sort(unique_values)
+
+        # Create a dictionary that maps each unique value to its rank order
+        value_to_rank = {value: i for i, value in enumerate(unique_values_sorted)}
+
+        # Replace the values in the 'column' field with their rank order
+        df_melted["column"] = df_melted["column"].map(value_to_rank)
+
+        df_melted = df_melted.sort_values(by="column")
+
+        rois = sorted(df_melted["roi"].unique(), key=lambda x: int(x.split("V")[1]))
+
+        # Create a color palette
+        palette = sns.color_palette(n_colors=len(rois))
+
+        # Create a dictionary mapping ROIs to colors
+        roi_to_color = dict(zip(rois, palette))
+
+        if plot_catplot:
+            # Create a catplot with alpha set to 0.01
+            catplot = sns.catplot(
+                data=df_melted,
+                x="column",
+                y=self.statistic,
+                hue="roi",
+                jitter=True,
+                palette=roi_to_color,
+                alpha=0.01,
+                legend=False,
             )
+        else:
+            # Create a figure and axes to plot on if not plotting catplot
+            fig, ax = plt.subplots()
 
-            # Get the unique values in the 'column' field
-            unique_values = df_melted["column"].unique()
-
-            # Sort the unique values
-            unique_values_sorted = np.sort(unique_values)
-
-            # Create a dictionary that maps each unique value to its rank order
-            value_to_rank = {value: i for i, value in enumerate(unique_values_sorted)}
-
-            # Replace the values in the 'column' field with their rank order
-            df_melted["column"] = df_melted["column"].map(value_to_rank)
-
-            df_melted = df_melted.sort_values(by="column")
-
-            rois = sorted(df_melted["roi"].unique(), key=lambda x: int(x.split("V")[1]))
-
-            # Create a color palette
-            palette = sns.color_palette(n_colors=len(rois))
-
-            # Create a dictionary mapping ROIs to colors
-            roi_to_color = dict(zip(rois, palette))
-
-            if plot_catplot:
-                # Create a catplot with alpha set to 0.01
-                catplot = sns.catplot(
-                    data=df_melted,
+        # Create a regplot and a lineplot for each ROI
+        for i, roi in enumerate(rois):
+            roi_data = df_melted[df_melted["roi"] == roi]
+            if fit_polynom:
+                sns.regplot(
+                    data=roi_data,
                     x="column",
                     y=self.statistic,
-                    hue="roi",
-                    jitter=True,
-                    palette=roi_to_color,
-                    alpha=0.01,
-                    legend=False,
+                    scatter=False,
+                    truncate=True,
+                    order=polynom_order,
+                    color=roi_to_color[roi],
+                    ax=catplot.ax if plot_catplot else ax,
                 )
             else:
-                # Create a figure and axes to plot on if not plotting catplot
-                fig, ax = plt.subplots()
+                sns.lineplot(
+                    data=roi_data,
+                    x="column",
+                    y=self.statistic,
+                    color=roi_to_color[roi],
+                    ax=catplot.ax if plot_catplot else ax,
+                )
 
-            # Create a regplot and a lineplot for each ROI
-            for i, roi in enumerate(rois):
-                roi_data = df_melted[df_melted["roi"] == roi]
-                if fit_polynom:
-                    sns.regplot(
-                        data=roi_data,
-                        x="column",
-                        y=self.statistic,
-                        scatter=False,
-                        truncate=True,
-                        order=polynom_order,
-                        color=roi_to_color[roi],
-                        ax=catplot.ax if plot_catplot else ax,
-                    )
-                else:
-                    sns.lineplot(
-                        data=roi_data,
-                        x="column",
-                        y=self.statistic,
-                        color=roi_to_color[roi],
-                        ax=catplot.ax if plot_catplot else ax,
-                    )
+        # Set the lower limit of the y-axis to 0
+        (catplot.ax if plot_catplot else ax).set_ylim(bottom=0)
+        stat_label = "ΔR" if self.statistic == "delta_r" else self.statistic
+        (catplot.ax if plot_catplot else ax).set_ylabel(f"{stat_label} Value")
+        (catplot.ax if plot_catplot else ax).set_xlabel("CNN Layer")
+        (catplot.ax if plot_catplot else ax).set_xticks(range(len(self.cnn_layers)))
+        (catplot.ax if plot_catplot else ax).set_xticklabels(
+            [f"{i+1}" for i in range(len(self.cnn_layers))]
+        )
 
-            # Set the lower limit of the y-axis to 0
-            (catplot.ax if plot_catplot else ax).set_ylim(bottom=0)
-            stat_label = "ΔR" if self.statistic == "delta_r" else self.statistic
-            (catplot.ax if plot_catplot else ax).set_ylabel(f"{stat_label} Value")
-            (catplot.ax if plot_catplot else ax).set_xlabel("CNN Layer")
-            (catplot.ax if plot_catplot else ax).set_xticks(range(len(self.cnn_layers)))
-            (catplot.ax if plot_catplot else ax).set_xticklabels([f"{i+1}" for i in range(len(self.cnn_layers))])
+        # Manually add the legend
+        (catplot.ax if plot_catplot else ax).legend(
+            handles=[patches.Patch(color=roi_to_color[roi], label=roi) for roi in rois]
+        )
 
-            # Manually add the legend
-            (catplot.ax if plot_catplot else ax).legend(
-                handles=[patches.Patch(color=roi_to_color[roi], label=roi) for roi in rois]
-            )
-            
-            if title is not None:
-                (catplot.ax if plot_catplot else ax).set_title(title)
+        if title is not None:
+            (catplot.ax if plot_catplot else ax).set_title(title)
 
-            
-            plt.show()
-            
-            
-        
-    def _delta_r_lines(self, cmap:str="Reds"):
+        plt.show()
+
+    def _delta_r_lines(self, cmap: str = "Reds"):
         """
         Method to plot the delta_r values for each voxel in each ROI across the layers of the CNN model.
 
-        """        
-        
+        """
+
         model_str = "VGG-b" if self.model == "vgg-b" else "AlexNet"
         # regresults = RegData(folder="unpred", model=model, statistic="delta_r")
         regresults = self.df.copy()
@@ -539,12 +576,18 @@ class RegData:
         # regresults._weigh_mean_layer()
         df_reset = regresults.reset_index()
 
-        rois = df_reset['roi'].unique()
+        rois = df_reset["roi"].unique()
         cols = df_reset.keys()[5:11]
 
         grid_size = math.ceil(math.sqrt(len(rois)))  # Calculate grid size
-        fig, axs = plt.subplots(grid_size, grid_size, figsize=(10*grid_size, 10*grid_size))
-        fig.suptitle(f"Voxel specific ΔR across CNN layers for subject {self.subject[-1]}\n", fontsize=40, weight='normal')
+        fig, axs = plt.subplots(
+            grid_size, grid_size, figsize=(10 * grid_size, 10 * grid_size)
+        )
+        fig.suptitle(
+            f"Voxel specific ΔR across CNN layers for subject {self.subject[-1]}\n",
+            fontsize=40,
+            weight="normal",
+        )
         # Get the colormap of desire
         # cmap = plt.get_cmap('Reds')
         cmap = plt.get_cmap(cmap)
@@ -554,19 +597,28 @@ class RegData:
         global_y_max = df_reset[cols].max().max()
 
         for i, roi in enumerate(rois):
-            ax = axs[i//grid_size, i%grid_size]  # Determine the position of the subplot
-            data = df_reset[df_reset['roi'] == roi]
-            voxels = data['index'].unique()
+            ax = axs[
+                i // grid_size, i % grid_size
+            ]  # Determine the position of the subplot
+            data = df_reset[df_reset["roi"] == roi]
+            voxels = data["index"].unique()
             for j, voxel in enumerate(voxels):
-                voxel_data = data[data['index'] == voxel]
+                voxel_data = data[data["index"] == voxel]
                 # Use the colormap to get the color for this line
                 color = cmap(j / len(voxels))
-                ax.plot(cols, voxel_data[cols].values[0], label=f'Voxel {voxel}', color=color)
-            ax.set_title(f'{roi}', fontsize=30, weight="bold")  # Set title size
-            ax.tick_params(axis='both', which='major', labelsize=25)  # Set tick label size
+                ax.plot(
+                    cols,
+                    voxel_data[cols].values[0],
+                    label=f"Voxel {voxel}",
+                    color=color,
+                )
+            ax.set_title(f"{roi}", fontsize=30, weight="bold")  # Set title size
+            ax.tick_params(
+                axis="both", which="major", labelsize=25
+            )  # Set tick label size
             ax.set_ylim([global_y_min, global_y_max])  # Set y min and max
             ax.set_xticklabels([col[-1] for col in cols], fontsize=25)
-            ax.set_xlabel(f'{model_str} layer', fontsize=30)  # Set x label size
+            ax.set_xlabel(f"{model_str} layer", fontsize=30)  # Set x label size
             ax.set_ylabel("ΔR", fontsize=30)  # Set y label size
 
         plt.tight_layout()
