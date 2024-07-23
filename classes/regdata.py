@@ -385,11 +385,16 @@ class RegData:
         #     N=lay_colours,
         # )
 
-        barcmap = LinearSegmentedColormap.from_list(
-            "NavyBlueVeryLightGreyDarkRed",
-            ["#000039", "#000080", "#CCCCCC", "#FFA000", "#FF0025", "#800000"],
-            N=13,
-        )
+        # barcmap = LinearSegmentedColormap.from_list(
+        #     "NavyBlueVeryLightGreyDarkRed",
+        #     ["#000039", "#000080", "#CCCCCC", "#FFA000", "#FF0025", "#800000"],
+        #     N=13,
+        # )
+        
+        # barcmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000039', '#000090', '#6699CC', '#CCCCCC', '#F5DEB3', '#FFD700', '#FFA500', '#FF4500', '#800000'], N=13)
+        barcmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000039', '#000090', '#6699CC', '#90DEFF','#CBEAE8', '#E9E9E9', '#F5DEB3', '#FFD700', '#FFA500', '#FF4500', '#800000'], N=13)
+
+
 
         # Calculate the proportions of max_indices within each ROI
         df_prop = (
