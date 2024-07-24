@@ -392,10 +392,26 @@ class RegData:
         # )
         
         # barcmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000039', '#000090', '#6699CC', '#CCCCCC', '#F5DEB3', '#FFD700', '#FFA500', '#FF4500', '#800000'], N=13)
-        barcmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000039', '#000090', '#6699CC', '#90DEFF','#CBEAE8', '#E9E9E9', '#F5DEB3', '#FFD700', '#FFA500', '#FF4500', '#800000'], N=13)
+        # barcmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000039', '#000090', '#6699CC', '#90DEFF','#CBEAE8', '#E9E9E9', '#F5DEB3', '#FFD700', '#FFA500', '#FF4500', '#800000'], N=13)
 
-
-
+        barcmap = LinearSegmentedColormap.from_list(
+            "NavyBlueVeryLightGreyDarkRed",
+            [
+                "#000039",
+                "#0000C0",
+                "#426CFF",
+                "#8DC2FF",
+                "#BDF7FF",
+                "#E3E3E3",
+                "#FFC90A",
+                "#FF8B00",
+                "#FF4D00",
+                "#E90000",
+                "#800000",
+            ],
+            N=13,
+        )
+        
         # Calculate the proportions of max_indices within each ROI
         df_prop = (
             df.groupby("roi")[assign_str]
@@ -571,7 +587,7 @@ class RegData:
     def _delta_r_lines(self, cmap: str = "Reds"):
         """
         Method to plot the delta_r values for each voxel in each ROI across the layers of the CNN model.
-
+        TODO: MAKE COMPATIBLE WITH THE FULL VGG MODEL OF 13 LAYERS, THE INDICES ARE MESSED UP
         """
 
         model_str = "VGG-b" if self.model == "vgg-b" else "AlexNet"
@@ -582,7 +598,10 @@ class RegData:
         df_reset = regresults.reset_index()
 
         rois = df_reset["roi"].unique()
-        cols = df_reset.keys()[5:11]
+        
+        max_layer_index = 5 + len(self.cnn_layers)
+        cols = df_reset.keys()[5:max_layer_index]
+        # cols = df_reset.keys()[5:11]
 
         grid_size = math.ceil(math.sqrt(len(rois)))  # Calculate grid size
         fig, axs = plt.subplots(

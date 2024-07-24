@@ -390,7 +390,8 @@ class Stimuli():
             f'{self.nsp.own_datapath}/subj01/pred/all_predestims.h5', # old, .95 correlation with new
             f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg-b.csv', # also about .9-.95 correlation with alex
             f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_alexnet_new.csv',
-            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg8.csv'  
+            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg8.csv',
+            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vggfull.csv',  
             ]
         return {os.path.basename(file): self.nsp.datafetch.fetch_file(file) for file in feature_paths}
     
@@ -510,6 +511,9 @@ class Stimuli():
             predfeatnames = [name for name in self.features()[file_str].columns if name != 'img_ices']
         elif cnn_type == 'vgg8':
             file_str = 'all_predestims_vgg8.csv'
+            predfeatnames = [name for name in self.features()[file_str].columns if name != 'img_ices']
+        elif cnn_type == 'vggfull':
+            file_str = 'all_predestims_vggfull.csv'
             predfeatnames = [name for name in self.features()[file_str].columns if name != 'img_ices']
         
         if subject is not None:    

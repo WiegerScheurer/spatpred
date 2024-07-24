@@ -95,7 +95,8 @@ sc = NSP.stimuli.get_scce(subject, 'sc')[:ydict["V1"].shape[0]]
 ce = NSP.stimuli.get_scce(subject, 'ce')[:ydict["V1"].shape[0]]
 Xbl = pd.concat([rms, sc, ce], axis=1).values[:ydict["V1"].shape[0]]
 
-which_cnn = 'vgg8'
+# which_cnn = 'vgg8'
+which_cnn = 'vggfull'
 # which_cnn = 'alexnet'
 # which_cnn = 'alexnet_new'
 # n_layers = 5 if which_cnn == 'alexnet' else 6
