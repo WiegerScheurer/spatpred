@@ -489,6 +489,7 @@ class RegData:
         """
         df = self.df.copy()
 
+
         # Assuming df is your DataFrame
         present_id_vars = ("x", "y", "z", "roi", "Max Layer", "Mean Weighted Layer")
 
@@ -503,20 +504,33 @@ class RegData:
             value_name=self.statistic,
         )
 
+        # Extract the integer from the column name
+        def extract_number(col_name):
+            match = re.search(r'delta_r_(\d+)', col_name)
+            return int(match.group(1)) if match else float('inf')
+
         # Get the unique values in the 'column' field
         unique_values = df_melted["column"].unique()
 
-        # Sort the unique values
-        unique_values_sorted = np.sort(unique_values)
+        # Sort the unique values based on the extracted number
+        unique_values_sorted = sorted(unique_values, key=extract_number)
 
         # Create a dictionary that maps each unique value to its rank order
         value_to_rank = {value: i for i, value in enumerate(unique_values_sorted)}
 
+
+        # Sort the unique values
+        # unique_values_sorted = np.sort(unique_values)
+
+        # Create a dictionary that maps each unique value to its rank order
+        # value_to_rank = {value: i for i, value in enumerate(unique_values_sorted)}
+        print(value_to_rank)
+        
         # Replace the values in the 'column' field with their rank order
         df_melted["column"] = df_melted["column"].map(value_to_rank)
 
         df_melted = df_melted.sort_values(by="column")
-
+        print(df_melted)
         rois = sorted(df_melted["roi"].unique(), key=lambda x: int(x.split("V")[1]))
 
         # Create a color palette
