@@ -74,14 +74,16 @@ class RegData:
         model: str = "vgg-b",
         statistic: str = "delta_r",  # delta_r, R_alt_model, or R
         verbose: bool = False,
+        skip_norm_lay: bool = False,
     ):
         self.subject = subject
         self.folder = folder
         self.model = model
         self.statistic = statistic
         self.cnn_layers = None
-        self.verbose = True
-        self._build_df(subject, folder, model, statistic, verbose=verbose)
+        self.verbose = verbose
+        self.skip_norm_lay = skip_norm_lay
+        self._build_df(subject, folder, model, statistic, verbose=verbose, skip_norm_lay=skip_norm_lay)
 
     def _build_df(
         self,
@@ -92,6 +94,7 @@ class RegData:
         main_df: bool = True,
         add_xyz: bool = True,
         verbose: bool = True,
+        skip_norm_lay: bool = False
     ):
         # Directory containing the CSV files
         directory = f"{NSP.own_datapath}/{subject}/results/{folder}/"
@@ -107,11 +110,14 @@ class RegData:
         xyz_columns = None
         fileno = 0
         for filename in filenames:
+            # Get the layer number from the filename
+            layno = NSP.utils.get_layer_file(filename, "lay")
+            # Check if the layer is relevant, skip if it is 0 when this is a normalisation layer we're not interested in
+            relevant_layer = False if layno == 0 and skip_norm_lay == True else True
+            
             # Check if the filename starts with the model name
-            if filename.startswith(model) and filename.endswith(".csv"):
-                # Get the layer number from the filename
+            if filename.startswith(model) and filename.endswith(".csv") and relevant_layer:
                 # layno = NSP.utils.get_layer_file(filename, "lay") if self.folder == "unpred" else fileno
-                layno = NSP.utils.get_layer_file(filename, "lay")
 
                 if verbose:
                     print(f"Processing file {filename} for layer {layno+1}")
@@ -476,7 +482,11 @@ class RegData:
         polynom_order: int = 2,
         verbose: bool = True,
         plot_catplot: bool = True,
+        input_df: pd.DataFrame = None,
         title: str = None,
+        fixed_ybottom: float | None = 0,
+        fixed_ytop: float | None = None,
+        log_y: bool = False,
     ):
         """
         Plots the mean values of each ROI across layers.
@@ -487,8 +497,8 @@ class RegData:
         Returns:
             None
         """
-        df = self.df.copy()
-
+        
+        df = self.df.copy() if input_df is None else input_df
 
         # Assuming df is your DataFrame
         present_id_vars = ("x", "y", "z", "roi", "Max Layer", "Mean Weighted Layer")
@@ -517,20 +527,11 @@ class RegData:
 
         # Create a dictionary that maps each unique value to its rank order
         value_to_rank = {value: i for i, value in enumerate(unique_values_sorted)}
-
-
-        # Sort the unique values
-        # unique_values_sorted = np.sort(unique_values)
-
-        # Create a dictionary that maps each unique value to its rank order
-        # value_to_rank = {value: i for i, value in enumerate(unique_values_sorted)}
-        print(value_to_rank)
         
         # Replace the values in the 'column' field with their rank order
         df_melted["column"] = df_melted["column"].map(value_to_rank)
 
         df_melted = df_melted.sort_values(by="column")
-        print(df_melted)
         rois = sorted(df_melted["roi"].unique(), key=lambda x: int(x.split("V")[1]))
 
         # Create a color palette
@@ -579,14 +580,15 @@ class RegData:
                 )
 
         # Set the lower limit of the y-axis to 0
-        (catplot.ax if plot_catplot else ax).set_ylim(bottom=0)
+        ax = catplot.ax if plot_catplot else ax
+        ax.set_ylim(bottom=fixed_ybottom, top=fixed_ytop)
+        if log_y:
+            ax.set_yscale('log')  # Set y-axis to logarithmic scale
         stat_label = "ΔR" if self.statistic == "delta_r" else self.statistic
-        (catplot.ax if plot_catplot else ax).set_ylabel(f"{stat_label} Value")
-        (catplot.ax if plot_catplot else ax).set_xlabel("CNN Layer")
-        (catplot.ax if plot_catplot else ax).set_xticks(range(len(self.cnn_layers)))
-        (catplot.ax if plot_catplot else ax).set_xticklabels(
-            [f"{i+1}" for i in range(len(self.cnn_layers))]
-        )
+        ax.set_ylabel(f"{stat_label} Value")
+        ax.set_xlabel("CNN Layer")
+        ax.set_xticks(range(len(self.cnn_layers)))
+        ax.set_xticklabels([f"{i+1}" for i in range(len(self.cnn_layers))])
 
         # Manually add the legend
         (catplot.ax if plot_catplot else ax).legend(
@@ -601,7 +603,7 @@ class RegData:
     def _delta_r_lines(self, cmap: str = "Reds"):
         """
         Method to plot the delta_r values for each voxel in each ROI across the layers of the CNN model.
-        TODO: MAKE COMPATIBLE WITH THE FULL VGG MODEL OF 13 LAYERS, THE INDICES ARE MESSED UP
+        TODO: MAKE COMPATIBLE WITH THE FULL VGG MODEL OF 13 LAYERS, THE INDICES ARE MESSED UP (not true, it was correct all along)
         """
 
         model_str = "VGG-b" if self.model == "vgg-b" else "AlexNet"

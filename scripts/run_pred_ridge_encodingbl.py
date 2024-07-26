@@ -7,49 +7,9 @@ os.environ["OMP_NUM_THREADS"] = "5"
 import os
 import sys
 import numpy as np
-# import random
-# import time
-# import matplotlib.pyplot as plt
 import pandas as pd
-# import torch
-# import seaborn as sns
-# import nibabel as nib
-# import pickle
-# import torchvision.models as models
 import nibabel as nib
-# import h5py
-# import scipy.stats.mstats as mstats
-# import copy
 import argparse
-
-# from nilearn import plotting
-# from scipy import stats
-# from scipy.ndimage import binary_dilation
-# from PIL import Image
-# from importlib import reload
-# from scipy.io import loadmat
-# from matplotlib.ticker import MultipleLocator, NullFormatter
-# from sklearn.cross_decomposition import PLSRegression
-# from sklearn.linear_model import LinearRegression, Lasso, Ridge
-# from colorama import Fore, Style
-# from matplotlib.colors import LinearSegmentedColormap
-# from matplotlib import colormaps
-# from torch.utils.data import Dataset, DataLoader
-# from torch.nn import Module
-# from torchvision import transforms
-# from sklearn.preprocessing import StandardScaler
-# from sklearn.decomposition import PCA, IncrementalPCA
-# from sklearn.impute import SimpleImputer
-# from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
-# from tqdm import tqdm
-# from matplotlib.lines import Line2D
-# from sklearn.model_selection import KFold
-# from sklearn.linear_model import LinearRegression
-# from sklearn.model_selection import cross_val_score, KFold, cross_val_predict
-# from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-# from math import sqrt
-# from typing import Dict, Tuple, Union
-# from scipy.special import softmax
 
 os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred/')
@@ -118,16 +78,26 @@ for roi in rois:
 # Use the first one, as then it is also a low-level features baseline.
 
 # Use the alexnet feature maps as the baseline model
-baseline_layers = [1, 4, 7, 9, 11]
-Xbl = NSP.stimuli.alex_featmaps(baseline_layers, subject, smallpatch=True)[:ydict["V1"].shape[0]]
+# baseline_layers = [1, 4, 7, 9, 11]
+baseline_layers = [0, 2, 5, 7, 10, 12, 14, 17, 19, 21, 24, 26, 28]
+baseline_layer = "all"
+# baseline_layers = [0, 5, 12, 19, 26]# 12, 14, 17, 19, 21, 24, 26, 28]
 
-which_cnn = 'vgg-b'
+modeltype = "VGG" # Same as vggfull but I saved the encoding feats under VGG and unpred feats under vggfull for clarity (this is irony)
+# for baseline_layer in baseline_layers:
+
+Xbl = NSP.stimuli.alex_featmaps(baseline_layers, subject, plot_corrmx=False, smallpatch=True, modeltype=modeltype)[:ydict["V1"].shape[0]]
+
+# which_cnn = 'vgg-b'
 # which_cnn = 'alexnet'
 # which_cnn = 'alexnet_new'
-n_layers = 5 if which_cnn == 'alexnet' else 6
+which_cnn = "vggfull"
+# n_layers = 5 if which_cnn == 'alexnet' else 6
+n_layers = len(baseline_layers)
+
 
 Xpred = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=False, ssim=False, pixel_loss=False, 
-                                 L1=False, MSE=True, verbose=True, outlier_sd_bound=5, subject=subject)[:ydict["V1"].shape[0]]
+                                L1=False, MSE=True, verbose=True, outlier_sd_bound=5, subject=subject)[:ydict["V1"].shape[0]]
 
 X = np.hstack((Xbl, Xpred[:, 0].reshape(-1, 1)))
 
@@ -143,17 +113,17 @@ for layer in range(0, Xpred.shape[1]):
     print(f'X has these dimensions: {X.shape}')
     
     reg_df = NSP.analyse.analysis_chain_slim(subject=subject,
-                             ydict=ydict,
-                             voxeldict=voxeldict,
-                             X=X,
-                             alpha=.1,
-                             cv=5,
-                             rois=rois,
-                             X_alt=Xbl, # The baseline model
-                             fit_icept=False,
-                             save_outs=True,
-                             regname=feat,
-                             plot_hist=True,
-                             alt_model_type="baseline model",
-                             save_folder='unpred_encodingbl_full',
-                             X_str=f'{feat} model')
+                            ydict=ydict,
+                            voxeldict=voxeldict,
+                            X=X,
+                            alpha=.1,
+                            cv=5,
+                            rois=rois,
+                            X_alt=Xbl, # The baseline model
+                            fit_icept=False,
+                            save_outs=True,
+                            regname=feat,
+                            plot_hist=False,
+                            alt_model_type="baseline model",
+                            save_folder=f'unpred_encodingbl_{modeltype}_{baseline_layer}',
+                            X_str=f'{feat} model')

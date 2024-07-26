@@ -28,7 +28,7 @@ NSP = NatSpatPred()
 NSP.initialise()
 
 
-def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, modeltype:str = 'alexnet') -> np.array:
+def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, smallpatch:bool = False, modeltype:str = 'alexnet') -> np.array:
     """Function to pull the feature maps from the specified layer of the CNN, for the specified number of voxels.
         The raw files are dicts that result from the encoding_stack.sh script, with ['arr_{image_number}'] as keys.
         This function transforms these dicts into a 2d numpy that can be used as X matrix for the regression analysis.
@@ -42,9 +42,10 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, modeltyp
     Out:
     - Xsubj (np.array): The feature maps for the specified subject and layer.
     """
+    smallpatch_str = 'smallpatch_' if smallpatch else ''
     # Load in the feature maps for the specified layer of the CNN, dimensionality reduction has already been applied
     featmaps_pc = np.load(
-        f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/featmaps_layfeatures.{cnn_layer}.npz"
+        f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/featmaps_{smallpatch_str}layfeatures.{cnn_layer}.npz"
         # f"{NSP.own_datapath}/visfeats/cnn_featmaps/featmaps/featmaps_smallpatch_layfeatures.{cnn_layer}.npz"
     )
 
@@ -60,9 +61,9 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, modeltyp
 
     os.makedirs(f"{NSP.own_datapath}/{subject}/encoding/{modeltype}", exist_ok=True)
     np.save(
-        "%s/%s/encoding/%s/regprepped_featmaps_layer%s"
+        "%s/%s/encoding/%s/regprepped_featmaps_%slayer%s"
         # "%s/%s/encoding/regprepped_featmaps_smallpatch_layer%s"
-        % (NSP.own_datapath, subject, modeltype, cnn_layer),
+        % (NSP.own_datapath, subject, modeltype, smallpatch_str,cnn_layer),
         Xsubj,
     )
     if verbose:
@@ -75,11 +76,12 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, modeltyp
 # relu_lays = [1, 4, 7, 9, 11]
 # relu_lays = ["norm", 5, 10, 17, 24, 31]
 # relu_lays = [0, 2, 5, 10, 17, 21, 24, 28]
-relu_lays = [7, 12, 14, 19, 26]
+# relu_lays = [7, 12, 14, 19, 26]
+relu_lays = [0, 2, 5, 7, 10, 12, 14, 17, 19, 21, 24, 26, 28]
 
 for subject in NSP.subjects:
 # for subject in ['subj01']:
     for cnn_layer in relu_lays:
-        _ = _pull_featmaps(subject, cnn_layer, verbose=True, modeltype="VGG")
+        _ = _pull_featmaps(subject, cnn_layer, verbose=True, smallpatch=True, modeltype="VGG")
 
 print("Ook dit script heeft de klus wederom geklaard, chapeau!")
