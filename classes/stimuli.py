@@ -395,7 +395,7 @@ class Stimuli():
             ]
         return {os.path.basename(file): self.nsp.datafetch.fetch_file(file) for file in feature_paths}
     
-    def get_rms(self, subject:str, rel_or_irrel:str='rel', crop_prior:bool=True, outlier_bound:float=.3):
+    def get_rms(self, subject:str | None = None, rel_or_irrel:str='rel', crop_prior:bool=True, outlier_bound:float=.3):
         """Function to get the Root Mean Square values for a given subject
 
         Args:
@@ -412,13 +412,47 @@ class Stimuli():
         """        
         rms_loc_relevance = 'rms' if rel_or_irrel == 'rel' else 'rms_irrelevant'
         
-        if crop_prior:
-            Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms_crop_prior.pkl')[subject][rms_loc_relevance]['rms_z']
-        else:
-            Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl')[subject][rms_loc_relevance]['rms_z']
+        crop_str = "_crop_prior" if crop_prior else ""
+        
+        if subject is None:
+            # Get the RMS values for all subjects
+            rms = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl')
+            
+            # Step 1: Convert each subject's dict to a DataFrame and store them in a list
+            df_list = [pd.DataFrame(rms[subj][rms_loc_relevance]) for subj in rms.keys()]
 
-        Xnorm = zs(self.nsp.utils.replace_outliers(np.array(Xraw).reshape(-1,1), m=outlier_bound))
-        indices = self.imgs_designmx()[subject] # Get the 73k-based indices for the specific subject
+            # Step 2: Concatenate the DataFrames vertically
+            df = pd.concat(df_list)
+
+            # Step 3: Sort the DataFrame by 'img_no'
+            df = df.sort_values('img_no')
+
+            # Step 4: Remove duplicates based on 'img_no'
+            df = df.drop_duplicates(subset='img_no')
+
+            # Step 5: Create a new DataFrame with 'img_no' from 1 to 73000
+            new_df = pd.DataFrame({'img_no': range(0, 73000)})
+
+            # Step 6: Merge the new DataFrame with the sorted DataFrame
+            final_df = pd.merge(new_df, df, on='img_no', how='left')
+            
+            Xraw = final_df['rms_z']
+            
+            Xnorm = zs(self.nsp.utils.replace_outliers(np.array(Xraw).reshape(-1,1), m=outlier_bound))
+            indices = list(range(0, 73000))
+        else:
+            
+            Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms{crop_str}.pkl')[subject][rms_loc_relevance]['rms_z']
+
+            # if crop_prior:
+            #     Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms{crop_str}.pkl')[subject][rms_loc_relevance]['rms_z']
+            # else:
+            #     Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl')[subject][rms_loc_relevance]['rms_z']
+
+            Xnorm = zs(self.nsp.utils.replace_outliers(np.array(Xraw).reshape(-1,1), m=outlier_bound))
+            
+            indices = self.imgs_designmx()[subject] # Get the 73k-based indices for the specific subject
+
 
         return pd.DataFrame(Xnorm, index=indices, columns=['rms'])
         
@@ -871,6 +905,9 @@ class Stimuli():
         elif cnn_type == 'vgg8':
             file_str = 'all_predestims_vgg8.csv'
             predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith('content')]
+        elif cnn_type == 'vggfull':
+            file_str = 'all_predestims_vggfull.csv'
+            predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith('content') and name != 'content_loss_0_MSE']
         
         # Build dataframe
         data = {name: self.features()[file_str][name][indices] for name in predfeatnames}
@@ -894,7 +931,10 @@ class Stimuli():
 
         # Compute correlation matrix
         corr_matrix = df.corr()
-        ticks = [f'Pred {int(name.split("_")[2])+1}' for name in predfeatnames]
+        # ticks = [f'Pred {int(name.split("_")[2])+1}' for name in predfeatnames]
+        
+
+        ticks = [f'Pred {int(re.search(r"_([0-9]+)", name).group(1))+1}' for name in predfeatnames]
         if include_rms:
             ticks.append('RMS 1°')
         if include_ce:
@@ -906,11 +946,14 @@ class Stimuli():
         if include_sc_l:
             ticks.append('SC 5°')
         if include_ce_new:
-            ticks.append('CE new')
+            ticks.append('CE') # This used to be CE new, but for now, it's the same as the old one
         if include_sc_new:
-            ticks.append('SC new')
+            ticks.append('SC')
             
-        plt.figure(figsize=(9,7))
+              
+        figsize = (14, 12) if len(predfeatnames) > 10 else (9, 7)
+        
+        plt.figure(figsize=figsize)
         # sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks)
         sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks, vmin=0, vmax=1)
         plt.title(f'Correlation matrix for the MSE content loss values per\n{cnn_type} layer, and the baseline features')
