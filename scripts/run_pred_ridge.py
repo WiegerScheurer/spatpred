@@ -31,11 +31,27 @@ from classes.natspatpred import NatSpatPred, VoxelSieve
 NSP = NatSpatPred()
 NSP.initialise()
 
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 predparser = argparse.ArgumentParser(description='Get the predictability estimates for a range of images of a subject')
 
 predparser.add_argument('subject', type=str, help='The subject')
+predparser.add_argument('--robustness_analysis', type=str2bool, help='Whether or not the script is run inside a robustness check loop', default=False)
+
+# predparser.add_argument('--robustness_analysis', type=bool, help='Whether or not the script is run inside a robustness check loop', default=False)
+predparser.add_argument('--min_prfsize', type=float, help='The minimum prf size', default=None)
+predparser.add_argument('--patch_radius', type=float, help='The radius of the image patch that we use', default=None)
 
 args = predparser.parse_args()
+
+robustness_tag = f"/robust_prfmin{args.min_prfsize}_patchrad{args.patch_radius}" if args.robustness_analysis else ""
 
 # TODO: also return the cor_scores for the uninformative x matrix and create brainplots where
 # the r-values are plotted on the brain for both the informative and uninformative x matrices
@@ -50,8 +66,10 @@ tag = 'MSE_presentatie_plotjes'
 
 subject = args.subject
 max_size = 2
-min_size = .15
-patchbound = 1
+# min_size = .15 if args.min_prfsize is None else args.min_prfsize
+min_size = args.min_prfsize if args.min_prfsize is not None else .15 # This is for the robustness analyses
+# patchbound = 1
+patchbound = args.patch_radius if args.patch_radius is not None else 1
 min_nsd_R2 = 0
 min_prf_R2 = 0
 # fixed_n_voxels = 170
@@ -133,7 +151,7 @@ for layer in range(0, Xpred.shape[1]):
                              regname=feat,
                              plot_hist=True,
                              alt_model_type="baseline model",
-                             save_folder=f'unpred/{which_cnn}/',
+                             save_folder=f'unpred/{which_cnn}{robustness_tag}',
                              X_str=f'{feat} model')
 
 
