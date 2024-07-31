@@ -487,6 +487,9 @@ class RegData:
         fixed_ybottom: float | None = 0,
         fixed_ytop: float | None = None,
         log_y: bool = False,
+        overlay: bool = False,
+        fit_to: int = None,
+        plot_ci:bool = True,
     ):
         """
         Plots the mean values of each ROI across layers.
@@ -560,13 +563,25 @@ class RegData:
         for i, roi in enumerate(rois):
             roi_data = df_melted[df_melted["roi"] == roi]
             if fit_polynom:
+                # Fit the line to the specified number of values
+                roi_data = roi_data[roi_data["column"] < fit_to] if fit_to else roi_data
                 sns.regplot(
                     data=roi_data,
                     x="column",
                     y=self.statistic,
                     scatter=False,
+                    # scatter=overlay,
                     truncate=True,
                     order=polynom_order,
+                    color=roi_to_color[roi],
+                    ax=catplot.ax if plot_catplot else ax,
+                    ci=plot_ci,  # Do not plot a confidence interval
+                )
+            elif overlay:  # Only plot the lineplot if overlay is True
+                sns.lineplot(
+                    data=roi_data,
+                    x="column",
+                    y=self.statifact,
                     color=roi_to_color[roi],
                     ax=catplot.ax if plot_catplot else ax,
                 )
