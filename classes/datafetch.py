@@ -372,7 +372,7 @@ class DataFetch():
 
         for ecc in eccs:
             for angle in angles:
-                path = f"{NSP.own_datapath}/visfeats/peripheral/ecc{ecc}_angle{angle}"
+                path = f"{self.nsp.own_datapath}/visfeats/peripheral/ecc{ecc}_angle{angle}"
                 self.stack_loc_contrasts(path, save=True, savename="rmsscce")
 
 

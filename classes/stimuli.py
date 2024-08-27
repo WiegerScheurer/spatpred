@@ -394,83 +394,169 @@ class Stimuli():
             f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vggfull.csv',  
             ]
         return {os.path.basename(file): self.nsp.datafetch.fetch_file(file) for file in feature_paths}
-    
-    def get_rms(self, subject:str | None = None, rel_or_irrel:str='rel', crop_prior:bool=True, outlier_bound:float=.3):
+        
+    def get_rms(
+        self,
+        subject: str | None = None,
+        rel_or_irrel: str = "rel",
+        crop_prior: bool = True,
+        outlier_bound: float = 0.3,
+        peri_pars: tuple[float, int]|None = None,
+    ):
         """Function to get the Root Mean Square values for a given subject
 
         Args:
         - subject (str): Which subject.
-        - rel_or_irrel (str, optional): Whether to get the RMS values for a central (relevant) patch, 
+        - rel_or_irrel (str, optional): Whether to get the RMS values for a central (relevant) patch,
             or for a peripheral (irrelevant) patch. Defaults to 'rel'.
-        - crop_prior (bool, optional): Whether to take the RMS values from computations in which the 
+        - crop_prior (bool, optional): Whether to take the RMS values from computations in which the
             image was cropped prior to computing the RMS, or from computations where images were cropped
             after computing the overall RMS of the image. Defaults to True.
         - outlier_bound (float, optional): What boundary to use for outlier filtering. Defaults to .3.
+        - peri_pars (tuple[float, int], optional): The eccentricity and angle of the peripheral patch. Only 
+            to be used when looking at all subjects, no options to crop prior or not, nor rel_or_irrel. Defaults to None.
 
         Returns:
             np.ndarray: The resulting values.
-        """        
-        rms_loc_relevance = 'rms' if rel_or_irrel == 'rel' else 'rms_irrelevant'
-        
+        """
+        rms_loc_relevance = "rms" if rel_or_irrel == "rel" else "rms_irrelevant"
+
         crop_str = "_crop_prior" if crop_prior else ""
-        
+
+        if peri_pars is None:    
+            filepath = f"{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms{crop_str}.pkl"
+        else: 
+            filepath = f"{self.nsp.own_datapath}/visfeats/peripheral/ecc{peri_pars[0]}_angle{peri_pars[1]}/all_rmsscce.csv"
+            
+            
         if subject is None:
             # Get the RMS values for all subjects
-            rms = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl')
+            rms = self.nsp.datafetch.fetch_file(
+                # f"{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl"
+                filepath
+            )
+
+            if peri_pars is None:
+                # Step 1: Convert each subject's dict to a DataFrame and store them in a list
+                df_list = [pd.DataFrame(rms[subj][rms_loc_relevance]) for subj in rms.keys()]
+
+                # Step 2: Concatenate the DataFrames vertically
+                df = pd.concat(df_list)
+
+                # Step 3: Sort the DataFrame by 'img_no'
+                df = df.sort_values("img_no")
+
+                # Step 4: Remove duplicates based on 'img_no'
+                df = df.drop_duplicates(subset="img_no")
+
+                # Step 5: Create a new DataFrame with 'img_no' from 1 to 73000
+                new_df = pd.DataFrame({"img_no": range(0, 73000)})
+
+                # Step 6: Merge the new DataFrame with the sorted DataFrame
+                final_df = pd.merge(new_df, df, on="img_no", how="left")
+
+                Xraw = final_df["rms_z"]
+            else:
+                Xraw = np.nan_to_num(np.array(rms['rms'])) 
             
-            # Step 1: Convert each subject's dict to a DataFrame and store them in a list
-            df_list = [pd.DataFrame(rms[subj][rms_loc_relevance]) for subj in rms.keys()]
 
-            # Step 2: Concatenate the DataFrames vertically
-            df = pd.concat(df_list)
-
-            # Step 3: Sort the DataFrame by 'img_no'
-            df = df.sort_values('img_no')
-
-            # Step 4: Remove duplicates based on 'img_no'
-            df = df.drop_duplicates(subset='img_no')
-
-            # Step 5: Create a new DataFrame with 'img_no' from 1 to 73000
-            new_df = pd.DataFrame({'img_no': range(0, 73000)})
-
-            # Step 6: Merge the new DataFrame with the sorted DataFrame
-            final_df = pd.merge(new_df, df, on='img_no', how='left')
-            
-            Xraw = final_df['rms_z']
-            
-            Xnorm = zs(self.nsp.utils.replace_outliers(np.array(Xraw).reshape(-1,1), m=outlier_bound))
+            Xnorm = zs(
+                self.nsp.utils.replace_outliers(
+                    np.array(Xraw).reshape(-1, 1), m=outlier_bound
+                )
+            )
             indices = list(range(0, 73000))
         else:
+
+            Xraw = self.nsp.datafetch.fetch_file(
+                f"{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms{crop_str}.pkl"
+            )[subject][rms_loc_relevance]["rms_z"]
             
-            Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms{crop_str}.pkl')[subject][rms_loc_relevance]['rms_z']
+            Xnorm = zs(
+                self.nsp.utils.replace_outliers(
+                    np.array(Xraw).reshape(-1, 1), m=outlier_bound
+                )
+            )
 
-            # if crop_prior:
-            #     Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms{crop_str}.pkl')[subject][rms_loc_relevance]['rms_z']
-            # else:
-            #     Xraw = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl')[subject][rms_loc_relevance]['rms_z']
+            indices = self.imgs_designmx()[
+                subject
+            ]  # Get the 73k-based indices for the specific subject
 
-            Xnorm = zs(self.nsp.utils.replace_outliers(np.array(Xraw).reshape(-1,1), m=outlier_bound))
-            
-            indices = self.imgs_designmx()[subject] # Get the 73k-based indices for the specific subject
+        return pd.DataFrame(Xnorm, index=indices, columns=["rms"])
 
-
-        return pd.DataFrame(Xnorm, index=indices, columns=['rms'])
         
-    def get_scce(self, subject:str, sc_or_ce:str):
+    # def get_scce(self, subject:str|None, sc_or_ce:str, peri_pars:tuple[float, int]|None=None):
+    #     """Function to get the Spatial Coherence or Contrast Energy values for a given subject
+
+    #     Args:
+    #     - subject (str): Which subject.
+    #     - sc_or_ce (str): Whether to get the Spatial Coherence or Contrast Energy values.
+
+    #     Returns:
+    #         np.ndarray: The resulting values.
+    #     """        
+    #     indices = self.imgs_designmx()[subject] if subject is not None else list(range(0,73000))# Get the 73k-based indices for the specific subject
+        
+    #     if peri_pars is None:    
+    #         filepath = f"{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl"
+
+    #         scce = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl')
+
+    #         X = scce[f'{sc_or_ce}_z'][indices]
+        
+    #     else: 
+    #         filepath = f"{self.nsp.own_datapath}/visfeats/peripheral/ecc{peri_pars[0]}_angle{peri_pars[1]}/all_rmsscce.csv"
+    #         scce = self.nsp.datafetch.fetch_file(filepath)
+    #         X = scce[sc_or_ce][indices]
+            
+    #     return X.to_frame(sc_or_ce)
+    
+    def get_scce(self,
+                subject: str|None, 
+                sc_or_ce: str, 
+                outlier_bound:float|None = None, 
+                peri_pars: tuple[float, int] | None = None
+        ):
         """Function to get the Spatial Coherence or Contrast Energy values for a given subject
 
         Args:
         - subject (str): Which subject.
         - sc_or_ce (str): Whether to get the Spatial Coherence or Contrast Energy values.
+        - outlier_bound (float): The cutoff boundary percentile (I think) for outliers, if None, will take on educated values.
+        - peri_pars: (tuple[float, int]): The parameter values in case you want to retrieve contrast values for peripheral patches.
 
         Returns:
             np.ndarray: The resulting values.
-        """        
-        indices = self.imgs_designmx()[subject] # Get the 73k-based indices for the specific subject
-        scce = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl')
-        X = scce[f'{sc_or_ce}_z'][indices]
-        
-        return X.to_frame(sc_or_ce)
+        """
+
+        indices = self.imgs_designmx()[subject] if subject is not None else list(range(0,73000))# Get the 73k-based indices for the specific subject
+
+        if peri_pars is None:
+            filepath = f"{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl"
+
+            scce = self.nsp.datafetch.fetch_file(
+                f"{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl"
+            )
+
+            X = scce[f"{sc_or_ce}_z"][indices]
+
+        else:
+            filepath = f"{self.nsp.own_datapath}/visfeats/peripheral/ecc{peri_pars[0]}_angle{peri_pars[1]}/all_rmsscce.csv"
+            scce = self.nsp.datafetch.fetch_file(filepath)
+            X = scce[sc_or_ce][indices]
+
+        if outlier_bound is None:
+            outlier_cutoff = 5.5 if sc_or_ce == "sc" else 1.0
+        else:
+            outlier_cutoff = outlier_bound
+
+        Xnorm = pd.Series(zs(
+            self.nsp.utils.replace_outliers(
+                np.array(X).reshape(-1, 1), m=outlier_cutoff
+            )
+            ).flatten())
+
+        return Xnorm.to_frame(sc_or_ce)
         
         
     # DEPRECATED NOW. USE FUNCTIONS ABOVE
