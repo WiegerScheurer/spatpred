@@ -320,9 +320,60 @@ class DataFetch():
         
         # Save the dataframe to csv
         predstack_exploded.to_csv(
-            f"{NSP.own_datapath}/visfeats/pred/all_predestims_{cnn_type}.csv", index=False
+            f"{self.nsp.own_datapath}/visfeats/pred/all_predestims_{cnn_type}.csv", index=False
         )
         
         return predstack_exploded
         
+        
+    def stack_loc_contrasts(self, filepath: str, save: bool = False, savename: str = ""):
+        """
+        Stack and concatenate CSV files from a given directory.
+
+        Args:
+            filepath (str): The path to the directory containing the CSV files.
+            save (bool, optional): Whether to save the concatenated dataframe as a CSV file. Defaults to False.
+            savename (str, optional): The name to use when saving the CSV file. Defaults to an empty string.
+
+        Returns:
+            None
+        """
+
+        files = [file for file in os.listdir(filepath) if file.endswith('0.csv')]
+
+        def sort_key(file_name):
+            number_part = file_name.split('.')[-2]  # Get the second last item after splitting at each period
+            return int(number_part) if number_part.isdigit() else float('inf')
+
+        files.sort(key=sort_key)
+
+        # Read the CSV files and store them in a list
+        dfs = [pd.read_csv(f'{filepath}/{file}', index_col=0) for file in files]
+
+        # Concatenate the dataframes
+        df = pd.concat(dfs, ignore_index=True)
+
+        if save:
+            save_str = "_" if savename == "" else f"_{savename}"
+            df.to_csv(f"{filepath}/all{save_str}.csv")
+        
+        
+        
+    def tidy_peripheral_contrasts(self, eccs:list|None=None, angles:list|None=None):
+        """
+        Semi hard code stacking function for peripheral contrasts given eccentricities and angles.
+        
+        Args:
+            eccs (list|None): List of eccentricities. Defaults to [1.2, 2.0] if None.
+            angles (list|None): List of angles. Defaults to [90, 210, 330] if None.
+        """
+        eccs = [1.2, 2.0] if eccs is None else eccs
+        angles = [90, 210, 330] if angles is None else angles
+
+        for ecc in eccs:
+            for angle in angles:
+                path = f"{NSP.own_datapath}/visfeats/peripheral/ecc{ecc}_angle{angle}"
+                self.stack_loc_contrasts(path, save=True, savename="rmsscce")
+
+
     
