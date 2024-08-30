@@ -270,6 +270,8 @@ elif loc == 'irrelevant_patch':
 rf_mask_in = make_circle_mask(dim, x, y, radius, fill = 'y', margin_width = 0)
 # full_ar_in = ar_in = show_stim(img_no = 0, hide=True, small=True, crop=False)[0] 
 # Get the boolean version of the non-inverse mask
+
+
 rf_mask_nsd = rf_mask_in == 0
 xmin,xmax,ymin,ymax = list(get_bounding_box(rf_mask_in))
 crop_mask = rf_mask_in[ymin:ymax, xmin:xmax] == 1
