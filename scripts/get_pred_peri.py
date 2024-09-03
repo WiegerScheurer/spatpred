@@ -78,17 +78,14 @@ rl = Reloader()
 rois, roi_masks, viscortex_masks = NSP.cortex.visrois_dict(verbose=False)
 prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 
-
 max_size = 2
 min_size = 0.15
 patchbound = 1
 min_nsd_R2 = 0
 min_prf_R2 = 0
-# peripheral_center = (-2, 2)
 peri_angles = [90, 210, 330]
 peri_ecc = args.eccentricity
 # fixed_n_voxels = 50
-
 
 # This voxeldict is not really needed, but I use it to get the exact matching
 # mask for the peripheral patch
@@ -126,22 +123,6 @@ n_imgs = args.endimg - args.startimg
 print(f"Processing {n_imgs} images, going from {args.startimg} to {args.endimg}")
 print(f"Patch eccentricity: {args.eccentricity}, patch angle: {args.angle}")
 select_ices = list(range(args.startimg, args.endimg))
-
-
-# # Make sure to use the adapted version I guess.
-# imgs, img_nos = NSP.stimuli.rand_img_list(
-#     n_imgs=n_imgs,
-#     asPIL=True,
-#     add_masks=False,
-#     # select_ices=NSP.stimuli.imgs_designmx()["subj01"][:n_imgs],
-#     select_ices=select_ices
-# )
-
-# eccentricity = 1.2
-# angle = 90
-patch_data = pd.DataFrame(columns=["rms", "ce", "sc"]) # i dont need this
-
-mask = mask1
 
 # THIS BELOW IS FROM THE GET_PRED.PY SCRIPT
 def draw_circmask(dims, maskrad, offset=(0,0), invert=True):
@@ -281,20 +262,7 @@ def _make_img_3d(mask_in,):
 # unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
 unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-conv')
 
-
-# # Make sure to use the adapted version I guess.
-# imgs, img_nos = NSP.stimuli.rand_img_list(
-#     n_imgs=n_imgs,
-#     asPIL=True,
-#     add_masks=False,
-#     # select_ices=NSP.stimuli.imgs_designmx()["subj01"][:n_imgs],
-#     select_ices=select_ices
-# )
-
-# imgs, masks, img_nos = rand_img_list(5, asPIL = True, add_masks = True, mask_loc = mask1, ecc_max = 1, select_ices = [0,1,2,3,4], in_3d = False)
-
 imgs, masks, img_nos = rand_img_list(n_imgs, asPIL = True, add_masks = True, mask_loc = mask1, ecc_max = 1, select_ices = select_ices, in_3d = False)
-
 
 rf_mask_in = mask1
 rf_mask_nsd = rf_mask_in == 0
@@ -323,15 +291,10 @@ print(f'\nThis took {total_time} seconds, or {total_time / 60} minutes, or {tota
 print(f"Average time per image: {average_time_per_image} seconds\n")
 
 # Add the specific image indices to the dictionaries. 
-# payload_nsd['img_ices'] = payload_nsd_crop['img_ices'] = img_nos
 payload_nsd_crop['img_ices'] = img_nos
 
 excl = ['recon_dict']
 payload_light = {k: v for k, v in payload_nsd_crop.items() if k not in excl}
-
-
-# payloads = {'full': payload_nsd, 'crop': payload_nsd_crop}
-
 
 print("succeeded")
 
@@ -343,61 +306,9 @@ with h5py.File(f'{dir_path}/pred_payloads{args.startimg}_{args.endimg}_vggfull.h
         hf.create_dataset(key, data=value)
     print('Light payload saved succesfully')
 
-# with h5py.File(f'/home/rfpred/data/custom_files/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}/pred/pred_payloads{args.startimg}_{args.endimg}_vggfull.h5', 'w') as hf:
-#     for key, value in payload_light.items():
-#         hf.create_dataset(key, data=value)
-#     print('Light payload saved succesfully')
-
-# with open(f'/home/rfpred/data/custom_files/{args.subject}/pred/pred_payloads{args.start}_{args.end}.pkl', 'wb') as fp:
-#     pickle.dump(payloads, fp)
-#     print('payloads dictionary saved successfully to file')
-    
 
 
 
 
-
-
-# for img_number, img in enumerate(imgs):
-#     print(f"Processing image number: {img_number}") if img_number % 100 == 0 else None
-    
-#     rms = NSP.stimuli.calc_rms_contrast_lab(
-#         # rgb_image=np.array(Image.open(img)),
-#         rgb_image=np.array(img),
-#         mask_w_in=mask,
-#         rf_mask_in=mask,
-#         normalise=True,
-#         plot=False,
-#         cmap="gist_gray",
-#         crop_post=False,
-#         lab_idx=0,
-#         cropped_input=False,
-#     )
-
-#     ce, sc, _, _, _, _, _ = NSP.stimuli.get_scce_contrast(
-#         np.array(img),
-#         plot="n",
-#         cmap="gist_gray",
-#         crop_prior=True,
-#         crop_post=False,
-#         save_plot=False,
-#         return_imfovs=True,
-#         imfov_overlay=True,
-#         config_path="/home/rfpred/notebooks/alien_nbs/lgnpy/lgnpy/CEandSC/psybi_cfs_config.yml",
-#         lgn_instance=lgn,
-#         patch_center=NSP.utils.get_circle_center(mask),
-#         deg_per_pixel=(8.4 / 425),
-#     )
-
-#     ce = np.nan_to_num(ce)
-#     sc = np.nan_to_num(sc)
-
-#     patch_data.loc[len(patch_data)] = [rms, ce, sc]
-    
-#     os.makedirs(f"{NSP.own_datapath}/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}", exist_ok=True)
-#     patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}/rmsscce_ecc{args.eccentricity}_angle{args.angle}_{args.startimg}-{args.endimg}_intermediate.csv") if img_number % 5 == 0 else None
-    
-    
-# patch_data.to_csv(f"{NSP.own_datapath}/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}/rmsscce_ecc{args.eccentricity}_angle{args.angle}_{args.startimg}-{args.endimg}.csv")
 
 

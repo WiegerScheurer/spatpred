@@ -180,7 +180,8 @@ def _make_img_3d(mask_in,):
     return(np.repeat(mask_in[:,:,np.newaxis],3,axis=2))
 
 # unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
-unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-conv')
+#TODO: I still need to adapt the class by micha to include the last 3 dense layers (not the output layer, guclu doesnt)
+unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-conv') # This is only the convlayers
 
 # unpred_out = predplot(
 #     subject=subject,
@@ -195,8 +196,6 @@ unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-conv')
 #     eval_mask_factor=np.sqrt(1.2),
 #     log_y_MSE="y",
 # )
-
-
 
 # NSD adapted:
 mask_radius=100
