@@ -32,6 +32,8 @@ class ReconLoss(nn.Module):
             self.extractor = VGGFullFeatureExtractor()
         elif extractor=='vgg-conv': # All convolutional layers, this one was used for thesis. TODO: include dense layers
             self.extractor = VGGFullFeatureExtractor(only_conv=True)
+        elif extractor=='vgg-conv-dense': # Both the convolutional layers and the dense layers
+            self.extractor = VGGFullFeatureExtractor(only_conv=True, include_dense=True)
         elif extractor=='vgg-b':
             self.extractor=VGGBlockFeatureExtractor()
         elif extractor=='vgg-bp':
@@ -82,11 +84,30 @@ class ReconLoss(nn.Module):
         loss_dict['pixel_loss_hole']=pixel_loss_hole
 
         for layer_i in range(n_layers ):
-            loss_dict[f'content_loss_{layer_i}']=(
-                self.loss(feats_comp[layer_i], feats_gt[layer_i]).mean(dim=(1,2,3)).numpy()) 
-            loss_dict[f'style_loss_{layer_i}']=(
-                self.loss(gram_matrix(feats_comp[layer_i]),
-                          gram_matrix(feats_gt[layer_i])).mean(dim=(1,2)).numpy())
+                        
+            # # DEBUGGERING::
+            # print(f'feats_comp[{layer_i}] shape: {feats_comp[layer_i].shape}')
+            # print(f'feats_gt[{layer_i}] shape: {feats_gt[layer_i].shape}')
+            
+            # loss_dict[f'content_loss_{layer_i}']=(
+            #     self.loss(feats_comp[layer_i], feats_gt[layer_i]).mean(dim=(1,2,3)).numpy()) 
+            # loss_dict[f'style_loss_{layer_i}']=(
+            #     self.loss(gram_matrix(feats_comp[layer_i]),
+            #               gram_matrix(feats_gt[layer_i])).mean(dim=(1,2)).numpy())
+            
+            if len(feats_comp[layer_i].shape) == 4:
+                loss_dict[f'content_loss_{layer_i}'] = (
+                    self.loss(feats_comp[layer_i], feats_gt[layer_i]).mean(dim=(1,2,3)).numpy())
+                loss_dict[f'style_loss_{layer_i}'] = (
+                    self.loss(gram_matrix(feats_comp[layer_i]),
+                            gram_matrix(feats_gt[layer_i])).mean(dim=(1,2)).numpy())
+            elif len(feats_comp[layer_i].shape) == 2:
+                loss_dict[f'content_loss_{layer_i}'] = (
+                    self.loss(feats_comp[layer_i], feats_gt[layer_i]).mean(dim=1).numpy())
+                loss_dict[f'style_loss_{layer_i}'] = (
+                    self.loss(gram_matrix(feats_comp[layer_i]),
+                            gram_matrix(feats_gt[layer_i])).mean(dim=1).numpy())
+    
         if self.add_loss_suff:
             loss_dict = {key+f'_{self.loss_str}': value for key, value in loss_dict.items()}
 
@@ -208,11 +229,42 @@ class VGGBlockFeatureExtractor(nn.Module):
             outputs.append(x)
         return outputs
     
+# class VGGFullFeatureExtractor(nn.Module):
+#     MEAN = [0.485, 0.456, 0.406]
+#     STD = [0.229, 0.224, 0.225]
+
+#     def __init__(self, only_conv:bool = False):
+#         super().__init__()
+#         vgg16 = models.vgg16(pretrained=True)
+#         vgg16.eval()
+#         self.normalization = Normalization(self.MEAN, self.STD)
+#         # Unpack all convolutional layers and ReLU activations, ignoring max-pooling
+#         features = []
+#         features.append(self.normalization)
+#         for layer in vgg16.features:
+#             if only_conv:
+#                 if isinstance(layer, nn.Conv2d):
+#                     features.append(layer)
+#             else:     
+#                 if isinstance(layer, (nn.Conv2d, nn.ReLU)):
+#                     features.append(layer)
+#         self.features = nn.ModuleList(features)
+#         for param in self.features.parameters():
+#             param.requires_grad = False
+
+#     def forward(self, x):
+#         outputs = []
+#         for feature in self.features:
+#             x = feature(x)
+#             outputs.append(x)
+#         return outputs
+    
+    
 class VGGFullFeatureExtractor(nn.Module):
     MEAN = [0.485, 0.456, 0.406]
     STD = [0.229, 0.224, 0.225]
 
-    def __init__(self, only_conv:bool = False):
+    def __init__(self, only_conv:bool = False, include_dense:bool = False):
         super().__init__()
         vgg16 = models.vgg16(pretrained=True)
         vgg16.eval()
@@ -228,15 +280,55 @@ class VGGFullFeatureExtractor(nn.Module):
                 if isinstance(layer, (nn.Conv2d, nn.ReLU)):
                     features.append(layer)
         self.features = nn.ModuleList(features)
-        for param in self.features.parameters():
+        # Include dense layers if include_dense is True
+        if include_dense:
+            self.classifier = vgg16.classifier
+        for param in self.parameters():
             param.requires_grad = False
+        # Add an AdaptiveAvgPool2d layer
+        self.pool = nn.AdaptiveAvgPool2d((7, 7))
 
     def forward(self, x):
         outputs = []
         for feature in self.features:
             x = feature(x)
             outputs.append(x)
+        print(x.size())  # Print the size of the tensor after the convolutional layers
+        # Apply the AdaptiveAvgPool2d layer
+        x = self.pool(x)
+        print(x.size())  # Print the size of the tensor after pooling
+        # Process through dense layers if they are included
+        if hasattr(self, 'classifier'):
+            x = x.view(x.size(0), -1)  # Flatten the tensor
+            print(x.size())  # Print the size of the tensor after flattening
+            for layer in self.classifier:
+                x = layer(x)
+                if isinstance(layer, nn.Linear):
+                    outputs.append(x)
         return outputs
+        
+    # THIS ONE WORKED:
+    # def forward(self, x):
+    #     outputs = []
+    #     for feature in self.features:
+    #         x = feature(x)
+    #         outputs.append(x)
+    #     print(x.size())  # Print the size of the tensor after the convolutional layers
+    #     # Apply the AdaptiveAvgPool2d layer
+    #     x = self.pool(x)
+    #     print(x.size())  # Print the size of the tensor after pooling
+    #     # Process through dense layers if they are included
+    #     if hasattr(self, 'classifier'):
+    #         x = x.view(x.size(0), -1)  # Flatten the tensor
+    #         print(x.size())  # Print the size of the tensor after flattening
+    #         for layer in self.classifier:
+    #             x = layer(x)
+    #             outputs.append(x)
+    #     return outputs
+    
+# I haven't changed it yet, so I don't know whether it'll work. I'm still running the convolutional layer computations of the peripheral patches.
+# Potential problem is the different dimension of the dense layers, as they're flat. This implementation might not be ideal.
+    
     
     
 class VGGFullFeatureExtractorCustom(nn.Module):
@@ -357,12 +449,27 @@ class Normalization(nn.Module):
         return (input - self.mean) / self.std
 
 
-# Calcurate the Gram Matrix of feature maps
+# ORIGINAL:::::
+# # Calcurate the Gram Matrix of feature maps
+# def gram_matrix(feat):
+#     (b, ch, h, w) = feat.size()
+#     feat = feat.view(b, ch, h * w)
+#     feat_t = feat.transpose(1, 2)
+#     gram = torch.bmm(feat, feat_t) / (ch * h * w)
+#     return gram
+
 def gram_matrix(feat):
-    (b, ch, h, w) = feat.size()
-    feat = feat.view(b, ch, h * w)
-    feat_t = feat.transpose(1, 2)
-    gram = torch.bmm(feat, feat_t) / (ch * h * w)
+    if len(feat.shape) == 4:
+        (b, ch, h, w) = feat.size()
+        feat = feat.view(b, ch, h * w)
+        feat_t = feat.transpose(1, 2)
+        gram = torch.bmm(feat, feat_t) / (ch * h * w)
+    elif len(feat.shape) == 2:
+        (b, ch) = feat.size()
+        feat_t = feat.transpose(0, 1)
+        gram = torch.mm(feat, feat_t) / ch
+    else:
+        raise ValueError(f'Expected input tensor to have 2 or 4 dimensions, but got {len(feat.shape)} dimensions')
     return gram
 
 
