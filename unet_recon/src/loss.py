@@ -34,6 +34,8 @@ class ReconLoss(nn.Module):
             self.extractor = VGGFullFeatureExtractor(only_conv=True)
         elif extractor=='vgg-conv-dense': # Both the convolutional layers and the dense layers
             self.extractor = VGGFullFeatureExtractor(only_conv=True, include_dense=True)
+        elif extractor=='vgg-dense': # Both the convolutional layers and the dense layers
+            self.extractor = VGGFullFeatureExtractor(only_conv=False, include_dense=True)
         elif extractor=='vgg-b':
             self.extractor=VGGBlockFeatureExtractor()
         elif extractor=='vgg-bp':
@@ -266,6 +268,8 @@ class VGGFullFeatureExtractor(nn.Module):
 
     def __init__(self, only_conv:bool = False, include_dense:bool = False):
         super().__init__()
+        self.only_conv = only_conv
+        self.include_dense = include_dense
         vgg16 = models.vgg16(pretrained=True)
         vgg16.eval()
         self.normalization = Normalization(self.MEAN, self.STD)
@@ -292,22 +296,24 @@ class VGGFullFeatureExtractor(nn.Module):
         outputs = []
         for feature in self.features:
             x = feature(x)
-            outputs.append(x)
-        print(x.size())  # Print the size of the tensor after the convolutional layers
+            if self.only_conv:
+                outputs.append(x)
+        # print(x.size())  # Print the size of the tensor after the convolutional layers #DEBUG OPTION
         # Apply the AdaptiveAvgPool2d layer
         x = self.pool(x)
-        print(x.size())  # Print the size of the tensor after pooling
+        # print(x.size())  # Print the size of the tensor after pooling #DEBUG OPTION
         # Process through dense layers if they are included
         if hasattr(self, 'classifier'):
             x = x.view(x.size(0), -1)  # Flatten the tensor
-            print(x.size())  # Print the size of the tensor after flattening
+            # print(x.size())  # Print the size of the tensor after flattening #DEBUG OPTION
             for layer in self.classifier:
                 x = layer(x)
-                if isinstance(layer, nn.Linear):
+                if isinstance(layer, nn.Linear) and self.include_dense:
                     outputs.append(x)
         return outputs
-        
-    # THIS ONE WORKED:
+
+
+# THIS ONE WORKED NICELY, but couldn't do only dense
     # def forward(self, x):
     #     outputs = []
     #     for feature in self.features:
@@ -323,9 +329,10 @@ class VGGFullFeatureExtractor(nn.Module):
     #         print(x.size())  # Print the size of the tensor after flattening
     #         for layer in self.classifier:
     #             x = layer(x)
-    #             outputs.append(x)
+    #             if isinstance(layer, nn.Linear):
+    #                 outputs.append(x)
     #     return outputs
-    
+        
 # I haven't changed it yet, so I don't know whether it'll work. I'm still running the convolutional layer computations of the peripheral patches.
 # Potential problem is the different dimension of the dense layers, as they're flat. This implementation might not be ideal.
     

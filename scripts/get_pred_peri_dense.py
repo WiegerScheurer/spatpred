@@ -260,7 +260,7 @@ def _make_img_3d(mask_in,):
     return(np.repeat(mask_in[:,:,np.newaxis],3,axis=2))
 
 # unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='alex')
-unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-conv')
+unet=UNet(checkpoint_name='pconv_circ-places20k.pth',feature_model='vgg-dense')
 
 imgs, masks, img_nos = rand_img_list(n_imgs, asPIL = True, add_masks = True, mask_loc = mask1, ecc_max = 1, select_ices = select_ices, in_3d = False)
 
@@ -298,7 +298,7 @@ payload_light = {k: v for k, v in payload_nsd_crop.items() if k not in excl}
 
 print("succeeded")
 
-dir_path = f'/home/rfpred/data/custom_files/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}/pred'
+dir_path = f'/home/rfpred/data/custom_files/visfeats/peripheral/ecc{args.eccentricity}_angle{args.angle}/pred/dense' #SUBFOLDER
 os.makedirs(dir_path, exist_ok=True)
 
 with h5py.File(f'{dir_path}/pred_payloads{args.startimg}_{args.endimg}_vggfull.h5', 'w') as hf:
