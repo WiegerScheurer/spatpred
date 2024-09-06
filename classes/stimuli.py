@@ -380,19 +380,28 @@ class Stimuli():
 
     # Function to get the visual contrast features and predictability estimates
     # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
-    def features(self):
-        feature_paths = [
-            f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl', #dep, now get_rms
-            f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms_crop_prior.pkl', #dep, now get_rms
-            f'{self.nsp.own_datapath}/all_visfeats_scce.pkl',
-            f'{self.nsp.own_datapath}/all_visfeats_scce_large.pkl',
-            f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl',
-            f'{self.nsp.own_datapath}/subj01/pred/all_predestims.h5', # old, .95 correlation with new
-            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg-b.csv', # also about .9-.95 correlation with alex
-            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_alexnet_new.csv',
-            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg8.csv',
-            f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vggfull.csv',  
-            ]
+    def features(self, peripheral:bool=False, peri_ecc:float|None=None, peri_angle:int|None=None):
+        
+        peri_str = f"/peripheral/ecc{peri_ecc}_angle{peri_angle}" if peripheral else ""
+
+        datapath = f"{self.nsp.own_datapath}/visfeats{peri_str}/pred/"
+        
+        if peripheral:
+            feature_paths = [datapath + f"all_predestims_vggfull.csv"]
+        else:
+            
+            feature_paths = [
+                f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl', #dep, now get_rms
+                f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms_crop_prior.pkl', #dep, now get_rms
+                f'{self.nsp.own_datapath}/all_visfeats_scce.pkl',
+                f'{self.nsp.own_datapath}/all_visfeats_scce_large.pkl',
+                f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl',
+                f'{self.nsp.own_datapath}/subj01/pred/all_predestims.h5', # old, .95 correlation with new
+                f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg-b.csv', # also about .9-.95 correlation with alex
+                f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_alexnet_new.csv',
+                f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vgg8.csv',
+                f'{self.nsp.own_datapath}/visfeats/pred/all_predestims_vggfull.csv',  
+                ]
         return {os.path.basename(file): self.nsp.datafetch.fetch_file(file) for file in feature_paths}
         
     def get_rms(
@@ -483,33 +492,6 @@ class Stimuli():
             ]  # Get the 73k-based indices for the specific subject
 
         return pd.DataFrame(Xnorm, index=indices, columns=["rms"])
-
-        
-    # def get_scce(self, subject:str|None, sc_or_ce:str, peri_pars:tuple[float, int]|None=None):
-    #     """Function to get the Spatial Coherence or Contrast Energy values for a given subject
-
-    #     Args:
-    #     - subject (str): Which subject.
-    #     - sc_or_ce (str): Whether to get the Spatial Coherence or Contrast Energy values.
-
-    #     Returns:
-    #         np.ndarray: The resulting values.
-    #     """        
-    #     indices = self.imgs_designmx()[subject] if subject is not None else list(range(0,73000))# Get the 73k-based indices for the specific subject
-        
-    #     if peri_pars is None:    
-    #         filepath = f"{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl"
-
-    #         scce = self.nsp.datafetch.fetch_file(f'{self.nsp.own_datapath}/visfeats/scce/scce_stack.pkl')
-
-    #         X = scce[f'{sc_or_ce}_z'][indices]
-        
-    #     else: 
-    #         filepath = f"{self.nsp.own_datapath}/visfeats/peripheral/ecc{peri_pars[0]}_angle{peri_pars[1]}/all_rmsscce.csv"
-    #         scce = self.nsp.datafetch.fetch_file(filepath)
-    #         X = scce[sc_or_ce][indices]
-            
-    #     return X.to_frame(sc_or_ce)
     
     def get_scce(self,
                 subject: str|None, 
@@ -595,7 +577,7 @@ class Stimuli():
         
     def unpred_feats(self, cnn_type:str, content:bool, style:bool, ssim:bool, pixel_loss:bool, 
                      L1:bool, MSE:bool, verbose:bool, outlier_sd_bound:Optional[Union[str, float]]='auto', 
-                     subject:Optional[str]=None):
+                     subject:Optional[str]=None, peripheral:bool=False, peri_ecc:float|None=None, peri_angle:int|None=None):
         """
         Function to create an X matrix based on the exclusion criteria defined in the arguments.
         Input:
@@ -634,7 +616,11 @@ class Stimuli():
             predfeatnames = [name for name in self.features()[file_str].columns if name != 'img_ices']
         elif cnn_type == 'vggfull':
             file_str = 'all_predestims_vggfull.csv'
-            predfeatnames = [name for name in self.features()[file_str].columns if name != 'img_ices']
+
+            if peripheral: # I am not proud of these data loading methods, but they work.
+                predfeatnames = [name for name in self.features(peripheral, peri_ecc, peri_angle)[file_str].columns if name != 'img_ices']
+            else:
+                predfeatnames = [name for name in self.features()[file_str].columns if name != 'img_ices']
         
         if subject is not None:    
             indices = self.imgs_designmx()[subject]
@@ -1036,11 +1022,9 @@ class Stimuli():
         if include_sc_new:
             ticks.append('SC')
             
-              
         figsize = (14, 12) if len(predfeatnames) > 10 else (9, 7)
         
         plt.figure(figsize=figsize)
-        # sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks)
         sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks, vmin=0, vmax=1)
         plt.title(f'Correlation matrix for the MSE content loss values per\n{cnn_type} layer, and the baseline features')
         plt.show()

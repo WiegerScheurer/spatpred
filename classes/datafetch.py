@@ -122,34 +122,73 @@ class DataFetch():
         dat_dim = dat_array.shape
 
         return full_dat, dat_array, dat_dim, {'min': round(np.nanmin(flat_arr),7), 'max': np.nanmax(flat_arr), 'mean': round(np.nanmean(flat_arr),5)}
-        
-    # Hard coded, make flexible    
+    
+    # Hard coded, make flexible
     # Function to load in all the computed predictability estimates, created using the get_pred.py and pred_stack.sh scripts.
-    def load_pred_estims(self, subject:str=None, start:int=None, n_files:int=None, verbose:bool=False, cnn_type:str='alexnet'):
+    def load_pred_estims(
+        self,
+        subject: str = None,
+        start: int = None,
+        n_files: int = None,
+        verbose: bool = False,
+        cnn_type: str = "alexnet",
+        peripheral:bool = False,
+        peri_ecc:float|None = None,
+        peri_angle:int|None = None,
+    ):
+        """
+        Load predicted estimations from .h5 files.
+
+        Args:
+            subject (str, optional): The subject. Defaults to None.
+            start (int, optional): The starting index. Defaults to None.
+            n_files (int, optional): The number of files to load. Defaults to None.
+            verbose (bool, optional): Whether to print loading progress. Defaults to False.
+            cnn_type (str, optional): The type of CNN. Defaults to "alexnet".
+            peripheral (bool, optional): Whether to load peripheral estimations. Defaults to False.
+            peri_ecc (float, optional): The eccentricity of peripheral estimations. Defaults to None.
+            peri_angle (int, optional): The angle of peripheral estimations. Defaults to None.
+
+        Returns:
+            list: A list of dictionaries containing the loaded estimations.
+        """
+        
         dict_list = []
 
-        # Get a list of files in the directory
-        files = os.listdir(f'{self.nsp.own_datapath}/visfeats/pred/')
+        peri_str = f"/peripheral/ecc{peri_ecc}_angle{peri_angle}" if peripheral else ""
 
-        # Filter files that start with "beta_dict" and end with ".pkl"
-        filtered_files = [file for file in files if file.startswith('pred_payloads') and file.endswith(f"{cnn_type}.h5")]
-        
-        # Sort files based on the first number after 'beta_dict'
-        sorted_files = sorted(filtered_files, key=lambda x: int(''.join(filter(str.isdigit, x.split('pred_payloads')[1]))))
+        datapath = f"{self.nsp.own_datapath}/visfeats{peri_str}/pred/"
+
+        # Get a list of files in the directory
+        files = os.listdir(datapath)
+
+        # Filter files that start with "pred_payloads" and end with ".h5"
+        filtered_files = [
+            file
+            for file in files
+            if file.startswith("pred_payloads") and file.endswith(f"{cnn_type}.h5")
+        ]
+
+        # Sort files based on the first number after 'pred_payloads'
+        sorted_files = sorted(
+            filtered_files,
+            key=lambda x: int("".join(filter(str.isdigit, x.split("pred_payloads")[1]))),
+        )
 
         # Load in the .h5 files
         for file_no, file in enumerate(sorted_files):
             if verbose:
-                print(f'Now loading file {file_no + 1} of {len(sorted_files)}')
+                print(f"Now loading file {file_no + 1} of {len(sorted_files)}")
             # load in back dictionary
-            with h5py.File(f'{self.nsp.own_datapath}/visfeats/pred/{file}', 'r') as hf:
+            with h5py.File(f"{datapath}/{file}", "r") as hf:
                 data = hf.keys()
-                    
+
                 dict = {key: np.array(hf[key]) for key in data}
-            
+
             dict_list.append(dict)
-                
+
         return dict_list
+    
     
     def get_betas(self, subject:str,
               roi_masks:Dict[str, np.ndarray], 
@@ -301,16 +340,31 @@ class DataFetch():
     
     
 
-    def store_predestims(self, cnn_type:str):
-        """Function to store the separate batches of predictability estimates in one csv.
+    def store_predestims(
+        self,
+        cnn_type:str, 
+        peripheral:bool=False, 
+        peri_ecc:float|None=None, 
+        peri_angle:int|None=None):
+        """
+        Stores predicted estimations in a CSV file.
 
         Args:
-            cnn_type (str): The type of cnn used to compute the predictability estimates
+            cnn_type (str): The type of CNN.
+            peripheral (bool, optional): Whether to use peripheral patches. Defaults to False.
+            peri_ecc (float, optional): The eccentricity of peripheral patches. Defaults to None.
+            peri_angle (int, optional): The angle of peripheral patches. Defaults to None.
 
         Returns:
-            pandas.core.frame.DataFrame: The stacked predictability estimates as a dataframe
-        """        
-        predstack = pd.DataFrame(self.load_pred_estims(cnn_type=cnn_type))
+            pd.DataFrame: The exploded and reset dataframe of predicted estimations.
+        """
+        
+        peri_str = f"/peripheral/ecc{peri_ecc}_angle{peri_angle}" if peripheral else ""
+
+        datapath = f"{self.nsp.own_datapath}/visfeats{peri_str}/pred/"
+        
+        predstack = pd.DataFrame(self.load_pred_estims(cnn_type=cnn_type, peripheral=peripheral, peri_ecc=peri_ecc, peri_angle=peri_angle))
+        # predstack = pd.DataFrame(load_pred_estims(cnn_type=cnn_type, peripheral=peripheral, peri_ecc=peri_ecc, peri_angle=peri_angle))
         
         # Convert the list for every batch into separate rows
         predstack_exploded = predstack.apply(lambda x: x.explode())
@@ -320,7 +374,7 @@ class DataFetch():
         
         # Save the dataframe to csv
         predstack_exploded.to_csv(
-            f"{self.nsp.own_datapath}/visfeats/pred/all_predestims_{cnn_type}.csv", index=False
+            f"{datapath}all_predestims_{cnn_type}.csv", index=False
         )
         
         return predstack_exploded
