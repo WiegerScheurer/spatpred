@@ -49,7 +49,10 @@ def reg_to_nifti(
     else:
         results = rd(subject=subject, folder=f"{reg_type}", model=model, statistic=reg_stat)
         
-    if reg_stat == "betas" or reg_stat == "delta_beta" or reg_stat == "beta_unpred":
+    mean_stats = ["betas", "delta_beta", "beta_unpred", "R_alt_model", "R"]
+        
+    # if reg_stat == "betas" or reg_stat == "delta_beta" or reg_stat == "beta_unpred" or reg_stat == "R_alt_model":
+    if reg_stat in mean_stats:
         results._get_mean(verbose=False)
         stat_str = "Mean Statistic"
         plot_lay_assign = False
