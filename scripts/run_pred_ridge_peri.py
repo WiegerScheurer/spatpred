@@ -157,9 +157,17 @@ Xbl = pd.concat([rms, sc, ce], axis=1).values[:ydict["V1"].shape[0]]
 
 which_cnn = 'vggfull'
 
-Xpred = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=False, ssim=False, pixel_loss=False, 
+Xpred_conv = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=False, ssim=False, pixel_loss=False, 
                                  L1=False, MSE=True, verbose=True, outlier_sd_bound=5, subject=subject,
                                  peripheral=True, peri_ecc=args.peri_ecc, peri_angle=args.peri_angle)[:ydict["V1"].shape[0]]
+
+Xpred_dense = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=False, ssim=False, pixel_loss=False, 
+                                 L1=False, MSE=True, verbose=True, outlier_sd_bound=5, subject=subject,
+                                 peripheral=True, peri_ecc=args.peri_ecc, peri_angle=args.peri_angle, dense=True)[:ydict["V1"].shape[0]]
+
+
+Xpred = np.hstack((Xpred_conv, Xpred_dense))
+
  # wait untill all are computed of alexnet
 
 n_layers = Xpred.shape[1]

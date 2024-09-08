@@ -380,16 +380,16 @@ class Stimuli():
 
     # Function to get the visual contrast features and predictability estimates
     # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
-    def features(self, peripheral:bool=False, peri_ecc:float|None=None, peri_angle:int|None=None):
+    def features(self, peripheral:bool=False, dense:bool=False, peri_ecc:float|None=None, peri_angle:int|None=None):
         
         peri_str = f"/peripheral/ecc{peri_ecc}_angle{peri_angle}" if peripheral else ""
-
-        datapath = f"{self.nsp.own_datapath}/visfeats{peri_str}/pred/"
+        dense_str = "dense/" if dense else ""
+        datapath = f"{self.nsp.own_datapath}/visfeats{peri_str}/pred/{dense_str}"
         
-        if peripheral:
+        if peripheral: # TODO: adapt so that I also use this method for the central patches.
             feature_paths = [datapath + f"all_predestims_vggfull.csv"]
+
         else:
-            
             feature_paths = [
                 f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms.pkl', #dep, now get_rms
                 f'{self.nsp.own_datapath}/visfeats/rms/all_visfeats_rms_crop_prior.pkl', #dep, now get_rms
@@ -577,7 +577,7 @@ class Stimuli():
         
     def unpred_feats(self, cnn_type:str, content:bool, style:bool, ssim:bool, pixel_loss:bool, 
                      L1:bool, MSE:bool, verbose:bool, outlier_sd_bound:Optional[Union[str, float]]='auto', 
-                     subject:Optional[str]=None, peripheral:bool=False, peri_ecc:float|None=None, peri_angle:int|None=None):
+                     subject:Optional[str]=None, peripheral:bool=False, peri_ecc:float|None=None, peri_angle:int|None=None, dense:bool=False):
         """
         Function to create an X matrix based on the exclusion criteria defined in the arguments.
         Input:
@@ -618,9 +618,9 @@ class Stimuli():
             file_str = 'all_predestims_vggfull.csv'
 
             if peripheral: # I am not proud of these data loading methods, but they work.
-                predfeatnames = [name for name in self.features(peripheral, peri_ecc, peri_angle)[file_str].columns if name != 'img_ices']
+                predfeatnames = [name for name in self.features(peripheral, dense, peri_ecc, peri_angle)[file_str].columns if name != 'img_ices']
             else:
-                predfeatnames = [name for name in self.features()[file_str].columns if name != 'img_ices']
+                predfeatnames = [name for name in self.features(dense=dense)[file_str].columns if name != 'img_ices']
         
         if subject is not None:    
             indices = self.imgs_designmx()[subject]
@@ -946,7 +946,8 @@ class Stimuli():
         plt.show()
         
     def plot_correlation_matrix(self, subject:str='subj01', include_rms:bool=True, include_ce:bool=True, include_ce_l:bool=True, include_sc:bool=True, 
-                                include_sc_l:bool=True, include_ce_new:bool=True, include_sc_new:bool=True, cmap:str='copper_r', cnn_type:str='alexnet', loss_calc:str='MSE'): 
+                                include_sc_l:bool=True, include_ce_new:bool=True, include_sc_new:bool=True, cmap:str='copper_r', cnn_type:str='alexnet', loss_calc:str='MSE',
+                                peripheral:bool=False, peri_ecc:float|None=None, peri_angle:int|None=None, dense:bool=False): 
         """
         Plot a correlation matrix for the MSE content loss values per layer, and the baseline features.
 
@@ -979,10 +980,12 @@ class Stimuli():
             predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith('content')]
         elif cnn_type == 'vggfull':
             file_str = 'all_predestims_vggfull.csv'
-            predfeatnames = [name for name in self.features()[file_str].columns if name.endswith(loss_calc) and name.startswith('content') and name != 'content_loss_0_MSE']
+            
+            
+            predfeatnames = [name for name in self.features(peripheral=peripheral, dense=dense, peri_ecc=peri_ecc, peri_angle=peri_angle)[file_str].columns if name.endswith(loss_calc) and name.startswith('content') and name != 'content_loss_0_MSE']
         
         # Build dataframe
-        data = {name: self.features()[file_str][name][indices] for name in predfeatnames}
+        data = {name: self.features(peripheral=peripheral, dense=dense, peri_ecc=peri_ecc, peri_angle=peri_angle)[file_str][name][indices] for name in predfeatnames}
         if include_rms:
             # data['rms'] = self.baseline_feats('rms').flatten()
             data['rms'] = self.get_rms(subject).values.flatten()
@@ -1028,7 +1031,27 @@ class Stimuli():
         sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks, vmin=0, vmax=1)
         plt.title(f'Correlation matrix for the MSE content loss values per\n{cnn_type} layer, and the baseline features')
         plt.show()
-            
+                
+    def cormx(self, input_matrix: np.ndarray, labels:list|None = None, cmap: str = "RdGy"):
+        df = pd.DataFrame(input_matrix)
+
+        # Compute correlation matrix
+        corr_matrix = df.corr()
+
+        # If labels are not provided, use column indices as labels
+        if labels is None:
+            labels = [f'Pred {i+1}' for i in range(len(df.columns))]
+            ticks = labels
+        else:
+            ticks = [f'Pred {int(re.search(r"_([0-9]+)", name).group(1))+1}' for name in labels]
+
+        figsize = (14, 12) if len(labels) > 10 else (9, 7)
+
+        plt.figure(figsize=figsize)
+        sns.heatmap(corr_matrix, annot=True, cmap=cmap, xticklabels=ticks, yticklabels=ticks, vmin=0, vmax=1)
+        plt.title(f'Correlation matrix for the MSE content loss values per layer, and the baseline features')
+        plt.show()
+        
         
     def extract_features(self, subject:str='subj01', layer:int=4, start_img:int=0, n_imgs:int=1,
                          batch_size:int=10, pca_components=10, verbose:bool=False, img_crop:bool=True):

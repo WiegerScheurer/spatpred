@@ -355,6 +355,7 @@ class RegData:
         title: str = None,
         input_df: pd.DataFrame = None,
         figsize: Tuple[float, float] = (6, 5.5),
+        n_layers: int|None = None,
     ):
         """
         Assigns layers to each ROI based on the maximum value in each row of a DataFrame.
@@ -382,8 +383,11 @@ class RegData:
             df = self._weigh_mean_layer(verbose=verbose, copy_df=df)
             assign_str = "Mean Weighted Layer"
 
-        lay_colours = max(self.cnn_layers) - self.cnn_layers[0] + 1
-
+        lay_colours = max(self.cnn_layers) - self.cnn_layers[0] + 1 if n_layers is None else n_layers
+        
+        print(f"Number of layers: {lay_colours}") if verbose else None
+        
+        
         # Light colourmap, worked better with fewer layers
         # barcmap = LinearSegmentedColormap.from_list(
         #     "NavyBlueVeryLightGreyDarkRed",
@@ -415,7 +419,7 @@ class RegData:
                 "#E90000",
                 "#800000",
             ],
-            N=13,
+            N=lay_colours,
         )
         
         # Calculate the proportions of max_indices within each ROI

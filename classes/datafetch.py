@@ -133,6 +133,7 @@ class DataFetch():
         verbose: bool = False,
         cnn_type: str = "alexnet",
         peripheral:bool = False,
+        dense:bool=False,
         peri_ecc:float|None = None,
         peri_angle:int|None = None,
     ):
@@ -156,8 +157,8 @@ class DataFetch():
         dict_list = []
 
         peri_str = f"/peripheral/ecc{peri_ecc}_angle{peri_angle}" if peripheral else ""
-
-        datapath = f"{self.nsp.own_datapath}/visfeats{peri_str}/pred/"
+        dense_str = "dense/" if dense else ""
+        datapath = f"{self.nsp.own_datapath}/visfeats{peri_str}/pred/{dense_str}"
 
         # Get a list of files in the directory
         files = os.listdir(datapath)
@@ -344,6 +345,7 @@ class DataFetch():
         self,
         cnn_type:str, 
         peripheral:bool=False, 
+        dense:bool=False,
         peri_ecc:float|None=None, 
         peri_angle:int|None=None):
         """
@@ -360,10 +362,10 @@ class DataFetch():
         """
         
         peri_str = f"/peripheral/ecc{peri_ecc}_angle{peri_angle}" if peripheral else ""
-
-        datapath = f"{self.nsp.own_datapath}/visfeats{peri_str}/pred/"
+        dense_str = "dense/" if dense else ""
+        datapath = f"{self.nsp.own_datapath}/visfeats{peri_str}/pred/{dense_str}"
         
-        predstack = pd.DataFrame(self.load_pred_estims(cnn_type=cnn_type, peripheral=peripheral, peri_ecc=peri_ecc, peri_angle=peri_angle))
+        predstack = pd.DataFrame(self.load_pred_estims(cnn_type=cnn_type, peripheral=peripheral, dense=dense, peri_ecc=peri_ecc, peri_angle=peri_angle))
         # predstack = pd.DataFrame(load_pred_estims(cnn_type=cnn_type, peripheral=peripheral, peri_ecc=peri_ecc, peri_angle=peri_angle))
         
         # Convert the list for every batch into separate rows
