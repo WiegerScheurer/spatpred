@@ -33,7 +33,10 @@ def reg_to_nifti(
     plot_lay_assign: bool = False,
     save_nifti: bool = True,
     mean_delta_r: bool = False,
-    verbose: bool = False
+    verbose: bool = False,
+    peripheral: bool = False,
+    peri_ecc:float|None=None,
+    peri_angle:int|None=None,
 ) -> None:
     
     os.makedirs(f"{NSP.own_datapath}/{subject}/stat_volumes", exist_ok=True)
@@ -44,8 +47,11 @@ def reg_to_nifti(
 
     rd = RegData
     
+    peri_str = f"/peri_ecc{peri_ecc}_angle{peri_angle}" if peripheral else ""
+    peri_save_str = f"_peri_ecc{peri_ecc}_angle{peri_angle}" if peripheral else ""
+    
     if reg_type == "unpred":
-        results = rd(subject=subject, folder=f"{reg_type}/{model}", model=model, statistic=reg_stat)
+        results = rd(subject=subject, folder=f"{reg_type}/{model}{peri_str}", model=model, statistic=reg_stat)
     else:
         results = rd(subject=subject, folder=f"{reg_type}", model=model, statistic=reg_stat)
         
@@ -87,7 +93,7 @@ def reg_to_nifti(
         new_df.values,
         keep_vals=True,
         save_nifti=save_nifti,
-        save_path=f"{NSP.own_datapath}/{subject}/stat_volumes/{reg_type}_{model}{lay_assign_str}_{assign_stat}.nii",
+        save_path=f"{NSP.own_datapath}/{subject}/stat_volumes/{reg_type}{peri_save_str}_{model}{lay_assign_str}_{assign_stat}.nii",
     )
 
     if plot_lay_assign:
@@ -99,7 +105,7 @@ def reg_to_nifti(
     if plot_brain: # Only works when you save the nifti file
         # visualise the nifti
         img = nib.load(
-            f"{NSP.own_datapath}/{subject}/stat_volumes/{reg_type}_{model}{lay_assign_str}_{assign_stat}.nii"
+            f"{NSP.own_datapath}/{subject}/stat_volumes/{reg_type}{peri_save_str}_{model}{lay_assign_str}_{assign_stat}.nii"
         )
 
         plotting.plot_stat_map(
