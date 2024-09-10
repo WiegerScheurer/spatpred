@@ -40,6 +40,8 @@ predparser = argparse.ArgumentParser(description='Get the predictability estimat
 predparser.add_argument('subject', type=str, help='The subject')
 predparser.add_argument('peri_ecc', type=float, help='The eccentricity of the peripheral patch')
 predparser.add_argument('peri_angle', type=int, help='The angle of the peripheral patch')
+# predparser.add_argument('--mean_unpred', type=bool, help='Whether or not to run the analysis for the mean of all unpredictability feats', default=False)
+predparser.add_argument('--mean_unpred', action='store_true', help='Whether or not to run the analysis for the mean of all unpredictability feats')
 
 # predparser.add_argument('--robustness_analysis', type=str2bool, help='Whether or not the script is run inside a robustness check loop', default=False)
 # predparser.add_argument('--min_prfsize', type=float, help='The minimum prf size', default=None)
@@ -47,7 +49,10 @@ predparser.add_argument('peri_angle', type=int, help='The angle of the periphera
 
 args = predparser.parse_args()
 
-peri_tag = f"/peri_ecc{args.peri_ecc}_angle{args.peri_angle}" # This is for the file names
+mean_unpred_tag = "_mean_unpred" if args.mean_unpred else ""
+peri_tag = f"/peri_ecc{args.peri_ecc}_angle{args.peri_angle}{mean_unpred_tag}" # This is for the file names
+
+
 
 # TODO: also return the cor_scores for the uninformative x matrix and create brainplots where
 # the r-values are plotted on the brain for both the informative and uninformative x matrices
@@ -167,6 +172,9 @@ Xpred_dense = NSP.stimuli.unpred_feats(cnn_type=which_cnn, content=True, style=F
 
 
 Xpred = np.hstack((Xpred_conv, Xpred_dense))
+
+if args.mean_unpred:
+    Xpred = np.mean(Xpred, axis=1).reshape(-1,1)
 
  # wait untill all are computed of alexnet
 

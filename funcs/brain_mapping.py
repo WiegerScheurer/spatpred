@@ -1,3 +1,4 @@
+from operator import truediv
 import os
 import sys
 
@@ -37,6 +38,7 @@ def reg_to_nifti(
     peripheral: bool = False,
     peri_ecc:float|None=None,
     peri_angle:int|None=None,
+    mean_unpred:bool=False
 ) -> None:
     
     os.makedirs(f"{NSP.own_datapath}/{subject}/stat_volumes", exist_ok=True)
@@ -47,8 +49,10 @@ def reg_to_nifti(
 
     rd = RegData
     
-    peri_str = f"/peri_ecc{peri_ecc}_angle{peri_angle}" if peripheral else ""
-    peri_save_str = f"_peri_ecc{peri_ecc}_angle{peri_angle}" if peripheral else ""
+    mean_unpred_str = "_mean_unpred" if mean_unpred else ""
+    
+    peri_str = f"/peri_ecc{peri_ecc}_angle{peri_angle}{mean_unpred_str}" if peripheral else ""
+    peri_save_str = f"_peri_ecc{peri_ecc}_angle{peri_angle}{mean_unpred_str}" if peripheral else ""
     
     if reg_type == "unpred":
         results = rd(subject=subject, folder=f"{reg_type}/{model}{peri_str}", model=model, statistic=reg_stat)
@@ -58,7 +62,7 @@ def reg_to_nifti(
     mean_stats = ["betas", "delta_beta", "beta_unpred", "R_alt_model", "R"]
         
     # if reg_stat == "betas" or reg_stat == "delta_beta" or reg_stat == "beta_unpred" or reg_stat == "R_alt_model":
-    if reg_stat in mean_stats:
+    if reg_stat in mean_stats or mean_delta_r is True:
         results._get_mean(verbose=False)
         stat_str = "Mean Statistic"
         plot_lay_assign = False
