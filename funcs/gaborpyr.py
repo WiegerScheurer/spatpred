@@ -2,6 +2,7 @@ import numpy as np
 import random
 import cv2
 import matplotlib.pyplot as plt
+from scipy.stats import zscore as zs
 
 def isotropic_gaussian(dims:tuple, sigma:float):
     x = np.arange(0, dims[0], 1, float)

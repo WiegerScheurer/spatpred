@@ -11,20 +11,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 import argparse
+from skimage import color
+from scipy.stats import zscore as zs
 
 print(sys.path)
-%pwd
 
 os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
 
+from classes.voxelsieve import VoxelSieve
+from classes.natspatpred import NatSpatPred
+NSP = NatSpatPred()
+NSP.initialise()
+
 predparser = argparse.ArgumentParser(description='Get the predictability estimates for a range of images of a subject')
 
 predparser.add_argument('start', type=int, help='The starting index of the images to get the predictability estimates for')
 predparser.add_argument('end', type=int, help='The ending index of the images to get the predictability estimates for')
-predparser.add_argument('--subject', type=str, help='The subject to get the predictability estimates for')
+predparser.add_argument('--subject', type=str, help='The subject to get the predictability estimates for', default=None)
 
 args = predparser.parse_args()
 
@@ -38,8 +44,11 @@ from funcs.gaborpyr import (
     plot_filter_locations,
     plot_filter_outputs,
     normalize_output,
+    select_filters,
 )
 
+
+subject = args.subject
 pixels = 425
 degrees = 8.4
 pix_per_deg = pixels / degrees
@@ -76,7 +85,13 @@ checkpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=gauss_check_st
 
 checkpyramid.view.nfilters
 
-gauss_output = checkpyramid.project_stimulus(gauss_check_stack)
+file_exists = os.path.isfile(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output.npy")
+
+if file_exists:
+    print("Loading the filter selection from file")
+    gauss_output = np.load(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output.npy")
+else:
+    gauss_output = checkpyramid.project_stimulus(gauss_check_stack)
 
 # Figure out how many filters there are per spatial frequency
 filters_per_freq= []
@@ -88,3 +103,73 @@ for sf in spat_freqs:
     
 filters_per_freq
 
+output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist = (
+    select_filters(
+        pyramid=checkpyramid,
+        output=gauss_output,
+        imgs=gauss_check_stack,
+        img_no=1,
+        spat_freqs=spat_freqs,
+        filters_per_freq=filters_per_freq,
+        percentile_cutoff=99.9,
+        plot=False,
+        verbose=True,
+    )
+)
+
+# The indices for the filters that are within the patch
+filter_indices = np.where(filter_selection == True)[0]
+
+# Now we can project the NSD images
+
+start_img = args.start
+end_img = args.end
+
+# FOR NOW I DEFINE THE SUBJECT BECAUSE I WANT TO CHECK THE PERFORMANCE
+# OF THE MODEL BEFORE COMPUTING IT FOR THE 73K IMAGES
+imgs,_ = NSP.stimuli.rand_img_list(n_imgs=(end_img-start_img), 
+                                   asPIL=False, 
+                                   add_masks=False, 
+                                   select_ices=NSP.stimuli.imgs_designmx()[args.subject][start_img:end_img])
+
+img_list = []
+
+print("Converting images to luminance channel")
+for img_no, img in enumerate(imgs):
+
+    # Convert RGB image to LAB colour space
+    lab_image = color.rgb2lab(imgs[img_no])
+
+    # First channel [0] is Luminance, second [1] is green-red, third [2] is blue-yellow
+    lumimg = lab_image[
+        :, :, 0
+    ]  # Extract the L channel for luminance values, assign to input array
+
+    img_list.append(lumimg)
+
+imgstack = np.array(img_list)
+
+
+print(f"Building pyramid for images {start_img} to {end_img}")
+nsdpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=imgstack,
+                                                spatial_frequencies=[4.2, 8.4, 16.8, 33.6], # 1, 2, 4, 8 cycles per degree
+                                                # spatial_frequencies=[33.6], # 1, 2, 4, 8 cycles per degree
+                                                # spatial_orientations=(0, 45, 90, 135),
+                                                spatial_orientations=tuple(range(0, 180, 20)),
+                                                sf_gauss_ratio=1, # ratio of spatial frequency to gaussian s.d.
+                                                max_spatial_env=(1/8.4), # max sd of gaussian envelope
+                                                filter_spacing=.5,
+                                                include_edges=False, # Should be false, we're not interested in the edges
+                                                spatial_phase_offset=0,
+)
+
+print(f"Ended up with a total filter count of: {nsdpyramid.view.nfilters}")
+
+nsd_output = nsdpyramid.project_stimulus(imgstack, filters=filter_selection_dictlist)
+
+nsd_output_norm = normalize_output(nsd_output, len(spat_freqs), filters_per_freq)
+
+os.makedirs(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches", exist_ok=True)
+np.save(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches/gabor_baseline_{start_img}_{end_img}.npy", nsd_output_norm)
+
+print(f"Saved the output to {NSP.own_datapath}/visfeats/gabor_pyramid/batches/gabor_baseline_{start_img}_{end_img}.npy")
