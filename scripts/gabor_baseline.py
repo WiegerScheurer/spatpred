@@ -76,20 +76,37 @@ checkpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=gauss_check_st
                                                 spatial_frequencies=[4.2, 8.4, 16.8, 33.6], # 1, 2, 4, 8 cycles per degree
                                                 # spatial_frequencies=[33.6], # 1, 2, 4, 8 cycles per degree
                                                 # spatial_orientations=(0, 45, 90, 135),
-                                                spatial_orientations=tuple(range(0, 180, 20)),
-                                                sf_gauss_ratio=1, # ratio of spatial frequency to gaussian s.d.
+                                                spatial_orientations=tuple(range(0, 180, 45)),
+                                                sf_gauss_ratio=.25, # ratio of spatial frequency to gaussian s.d.
                                                 max_spatial_env=(1/8.4), # max sd of gaussian envelope
-                                                filter_spacing=.5,
+                                                filter_spacing=2,
                                                 include_edges=False, # Should be false, we're not interested in the edges
                                                 spatial_phase_offset=0,)
 
 checkpyramid.view.nfilters
 
-file_exists = os.path.isfile(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output.npy")
+### THis is important code for the direction filtering
+
+# Get all directions
+directions = [checkpyramid.view.filters[i]['direction'] for i in range(checkpyramid.view.nfilters)]
+
+# Get unique directions
+unique_directions = np.unique(directions)
+
+# Initialize an empty array to store the masks
+direction_masks = np.zeros((len(unique_directions), checkpyramid.view.nfilters), dtype=bool)
+
+# Create a mask for each unique direction
+for i, direction in enumerate(unique_directions):
+    direction_masks[i] = np.array(directions) == direction
+    
+# Check if there's still a file with the filter selection, saves time
+
+file_exists = os.path.isfile(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_stricter.npy")
 
 if file_exists:
     print("Loading the filter selection from file")
-    gauss_output = np.load(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output.npy")
+    gauss_output = np.load(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_stricter.npy")
 else:
     gauss_output = checkpyramid.project_stimulus(gauss_check_stack)
 
@@ -103,6 +120,20 @@ for sf in spat_freqs:
     
 filters_per_freq
 
+# output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist = (
+#     select_filters(
+#         pyramid=checkpyramid,
+#         output=gauss_output,
+#         imgs=gauss_check_stack,
+#         img_no=1,
+#         spat_freqs=spat_freqs,
+#         filters_per_freq=filters_per_freq,
+#         percentile_cutoff=99.9,
+#         plot=False,
+#         verbose=True,
+#     )
+# )
+
 output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist = (
     select_filters(
         pyramid=checkpyramid,
@@ -110,15 +141,21 @@ output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist =
         imgs=gauss_check_stack,
         img_no=1,
         spat_freqs=spat_freqs,
+        direction_masks=direction_masks,
         filters_per_freq=filters_per_freq,
-        percentile_cutoff=99.9,
+        percentile_cutoff=99.99, # Het moet maar
         plot=False,
         verbose=True,
     )
 )
 
+# Stack the directions
+full_filter = np.sum(np.array(filter_selection), axis=0)
+
+
 # The indices for the filters that are within the patch
-filter_indices = np.where(filter_selection == True)[0]
+# filter_indices = np.where(filter_selection == True)[0]
+filter_indices = np.where(full_filter == True)[0]
 
 # Now we can project the NSD images
 
@@ -150,24 +187,46 @@ for img_no, img in enumerate(imgs):
 imgstack = np.array(img_list)
 
 
-print(f"Building pyramid for images {start_img} to {end_img}")
+# print(f"Building pyramid for images {start_img} to {end_img}")
+# nsdpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=imgstack,
+#                                                 spatial_frequencies=[4.2, 8.4, 16.8, 33.6], # 1, 2, 4, 8 cycles per degree
+#                                                 # spatial_frequencies=[33.6], # 1, 2, 4, 8 cycles per degree
+#                                                 # spatial_orientations=(0, 45, 90, 135),
+#                                                 # spatial_orientations=tuple(range(0, 180, 20)),
+#                                                 spatial_orientations=tuple(range(0, 180, 45)),
+#                                                 sf_gauss_ratio=1, # ratio of spatial frequency to gaussian s.d.
+#                                                 max_spatial_env=(1/8.4), # max sd of gaussian envelope
+#                                                 filter_spacing=.5,
+#                                                 include_edges=False, # Should be false, we're not interested in the edges
+#                                                 spatial_phase_offset=0,
+# )
+
+spat_freqs = [4.2, 8.4, 16.8, 33.6]
+directions = tuple(range(0, 180, 45))
+
 nsdpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=imgstack,
                                                 spatial_frequencies=[4.2, 8.4, 16.8, 33.6], # 1, 2, 4, 8 cycles per degree
                                                 # spatial_frequencies=[33.6], # 1, 2, 4, 8 cycles per degree
                                                 # spatial_orientations=(0, 45, 90, 135),
-                                                spatial_orientations=tuple(range(0, 180, 20)),
-                                                sf_gauss_ratio=1, # ratio of spatial frequency to gaussian s.d.
+                                                spatial_orientations=tuple(range(0, 180, 45)),
+                                                sf_gauss_ratio=.25, # ratio of spatial frequency to gaussian s.d.
                                                 max_spatial_env=(1/8.4), # max sd of gaussian envelope
-                                                filter_spacing=.5,
+                                                filter_spacing=2,
                                                 include_edges=False, # Should be false, we're not interested in the edges
-                                                spatial_phase_offset=0,
-)
+                                                spatial_phase_offset=0,)
 
-print(f"Ended up with a total filter count of: {nsdpyramid.view.nfilters}")
+checkpyramid.view.nfilters
 
-nsd_output = nsdpyramid.project_stimulus(imgstack, filters=filter_selection_dictlist)
+print(f"Ended up with a total filter count of:{np.sum(filters_per_freq_sel)} / {nsdpyramid.view.nfilters}")
 
-nsd_output_norm = normalize_output(nsd_output, len(spat_freqs), filters_per_freq)
+flat_list = [item for sublist in filter_selection_dictlist for item in sublist]
+
+
+nsd_output = nsdpyramid.project_stimulus(imgstack, filters=flat_list)
+
+filters_per_freq_agg = np.sum(filters_per_freq_sel, axis=0)
+
+nsd_output_norm = normalize_output(nsd_output, len(spat_freqs), filters_per_freq_agg)
 
 os.makedirs(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches", exist_ok=True)
 np.save(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches/gabor_baseline_{start_img}_{end_img}.npy", nsd_output_norm)

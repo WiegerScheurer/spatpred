@@ -187,13 +187,97 @@ def normalize_output(output, n_spatfreqs, filters_per_freq):
 
     
     return np.concatenate(circle_output_norm)
+  
+  
+  # The old one that worked, keep it here to be safe  
+# def select_filters(
+#     pyramid,
+#     output,
+#     imgs: np.ndarray,
+#     img_no: int,
+#     spat_freqs: list[float],
+#     filters_per_freq: list[float],
+#     percentile_cutoff: float = 99,
+#     plot: bool = False,
+#     verbose: bool = False,
+# ):
+#     """
+#     Selects filters from a pyramid based on the given parameters.
+
+#     Args:
+#         pyramid: The pyramid object containing the filters.
+#         output: The output of the pyramid for the given image.
+#         imgs: The array of input images.
+#         img_no: The index of the image to select filters for.
+#         spat_freqs: The list of spatial frequencies.
+#         filters_per_freq: The list of number of filters per spatial frequency.
+#         percentile_cutoff: The percentile cutoff for filter selection (default: 99).
+#         plot: Whether to plot the selected filters (default: False).
+#         verbose: Whether to print verbose information (default: False).
+
+#     Returns:
+#         output_norm: The normalized output for each spatial frequency.
+#         filters_per_freq_sel: The number of selected filters per spatial frequency.
+#         filter_selection: The boolean mask for filter selection.
+#         filter_selection_dictlist: The list of selected filters as dictionary objects.
+#     """
     
+#     this_output=output[img_no]
+    
+#     # output = gauss_output[img_no]
+#     if plot:
+#         show(imgs[img_no], figsize=(6, 6))
+
+#     n_spatfreqs = len(spat_freqs)
+
+#     # normalise the output for every spatial frequency separately
+#     start = 0
+#     output_norm = []
+#     for i in range(n_spatfreqs):
+#         end = start + filters_per_freq[i]
+#         output_norm.append(zs(this_output[start:end]))
+#         start = end
+
+#     # Calculate the nth percentile for each spatial frequency and create a boolean mask
+#     filter_selection = []
+#     filters_per_freq_sel = []
+#     for i in range(n_spatfreqs):
+#         percentile = np.percentile(output_norm[i], percentile_cutoff)
+#         mask = output_norm[i] > percentile
+#         filter_selection.append(mask)
+#         n_filters = np.sum(mask)
+#         filters_per_freq_sel.append(n_filters)
+#         if verbose:
+#             print(
+#                 f"Spatial frequency {i}: percentile = {percentile}, number of values > percentile = {n_filters}"
+#             )
+
+#     # Boolean mask to filter out the selected filters
+#     filter_selection = np.concatenate(filter_selection)
+
+#     # Dictionary of the selected filters
+#     filter_selection_dictlist = list(np.array(pyramid.view.filters)[filter_selection])
+    
+#     if verbose:
+#         print(
+#             f"Filter includes {np.sum(filter_selection)} out of {pyramid.view.nfilters} filters"
+#         )
+#     if plot:
+#         plot_filter_locations(
+#             gabor_pyramid=pyramid, in_range=filter_selection, pixdims=(425, 425)
+#         )
+        
+#     return output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist
+
+
+### This one loops over the different directions, and kind of woroks, but the outputs need to be concatenated, stacked manually
 def select_filters(
     pyramid,
     output,
     imgs: np.ndarray,
     img_no: int,
     spat_freqs: list[float],
+    direction_masks: list|tuple,
     filters_per_freq: list[float],
     percentile_cutoff: float = 99,
     plot: bool = False,
@@ -201,68 +285,61 @@ def select_filters(
 ):
     """
     Selects filters from a pyramid based on the given parameters.
-
-    Args:
-        pyramid: The pyramid object containing the filters.
-        output: The output of the pyramid for the given image.
-        imgs: The array of input images.
-        img_no: The index of the image to select filters for.
-        spat_freqs: The list of spatial frequencies.
-        filters_per_freq: The list of number of filters per spatial frequency.
-        percentile_cutoff: The percentile cutoff for filter selection (default: 99).
-        plot: Whether to plot the selected filters (default: False).
-        verbose: Whether to print verbose information (default: False).
-
-    Returns:
-        output_norm: The normalized output for each spatial frequency.
-        filters_per_freq_sel: The number of selected filters per spatial frequency.
-        filter_selection: The boolean mask for filter selection.
-        filter_selection_dictlist: The list of selected filters as dictionary objects.
     """
-    
     this_output=output[img_no]
-    
-    # output = gauss_output[img_no]
-    if plot:
-        show(imgs[img_no], figsize=(6, 6))
-
     n_spatfreqs = len(spat_freqs)
 
-    # normalise the output for every spatial frequency separately
-    start = 0
-    output_norm = []
-    for i in range(n_spatfreqs):
-        end = start + filters_per_freq[i]
-        output_norm.append(zs(this_output[start:end]))
-        start = end
+    # Initialize the aggregated results
+    output_norm_agg = []
+    filter_selection_agg = []
+    filters_per_freq_sel_agg = []
 
-    # Calculate the nth percentile for each spatial frequency and create a boolean mask
-    filter_selection = []
-    filters_per_freq_sel = []
-    for i in range(n_spatfreqs):
-        percentile = np.percentile(output_norm[i], percentile_cutoff)
-        mask = output_norm[i] > percentile
-        filter_selection.append(mask)
-        n_filters = np.sum(mask)
-        filters_per_freq_sel.append(n_filters)
-        if verbose:
-            print(
-                f"Spatial frequency {i}: percentile = {percentile}, number of values > percentile = {n_filters}"
-            )
+    # Loop over the different directions
+    for dir_no in range(len(direction_masks)):
+        # Normalize the output for every spatial frequency separately
+        start = 0
+        output_norm = []
+        for i in range(n_spatfreqs):
+            end = start + filters_per_freq[i]
+            this_dir_mask = direction_masks[dir_no][start:end]
+            output_norm.append(zs(this_output[start:end] * this_dir_mask))
+            start = end
+
+        # Calculate the nth percentile for each spatial frequency and create a boolean mask
+        filter_selection = []
+        filters_per_freq_sel = []
+        for i in range(n_spatfreqs):
+            percentile = np.percentile(output_norm[i], percentile_cutoff)
+            mask = output_norm[i] > percentile
+            filter_selection.append(mask)
+            n_filters = np.sum(mask)
+            filters_per_freq_sel.append(n_filters)
+            if verbose:
+                print(
+                    f"Direction {dir_no}, Spatial frequency {i}: percentile = {percentile}, number of values > percentile = {n_filters}"
+                )
+
+        # Aggregate the results
+        output_norm_agg.append(output_norm)
+        filter_selection_agg.append(filter_selection)
+        filters_per_freq_sel_agg.append(filters_per_freq_sel)
 
     # Boolean mask to filter out the selected filters
-    filter_selection = np.concatenate(filter_selection)
+    filter_selection_agg = [np.concatenate(fs) for fs in filter_selection_agg]
 
     # Dictionary of the selected filters
-    filter_selection_dictlist = list(np.array(pyramid.view.filters)[filter_selection])
+    filter_selection_dictlist = [list(np.array(pyramid.view.filters)[fs]) for fs in filter_selection_agg]
     
     if verbose:
-        print(
-            f"Filter includes {np.sum(filter_selection)} out of {pyramid.view.nfilters} filters"
-        )
+        for dir_no, fs in enumerate(filter_selection_agg):
+            print(
+                f"Direction {dir_no}: Filter includes {np.sum(fs)} out of {pyramid.view.nfilters} filters"
+            )
     if plot:
-        plot_filter_locations(
-            gabor_pyramid=pyramid, in_range=filter_selection, pixdims=(425, 425)
-        )
+        for dir_no, fs in enumerate(filter_selection_agg):
+            show(imgs[img_no], figsize=(6, 6))
+            plot_filter_locations(
+                gabor_pyramid=pyramid, in_range=fs, pixdims=(425, 425)
+            )
         
-    return output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist
+    return output_norm_agg, filters_per_freq_sel_agg, filter_selection_agg, filter_selection_dictlist

@@ -622,6 +622,9 @@ class Stimuli():
             else:
                 predfeatnames = [name for name in self.features(dense=dense)[file_str].columns if name != 'img_ices']
         
+        # Sort predfeatnames based on the integer in the filename
+        predfeatnames = sorted(predfeatnames, key=lambda name: int(re.findall(r'\d+', name)[-1]) if re.findall(r'\d+', name) else 0)        
+        
         if subject is not None:    
             indices = self.imgs_designmx()[subject]
         else: indices = np.ones((73000,)).astype(bool)
@@ -641,6 +644,9 @@ class Stimuli():
         
         # data = {name: zs(self.nsp.utils.replace_outliers(self.nsp.stimuli.features()['all_predestims.h5'][name], m=outlier_bound)) for name in predfeatnames}
         
+            
+        # predfeatnames = [name for name in self.features()[file_str].columns if name != 'img_ices']
+
         data = {name: zs(self.nsp.utils.std_dev_cap(self.features()[file_str][name].fillna(.00001),num_std_dev=cutoff_bound))[indices] for name in predfeatnames}
         
         # Convert the dictionary values to a list of lists
