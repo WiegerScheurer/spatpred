@@ -28,7 +28,7 @@ NSP = NatSpatPred()
 NSP.initialise()
 
 
-def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, smallpatch:bool = False, modeltype:str = 'alexnet') -> np.array:
+def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, smallpatch:bool = False, modeltype:str = 'alexnet', layertype:str = "features", dense_idx_addition:int=33) -> np.array:
     """Function to pull the feature maps from the specified layer of the CNN, for the specified number of voxels.
         The raw files are dicts that result from the encoding_stack.sh script, with ['arr_{image_number}'] as keys.
         This function transforms these dicts into a 2d numpy that can be used as X matrix for the regression analysis.
@@ -38,6 +38,11 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, smallpat
     - subject (str): The subject for which the feature maps are pulled.
     - cnn_layer (str): The layer of the CNN from which the feature maps are pulled.
     - verbose (bool): Whether to print out the progress of the function.
+    - smallpatch (bool): Whether to use the smallpatch feature maps.
+    - modeltype (str): The type of CNN model that is used.
+    - layertype (str): The type of layer that is used. Default is 'features', alternative is 'classifier' for the dense layers.
+    - dense_idx_addition (int): The index addition for the dense layers, default is 33, otherwise it will be the classifier number
+     instead of the overall feature number. ## TODO: do this based on the modeltype and extract the exact index.
 
     Out:
     - Xsubj (np.array): The feature maps for the specified subject and layer.
@@ -45,7 +50,7 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, smallpat
     smallpatch_str = 'smallpatch_' if smallpatch else ''
     # Load in the feature maps for the specified layer of the CNN, dimensionality reduction has already been applied
     featmaps_pc = np.load(
-        f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/featmaps_{smallpatch_str}layfeatures.{cnn_layer}.npz"
+        f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/featmaps_{smallpatch_str}lay{layertype}.{cnn_layer}.npz"
         # f"{NSP.own_datapath}/visfeats/cnn_featmaps/featmaps/featmaps_smallpatch_layfeatures.{cnn_layer}.npz"
     )
 
@@ -53,6 +58,9 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, smallpat
     Xpca = np.array([zs(featmaps_pc[key]) for key in featmaps_pc])
     if verbose:
         NSP.utils.inspect_dat(Xpca)
+
+    dense_idx_addition = 0 if layertype == "features" else dense_idx_addition
+    cnn_layer += dense_idx_addition
 
     # Subject specific indices, 30k images
     subj_ices = [NSP.stimuli.imgs_designmx()[subject]]
@@ -77,11 +85,12 @@ def _pull_featmaps(subject: str, cnn_layer: str, verbose: bool = False, smallpat
 # relu_lays = ["norm", 5, 10, 17, 24, 31]
 # relu_lays = [0, 2, 5, 10, 17, 21, 24, 28]
 # relu_lays = [7, 12, 14, 19, 26]
-relu_lays = [0, 2, 5, 7, 10, 12, 14, 17, 19, 21, 24, 26, 28]
+# relu_lays = [0, 2, 5, 7, 10, 12, 14, 17, 19, 21, 24, 26, 28]
+relu_lays = [0, 3, 6]
 
 for subject in NSP.subjects:
 # for subject in ['subj01']:
     for cnn_layer in relu_lays:
-        _ = _pull_featmaps(subject, cnn_layer, verbose=True, smallpatch=True, modeltype="VGG")
+        _ = _pull_featmaps(subject, cnn_layer, verbose=True, smallpatch=False, modeltype="VGG", layertype="classifier", dense_idx_addition=33)
 
 print("Ook dit script heeft de klus wederom geklaard, chapeau!")
