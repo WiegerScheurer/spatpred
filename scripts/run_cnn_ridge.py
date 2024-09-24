@@ -167,7 +167,8 @@ for roi in rois:
 
 # relu_lays = ["norm", 5, 10, 17, 24, 31]
 # relu_lays = [0, 2, 5, 7, 10, 12, 14, 17, 19, 21, 24, 26, 28]
-relu_lays = [7, 12, 14, 19, 26]
+# relu_lays = [7, 12, 14, 19, 26]
+relu_lays = [33, 36, 39]
 
 # for layer in range(0, 6):
 for layno, layer in enumerate(relu_lays):
