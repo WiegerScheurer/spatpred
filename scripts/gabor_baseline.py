@@ -31,8 +31,13 @@ predparser = argparse.ArgumentParser(description='Get the predictability estimat
 predparser.add_argument('start', type=int, help='The starting index of the images to get the predictability estimates for')
 predparser.add_argument('end', type=int, help='The ending index of the images to get the predictability estimates for')
 predparser.add_argument('--subject', type=str, help='The subject to get the predictability estimates for', default=None)
+predparser.add_argument('--filetag', type=str, help='The filetag to append to the end of the saved file', default=None)
 
 args = predparser.parse_args()
+
+if args.filetag is None:
+    args.filetag = ""
+
 
 from funcs.gaborpyr import (
     isotropic_gaussian,
@@ -70,10 +75,11 @@ gauss_check_stack = np.stack([gauss, checker_stim * gauss], axis=0)
 
 # Original spatfreqs = [0.25, 0.5, 1, 2] in cycles per image (so cycles per 8.4 degrees)
 # If I want to transform this to cycles per degree, I need to divide by 8.4
-spat_freqs = [4.2, 8.4, 16.8, 33.6]
+# spat_freqs = [4.2, 8.4, 16.8, 33.6] #### THis was the previous list of spatial frequencies
+spat_freqs = [16.8, 33.6] # Extreme option with only 2 spatial frequencies
 
 checkpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=gauss_check_stack,
-                                                spatial_frequencies=[4.2, 8.4, 16.8, 33.6], # 1, 2, 4, 8 cycles per degree
+                                                spatial_frequencies=spat_freqs, # 1, 2, 4, 8 cycles per degree
                                                 # spatial_frequencies=[33.6], # 1, 2, 4, 8 cycles per degree
                                                 # spatial_orientations=(0, 45, 90, 135),
                                                 spatial_orientations=tuple(range(0, 180, 45)),
@@ -102,11 +108,11 @@ for i, direction in enumerate(unique_directions):
     
 # Check if there's still a file with the filter selection, saves time
 
-file_exists = os.path.isfile(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_stricter.npy")
+file_exists = os.path.isfile(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_{args.filetag}.npy")
 
 if file_exists:
     print("Loading the filter selection from file")
-    gauss_output = np.load(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_stricter.npy")
+    gauss_output = np.load(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_{args.filetag}npy")
 else:
     gauss_output = checkpyramid.project_stimulus(gauss_check_stack)
 
@@ -143,7 +149,7 @@ output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist =
         spat_freqs=spat_freqs,
         direction_masks=direction_masks,
         filters_per_freq=filters_per_freq,
-        percentile_cutoff=99.99, # Het moet maar
+        percentile_cutoff=99.5, # Het moet maar
         plot=False,
         verbose=True,
     )
@@ -201,11 +207,11 @@ imgstack = np.array(img_list)
 #                                                 spatial_phase_offset=0,
 # )
 
-spat_freqs = [4.2, 8.4, 16.8, 33.6]
+# spat_freqs = [4.2, 8.4, 16.8, 33.6]
 directions = tuple(range(0, 180, 45))
 
 nsdpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=imgstack,
-                                                spatial_frequencies=[4.2, 8.4, 16.8, 33.6], # 1, 2, 4, 8 cycles per degree
+                                                spatial_frequencies=spat_freqs, # 1, 2, 4, 8 cycles per degree
                                                 # spatial_frequencies=[33.6], # 1, 2, 4, 8 cycles per degree
                                                 # spatial_orientations=(0, 45, 90, 135),
                                                 spatial_orientations=tuple(range(0, 180, 45)),
@@ -228,7 +234,10 @@ filters_per_freq_agg = np.sum(filters_per_freq_sel, axis=0)
 
 nsd_output_norm = normalize_output(nsd_output, len(spat_freqs), filters_per_freq_agg)
 
-os.makedirs(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches", exist_ok=True)
-np.save(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches/gabor_baseline_{start_img}_{end_img}.npy", nsd_output_norm)
+filetag_str = f"_{args.filetag}" if args.filetag != "" else ""
 
-print(f"Saved the output to {NSP.own_datapath}/visfeats/gabor_pyramid/batches/gabor_baseline_{start_img}_{end_img}.npy")
+os.makedirs(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches{filetag_str}", exist_ok=True)
+
+np.save(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy", nsd_output_norm)
+
+print(f"Saved the output to {NSP.own_datapath}/visfeats/gabor_pyramid/batches/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy")
