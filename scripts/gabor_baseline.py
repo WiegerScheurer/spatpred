@@ -238,6 +238,6 @@ filetag_str = f"_{args.filetag}" if args.filetag != "" else ""
 
 os.makedirs(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches{filetag_str}", exist_ok=True)
 
-np.save(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy", nsd_output_norm)
+np.save(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches{filetag_str}/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy", nsd_output_norm)
 
-print(f"Saved the output to {NSP.own_datapath}/visfeats/gabor_pyramid/batches/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy")
+print(f"Saved the output to {NSP.own_datapath}/visfeats/gabor_pyramid/batches{filetag_str}/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy")

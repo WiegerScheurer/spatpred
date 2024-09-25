@@ -168,6 +168,29 @@ def plot_filter_outputs(sel_output, filters_per_freq_sel, spat_freqs, img_indice
 
     plt.show()
 
+
+### DYSFUNCTIONAL FUNCTION
+# def normalize_output(output, n_spatfreqs, filters_per_freq):
+#     """
+#     Normalizes the output of the Gabor pyramid.
+
+#     Parameters:
+#     - output: The output of the Gabor pyramid.
+
+#     Returns:
+#     - The normalized output.
+#     """
+#     start = 0
+#     circle_output_norm = []
+#     for i in range(n_spatfreqs):
+#         end = start + filters_per_freq[i]
+#         circle_output_norm.append(zs(output[start:end]))
+#         start = end
+
+    
+#     return np.concatenate(circle_output_norm)
+  
+  
 def normalize_output(output, n_spatfreqs, filters_per_freq):
     """
     Normalizes the output of the Gabor pyramid.
@@ -179,15 +202,15 @@ def normalize_output(output, n_spatfreqs, filters_per_freq):
     - The normalized output.
     """
     start = 0
-    circle_output_norm = []
+    output_norm = np.zeros_like(output)
+
     for i in range(n_spatfreqs):
         end = start + filters_per_freq[i]
-        circle_output_norm.append(zs(output[start:end]))
+        output_norm[:, start:end] = zs(output[:, start:end])
         start = end
 
-    
-    return np.concatenate(circle_output_norm)
-  
+    return output_norm
+
   
   # The old one that worked, keep it here to be safe  
 # def select_filters(
