@@ -112,9 +112,10 @@ file_exists = os.path.isfile(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_c
 
 if file_exists:
     print("Loading the filter selection from file")
-    gauss_output = np.load(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_{args.filetag}npy")
+    gauss_output = np.load(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_{args.filetag}.npy")
 else:
     gauss_output = checkpyramid.project_stimulus(gauss_check_stack)
+    np.save(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_{args.filetag}.npy", gauss_output)
 
 # Figure out how many filters there are per spatial frequency
 filters_per_freq= []

@@ -499,7 +499,18 @@ class RegData:
         Plots the mean values of each ROI across layers.
 
         Parameters:
-        - results (pd.DataFrame): The DataFrame containing the results.
+        - fit_polynom (bool): Whether to fit a polynomial line to the data.
+        - polynom_order (int): The order of the polynomial line to fit.
+        - verbose (bool): Whether to print verbose output.
+        - plot_catplot (bool): Whether to plot using a catplot.
+        - input_df (pd.DataFrame): The input DataFrame to use for plotting.
+        - title (str): The title of the plot.
+        - fixed_ybottom (float | None): The fixed lower limit of the y-axis.
+        - fixed_ytop (float | None): The fixed upper limit of the y-axis.
+        - log_y (bool): Whether to use a logarithmic scale for the y-axis.
+        - overlay (bool): Whether to overlay line plots on top of the catplot.
+        - fit_to (int): The number of values to fit the line to.
+        - plot_ci (bool): Whether to plot a confidence interval.
 
         Returns:
             None
