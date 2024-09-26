@@ -11,5 +11,5 @@ for arg1 in $(seq 0 1000 29000); do
     arg2=$((arg1 + 1000))
     # Run the Python script with the current arguments
     # python ./scripts/get_pred.py $arg1 $arg2 'subj01'
-    python ./scripts/gabor_baseline.py $arg1 $arg2 --subject "subj01" --filetag "trial1"
+    python ./scripts/gabor_baseline.py $arg1 $arg2 --subject "subj01" --filetag "trial3"
 done

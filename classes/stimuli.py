@@ -380,13 +380,18 @@ class Stimuli():
 
     # Function to get the visual contrast features and predictability estimates
     # IMPROVE: make sure that it also works for all subjects later on. Take subject arg, clean up paths.
-    def features(self, peripheral:bool=False, dense:bool=False, peri_ecc:float|None=None, peri_angle:int|None=None):
+    def features(self, 
+                 peripheral:bool=False, 
+                 pred:bool=False,
+                 dense:bool=False, 
+                 peri_ecc:float|None=None, 
+                 peri_angle:int|None=None):
         
         peri_str = f"/peripheral/ecc{peri_ecc}_angle{peri_angle}" if peripheral else ""
         dense_str = "dense/" if dense else ""
         datapath = f"{self.nsp.own_datapath}/visfeats{peri_str}/pred/{dense_str}"
         
-        if peripheral: # TODO: adapt so that I also use this method for the central patches.
+        if pred: # TODO: adapt so that I also use this method for the central patches. # DONE
             feature_paths = [datapath + f"all_predestims_vggfull.csv"]
 
         else:
@@ -617,10 +622,10 @@ class Stimuli():
         elif cnn_type == 'vggfull':
             file_str = 'all_predestims_vggfull.csv'
 
-            if peripheral: # I am not proud of these data loading methods, but they work.
-                predfeatnames = [name for name in self.features(peripheral, dense, peri_ecc, peri_angle)[file_str].columns if name != 'img_ices']
+            if peripheral: # I am not proud of these data loading methods, but they work. # It's also a problem that I use the argument "pred", though the others above are also pred estims (but old, clean up at some point)
+                predfeatnames = [name for name in self.features(peripheral=peripheral, pred=True, dense=dense, peri_ecc=peri_ecc, peri_angle=peri_angle)[file_str].columns if name != 'img_ices']
             else:
-                predfeatnames = [name for name in self.features(dense=dense)[file_str].columns if name != 'img_ices']
+                predfeatnames = [name for name in self.features(pred=True, dense=dense)[file_str].columns if name != 'img_ices']
         
         # Sort predfeatnames based on the integer in the filename
         predfeatnames = sorted(predfeatnames, key=lambda name: int(re.findall(r'\d+', name)[-1]) if re.findall(r'\d+', name) else 0)        
@@ -659,7 +664,9 @@ class Stimuli():
         X = X.T[:,:]
         
         if verbose:
+            print(f"Fetched file from: {file_str}")
             print(predfeatnames)
+            
         
         return X
 
