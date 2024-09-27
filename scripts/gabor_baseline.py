@@ -78,14 +78,17 @@ gauss_check_stack = np.stack([gauss, checker_stim * gauss], axis=0)
 spat_freqs = [4.2, 8.4, 16.8, 33.6] #### THis was the previous list of spatial frequencies
 # spat_freqs = [8.4, 16.8, 33.6] # Extreme option with only 2 spatial frequencies
 
+spat_dirs = tuple(range(0, 180, 20))
+filter_space = 1
+
 checkpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=gauss_check_stack,
                                                 spatial_frequencies=spat_freqs, # 1, 2, 4, 8 cycles per degree
                                                 # spatial_frequencies=[33.6], # 1, 2, 4, 8 cycles per degree
                                                 # spatial_orientations=(0, 45, 90, 135),
-                                                spatial_orientations=tuple(range(0, 180, 45)),
+                                                spatial_orientations=spat_dirs,
                                                 sf_gauss_ratio=.25, # ratio of spatial frequency to gaussian s.d.
                                                 max_spatial_env=(1/8.4), # max sd of gaussian envelope
-                                                filter_spacing=2,
+                                                filter_spacing=filter_space,
                                                 include_edges=False, # Should be false, we're not interested in the edges
                                                 spatial_phase_offset=0,)
 
@@ -127,20 +130,6 @@ for sf in spat_freqs:
     
 filters_per_freq
 
-# output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist = (
-#     select_filters(
-#         pyramid=checkpyramid,
-#         output=gauss_output,
-#         imgs=gauss_check_stack,
-#         img_no=1,
-#         spat_freqs=spat_freqs,
-#         filters_per_freq=filters_per_freq,
-#         percentile_cutoff=99.9,
-#         plot=False,
-#         verbose=True,
-#     )
-# )
-
 output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist = (
     select_filters(
         pyramid=checkpyramid,
@@ -150,7 +139,7 @@ output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist =
         spat_freqs=spat_freqs,
         direction_masks=direction_masks,
         filters_per_freq=filters_per_freq,
-        percentile_cutoff=99.75, # Het moet maar
+        percentile_cutoff=99.9, # Het moet maar
         plot=False,
         verbose=True,
     )
@@ -174,7 +163,9 @@ end_img = args.end
 imgs,_ = NSP.stimuli.rand_img_list(n_imgs=(end_img-start_img), 
                                    asPIL=False, 
                                    add_masks=False, 
-                                   select_ices=NSP.stimuli.imgs_designmx()[args.subject][start_img:end_img])
+                                   select_ices=np.array(range(start_img, end_img)))
+
+                                #    select_ices=NSP.stimuli.imgs_designmx()[args.subject][start_img:end_img])
 
 img_list = []
 
@@ -193,21 +184,6 @@ for img_no, img in enumerate(imgs):
 
 imgstack = np.array(img_list)
 
-
-# print(f"Building pyramid for images {start_img} to {end_img}")
-# nsdpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=imgstack,
-#                                                 spatial_frequencies=[4.2, 8.4, 16.8, 33.6], # 1, 2, 4, 8 cycles per degree
-#                                                 # spatial_frequencies=[33.6], # 1, 2, 4, 8 cycles per degree
-#                                                 # spatial_orientations=(0, 45, 90, 135),
-#                                                 # spatial_orientations=tuple(range(0, 180, 20)),
-#                                                 spatial_orientations=tuple(range(0, 180, 45)),
-#                                                 sf_gauss_ratio=1, # ratio of spatial frequency to gaussian s.d.
-#                                                 max_spatial_env=(1/8.4), # max sd of gaussian envelope
-#                                                 filter_spacing=.5,
-#                                                 include_edges=False, # Should be false, we're not interested in the edges
-#                                                 spatial_phase_offset=0,
-# )
-
 # spat_freqs = [4.2, 8.4, 16.8, 33.6]
 directions = tuple(range(0, 180, 45))
 
@@ -215,10 +191,10 @@ nsdpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=imgstack,
                                                 spatial_frequencies=spat_freqs, # 1, 2, 4, 8 cycles per degree
                                                 # spatial_frequencies=[33.6], # 1, 2, 4, 8 cycles per degree
                                                 # spatial_orientations=(0, 45, 90, 135),
-                                                spatial_orientations=tuple(range(0, 180, 45)),
+                                                spatial_orientations=spat_dirs,
                                                 sf_gauss_ratio=.25, # ratio of spatial frequency to gaussian s.d.
                                                 max_spatial_env=(1/8.4), # max sd of gaussian envelope
-                                                filter_spacing=2,
+                                                filter_spacing=filter_space,
                                                 include_edges=False, # Should be false, we're not interested in the edges
                                                 spatial_phase_offset=0,)
 
