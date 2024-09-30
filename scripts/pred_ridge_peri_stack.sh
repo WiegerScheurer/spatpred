@@ -4,7 +4,6 @@
 
 eccentricity=2.0
 
-
 # I had a bug, add 90 for future analyses
 # for angle in 90 210 330; do
 for angle in 330; do

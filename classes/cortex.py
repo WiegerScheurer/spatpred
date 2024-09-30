@@ -1110,7 +1110,7 @@ class Cortex():
         df = pd.DataFrame(columns=["lh", "rh"], index=rois)
 
         for hemisphere in ["lh", "rh"]:
-            hemdat = nib.load(f"{NSP.nsd_datapath}/nsddata/ppdata/{subject}/func1mm/roi/{hemisphere}.prf-visualrois.nii.gz").get_fdata()
+            hemdat = nib.load(f"{self.nsp.nsd_datapath}/nsddata/ppdata/{subject}/func1mm/roi/{hemisphere}.prf-visualrois.nii.gz").get_fdata()
             visroi_mask = hemdat > 0
             if all_voxels:
                 for roi in rois:
@@ -1119,7 +1119,7 @@ class Cortex():
             else:
                 for roi in rois:
                     # Store the result in the DataFrame
-                    df.loc[roi, hemisphere] = NSP.utils.coords2numpy(voxeldict[roi].xyz, roi_masks[subject]["V1_mask"].shape)[visroi_mask].sum()
+                    df.loc[roi, hemisphere] = self.nsp.utils.coords2numpy(voxeldict[roi].xyz, roi_masks[subject]["V1_mask"].shape)[visroi_mask].sum()
 
         return df
             

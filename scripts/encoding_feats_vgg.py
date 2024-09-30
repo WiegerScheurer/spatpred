@@ -4,7 +4,6 @@
 # dimensionality reduction on them using incremental PCA. Can take a while and can be adapted
 
 import os
-# conda
 # Limit the number of CPUs used to 2
 # os.environ["OMP_NUM_THREADS"] = "1" # For layer 0 and 2 try to limit it to 1, so that there is no multi-threading issue
 
@@ -240,7 +239,6 @@ smallpatch_str = "smallpatch_" if crop_imgs else ""
 pca = fit_pca(
     feature_extractor,
     dataloader,
-    # pca_save_path=f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/pca_{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
     pca_save_path=f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/pca_{smallpatch_str}{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
     fixed_n_comps=fixed_n_comps,
     train_batch=train_batch,
@@ -263,12 +261,6 @@ if pca is not None:
     )
 else:
     print("PCA fitting failed. Unable to apply PCA, fock.")
-
-# np.savez(
-#     # f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/featmaps/featmaps_lay{this_layer}.npz",
-#     f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/featmaps/featmaps_smallpatch_lay{this_layer}.npz",
-#     *features_algo,
-# )
 
 os.makedirs(f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/", exist_ok=True)
 

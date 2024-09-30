@@ -72,13 +72,21 @@ predparser.add_argument(
     default=False,
 )
 
+predparser.add_argument(
+    "--analysis_tag",
+    type=str,
+    help="The string tag to be used for saving the outputs",
+    default=None,
+)
+
 args = predparser.parse_args()
 
-robustness_tag = (
-    f"/robust_prfmin{args.min_prfsize}_patchrad{args.patch_radius}"
-    if args.robustness_analysis
-    else ""
-)
+if args.robustness_analysis:
+    custom_tag = f"/robust_prfmin{args.min_prfsize}_patchrad{args.patch_radius}"
+elif args.analysis_tag is not None:
+    custom_tag = f"_{args.analysis_tag}"
+else:
+    custom_tag = ""
 
 # TODO: also return the cor_scores for the uninformative x matrix and create brainplots where
 # the r-values are plotted on the brain for both the informative and uninformative x matrices
@@ -143,10 +151,16 @@ for roi in rois:
 
 # These [:ydict["V1"].shape[0]] indices are used to cutoff the full design matrices
 # as not all subjects completed all 40 sessions.
-rms = NSP.stimuli.get_rms(subject)[: ydict["V1"].shape[0]]
-sc = NSP.stimuli.get_scce(subject, "sc")[: ydict["V1"].shape[0]]
-ce = NSP.stimuli.get_scce(subject, "ce")[: ydict["V1"].shape[0]]
-Xbl = pd.concat([rms, sc, ce], axis=1).values[: ydict["V1"].shape[0]]
+
+##### THIS IS THE OLD BASELINE #####
+# rms = NSP.stimuli.get_rms(subject)[: ydict["V1"].shape[0]]
+# sc = NSP.stimuli.get_scce(subject, "sc")[: ydict["V1"].shape[0]]
+# ce = NSP.stimuli.get_scce(subject, "ce")[: ydict["V1"].shape[0]]
+# Xbl = pd.concat([rms, sc, ce], axis=1).values[: ydict["V1"].shape[0]]
+
+###### THIS IS THE NEW BASELINE #####
+Xgabor_sub = NSP.stimuli.load_gabor_output(subject=subject, file_tag='all_imgs_sf4_dir6', verbose=False)
+Xbl = Xgabor_sub[: ydict["V1"].shape[0]]
 
 # which_cnn = 'vgg8'
 which_cnn = "vggfull"
@@ -215,7 +229,7 @@ for layer in range(start_idx, Xpred.shape[1]):
         regname=feat,
         plot_hist=True,
         alt_model_type="baseline model",
-        save_folder=f"unpred/{which_cnn}{robustness_tag}",
+        save_folder=f"unpred/{which_cnn}{custom_tag}",
         X_str=f"{feat} model",
     )
 

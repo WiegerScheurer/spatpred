@@ -78,8 +78,8 @@ gauss_check_stack = np.stack([gauss, checker_stim * gauss], axis=0)
 spat_freqs = [4.2, 8.4, 16.8, 33.6] #### THis was the previous list of spatial frequencies
 # spat_freqs = [8.4, 16.8, 33.6] # Extreme option with only 2 spatial frequencies
 
-spat_dirs = tuple(range(0, 180, 20))
-filter_space = 1
+spat_dirs = tuple(range(0, 180, 30))
+filter_space = 1.5
 
 checkpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=gauss_check_stack,
                                                 spatial_frequencies=spat_freqs, # 1, 2, 4, 8 cycles per degree
@@ -139,7 +139,7 @@ output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist =
         spat_freqs=spat_freqs,
         direction_masks=direction_masks,
         filters_per_freq=filters_per_freq,
-        percentile_cutoff=99.9, # Het moet maar
+        percentile_cutoff=99.95, # Het moet maar
         plot=False,
         verbose=True,
     )

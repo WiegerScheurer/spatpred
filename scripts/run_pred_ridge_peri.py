@@ -43,10 +43,6 @@ predparser.add_argument('peri_angle', type=int, help='The angle of the periphera
 # predparser.add_argument('--mean_unpred', type=bool, help='Whether or not to run the analysis for the mean of all unpredictability feats', default=False)
 predparser.add_argument('--mean_unpred', action='store_true', help='Whether or not to run the analysis for the mean of all unpredictability feats')
 
-# predparser.add_argument('--robustness_analysis', type=str2bool, help='Whether or not the script is run inside a robustness check loop', default=False)
-# predparser.add_argument('--min_prfsize', type=float, help='The minimum prf size', default=None)
-# predparser.add_argument('--patch_radius', type=float, help='The radius of the image patch that we use', default=None)
-
 args = predparser.parse_args()
 
 mean_unpred_tag = "_mean_unpred" if args.mean_unpred else ""
@@ -75,28 +71,6 @@ min_prf_R2 = 0
 voxeldict = {}
 n_voxels = []
 
-# for roi in rois:
-#     print_attr = True if roi == rois[len(rois)-1] else False
-#     voxeldict[roi] = VoxelSieve(NSP, 
-#                                 prf_dict, 
-#                                 roi_masks,
-#                                 subject=subject, 
-#                                 roi=roi,
-#                                 patchloc='peripheral', 
-#                                 max_size=max_size, 
-#                                 min_size=min_size, 
-#                                 patchbound=patchbound, 
-#                                 min_nsd_R2=min_nsd_R2, 
-#                                 min_prf_R2=min_prf_R2,
-#                                 print_attributes=print_attr,
-#                                 fixed_n_voxels=None,
-#                                 peripheral_center=None,
-#                                 peri_angle=args.peri_angle,
-#                                 peri_ecc=args.peri_ecc,
-#                                 leniency=0,
-#                                 verbose=False)
-#     n_voxels.append(len(voxeldict[roi].size))
-    
 
 for roi in rois:
     while True:
@@ -118,7 +92,6 @@ for roi in rois:
             peripheral_center=None,
             peri_angle=args.peri_angle,
             peri_ecc=args.peri_ecc,
-            # leniency = 0.25,
             leniency = 0.25,
             verbose=False
         )

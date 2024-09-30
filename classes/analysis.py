@@ -952,10 +952,6 @@ class Analysis():
                 These correspond to overall layers 1, 4, 7, 9, 11 in the CNN. 
         - n_pcs (int): The number of principle components. Options are 1000 or 600. 
         """        
-        
-        print('koekjes')
-        
-        
         smallpatch_str = 'smallpatch_' if smallpatch else ''
             
         # pca_instance = joblib.load(f'{self.nsp.own_datapath}/visfeats/cnn_featmaps/pca/pca_{smallpatch_str}{relu_layer}_{n_pcs}pcs.joblib')

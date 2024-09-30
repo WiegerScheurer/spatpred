@@ -14,11 +14,3 @@ for arg1 in $(seq 0 500 72500); do
     # python ./scripts/get_pred.py $arg1 $arg2 'subj01'
     python ./scripts/get_pred.py $arg1 $arg2
 done
-
-
-# for arg1 in $(seq 0 10 100); do
-#     # Calculate arg2 as arg1 + 250
-#     arg2=$((arg1 + 10))
-#     # Run the Python script with the current arguments
-#     python ./scripts/get_pred.py $arg1 $arg2 'subj01'
-# done
