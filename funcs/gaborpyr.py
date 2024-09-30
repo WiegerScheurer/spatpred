@@ -4,6 +4,10 @@ import cv2
 import matplotlib.pyplot as plt
 from scipy.stats import zscore as zs
 
+from classes.natspatpred import NatSpatPred
+NSP = NatSpatPred()
+NSP.initialise(verbose=False)
+
 def isotropic_gaussian(dims:tuple, sigma:float):
     x = np.arange(0, dims[0], 1, float)
     y = np.arange(0, dims[1], 1, float)
@@ -261,3 +265,71 @@ def select_filters(
             )
         
     return output_norm_agg, filters_per_freq_sel_agg, filter_selection_agg, filter_selection_dictlist
+
+def cut_paste_mask(
+    masks: np.ndarray,
+    peri_angle: int,
+    peri_ecc: float,
+    pix_per_deg: float = (425 / 8.4),
+    verbose: bool = False,
+    plot: bool = False,
+) -> np.ndarray:
+    """
+    Cuts and pastes a patch from a given mask and places it at a specified location.
+
+    Args:
+        masks (np.ndarray): Array of masks. The first mask should be the gaussian mask, the second one
+            should be the checkerboard mask. (or whatever mask you want to place)
+        peri_angle (int): Polar angle of the desired patch location in degrees.
+        peri_ecc (float): Eccentricity of the desired patch location in degrees.
+        pix_per_deg (float, optional): Pixels per degree. Defaults to (425 / 8.4).
+        verbose (bool, optional): Whether to print verbose output. Defaults to False.
+        plot (bool, optional): Whether to plot the patch. Defaults to False.
+
+    Returns:
+        np.ndarray: The modified mask with the patch placed at the specified location.
+    """
+    
+    # Convert angles from degrees to radians
+    peri_angle_rad = np.deg2rad(peri_angle)
+    # Convert polar coordinates to Cartesian coordinates
+    peri_x = peri_ecc * np.cos(peri_angle_rad)
+    peri_y = peri_ecc * np.sin(peri_angle_rad)
+    peripheral_center = (peri_x, peri_y)
+
+    # Convert Cartesian coordinates to pixel coordinates
+    peripheral_center_pix = tuple(
+        [int(pixloc * pix_per_deg) for pixloc in peripheral_center]
+    )
+    if verbose:
+        print(
+            f"The desired patch location has: {peri_ecc} degrees eccentricity at {peri_angle} degrees polar angle at coordinates {(round(peripheral_center[0],2), round(peripheral_center[1],2))}."
+        )
+        print(
+            f"Which requires the patch center to be shifted {peripheral_center_pix[0]} pixels horizontally and {peripheral_center_pix[1]} pixels vertically."
+        )
+
+    gauss_area = np.array(masks[0] > 0.001).reshape(masks[0].shape)
+    cut_ices = NSP.utils.get_bounding_box(gauss_area)
+
+    check_patch = masks[1][
+        cut_ices[0] : cut_ices[1], cut_ices[2] : cut_ices[3]
+    ]
+
+    peri_patch = np.zeros_like(masks[0])
+
+    row_shift = peripheral_center_pix[1]
+    col_shift = peripheral_center_pix[0]
+
+    peri_patch[
+        cut_ices[0] - row_shift : cut_ices[1] - row_shift,
+        cut_ices[2] + col_shift : cut_ices[3] + col_shift,
+    ] = check_patch
+    
+    if plot:
+        _, axes = plt.subplots(1, 2, figsize=(10, 5))
+        axes[0].imshow(check_patch, cmap="gist_gray")
+        axes[1].imshow(peri_patch, cmap="gist_gray")
+        plt.tight_layout()
+        
+    return peri_patch

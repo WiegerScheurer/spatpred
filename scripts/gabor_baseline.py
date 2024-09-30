@@ -33,6 +33,16 @@ predparser.add_argument('end', type=int, help='The ending index of the images to
 predparser.add_argument('--subject', type=str, help='The subject to get the predictability estimates for', default=None)
 predparser.add_argument('--filetag', type=str, help='The filetag to append to the end of the saved file', default=None)
 
+predparser.add_argument('--peri_ecc', type=float, help='The eccentricity of the peripheral patch', default=0)
+predparser.add_argument('--peri_angle', type=int, help='The angle of the peripheral patch', default=0)
+predparser.add_argument('--mean_unpred', action='store_true', help='Whether or not to run the analysis for the mean of all unpredictability feats')
+
+args = predparser.parse_args()
+
+mean_unpred_tag = "_mean_unpred" if args.mean_unpred else ""
+peri_tag = f"/peri_ecc{args.peri_ecc}_angle{args.peri_angle}{mean_unpred_tag}" if args.peri_ecc != 0 and args.peri_angle != 0 else "" # This is for the file names
+
+
 args = predparser.parse_args()
 
 if args.filetag is None:
@@ -50,6 +60,7 @@ from funcs.gaborpyr import (
     plot_filter_outputs,
     normalize_output,
     select_filters,
+    cut_paste_mask,
 )
 
 
@@ -64,14 +75,15 @@ gauss = isotropic_gaussian(dims=(425,425), sigma=pix_per_deg/4) # Justify this 2
 
 checker_stim = make_checker(dims=(425,425), checkercenter=(212,212), scales=3, scaling_factor=3, checker_size=50, stride=0)
 
-fig, axes = plt.subplots(1, 3, figsize=(15,6))
-
-for img_no, img in enumerate([gauss, checker_stim, checker_stim * gauss]):
-    axes[img_no].imshow(img, cmap='gist_gray')
-    axes[img_no].axis("off")
-plt.tight_layout()
 
 gauss_check_stack = np.stack([gauss, checker_stim * gauss], axis=0)
+
+if args.peri_ecc != 0 and args.peri_angle != 0:
+    print(f"Working with a peripheral patch at {args.peri_ecc} degrees eccentricity and {args.peri_angle} degrees angle")
+    peri_patch = cut_paste_mask(gauss_check_stack, args.peri_angle, args.peri_ecc, verbose=False, plot=False)
+    peri_gauss = cut_paste_mask(np.stack([gauss, gauss], axis=0), args.peri_angle, args.peri_ecc, verbose=False, plot=False)
+    gauss_check_stack = np.stack([peri_gauss, peri_patch], axis=0)
+
 
 # Original spatfreqs = [0.25, 0.5, 1, 2] in cycles per image (so cycles per 8.4 degrees)
 # If I want to transform this to cycles per degree, I need to divide by 8.4
@@ -111,14 +123,14 @@ for i, direction in enumerate(unique_directions):
     
 # Check if there's still a file with the filter selection, saves time
 
-file_exists = os.path.isfile(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_{args.filetag}.npy")
+file_exists = os.path.isfile(f"{NSP.own_datapath}/visfeats/gabor_pyramid{peri_tag}/gauss_checker_output_{args.filetag}.npy")
 
 if file_exists:
     print("Loading the filter selection from file")
-    gauss_output = np.load(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_{args.filetag}.npy")
+    gauss_output = np.load(f"{NSP.own_datapath}/visfeats/gabor_pyramid{peri_tag}/gauss_checker_output_{args.filetag}.npy")
 else:
     gauss_output = checkpyramid.project_stimulus(gauss_check_stack)
-    np.save(f"{NSP.own_datapath}/visfeats/gabor_pyramid/gauss_checker_output_{args.filetag}.npy", gauss_output)
+    np.save(f"{NSP.own_datapath}/visfeats/gabor_pyramid{peri_tag}/gauss_checker_output_{args.filetag}.npy", gauss_output)
 
 # Figure out how many filters there are per spatial frequency
 filters_per_freq= []
