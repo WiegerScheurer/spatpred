@@ -422,12 +422,31 @@ class RegData:
             N=lay_colours,
         )
         
-        # Calculate the proportions of max_indices within each ROI
-        df_prop = (
-            df.groupby("roi")[assign_str]
-            .value_counts(normalize=True)
-            .unstack(fill_value=0)
-        )
+        if max_or_weighted == "max":
+            # Calculate the proportions of max_indices within each ROI
+            df_prop = (
+                df.groupby("roi")[assign_str]
+                .value_counts(normalize=True)
+                .unstack(fill_value=0)
+            )
+            # Ensure all categories are present
+            df_prop = df_prop.reindex(columns=range(1, (lay_colours + 1)), fill_value=0)
+
+
+        # THIS WEIGHTED IS A NICE IDEA, BUT THE LAYER INDICES BECOME SORT OF TRIVIAL
+        # THE COLOURS DO NOT REALLY MATCH UP WITH THE MEAN VALUES, BECAUSE THE MEAN VALUES
+        # OCCUPY A MUCH SMALLER RANGE THAN THE MAX VALUES, BUT THEY ARE STILL A BETTER INDICATOR
+        # OF THE RELATIVE IMPORTANCE OF THE LAYERS, AND THE GRADIENT ALONG THE CORTICAL HIERARCHY
+        elif max_or_weighted == "weighted":
+            # df[assign_str] = df[assign_str].round().astype(int)
+
+            # Calculate the proportions of max_indices within each ROI
+            df_prop = (
+                df.groupby("roi")[assign_str]
+                .value_counts(normalize=True)
+                .unstack(fill_value=0)
+            )
+
 
         # Plot the proportions using a stacked bar plot
         ax = df_prop.plot(
@@ -453,7 +472,8 @@ class RegData:
         leg_colours = [
             patches.Patch(
                 # color=barcmap(i / (len(self.cnn_layers) - 1)), label=str(layer)
-                color=barcmap(i / (len(self.cnn_layers) - 1)),
+                # color=barcmap(i / (len(self.cnn_layers) - 1)),
+                color=barcmap(i / (len(self.cnn_layers))),
                 label=str(layer - self.cnn_layers[0] + 1),
                 # color=barcmap(i / (len(self.cnn_layers) - self.cnn_layers[0])), label=str(layer)
             )

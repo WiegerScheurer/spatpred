@@ -38,7 +38,8 @@ def reg_to_nifti(
     peripheral: bool = False,
     peri_ecc:float|None=None,
     peri_angle:int|None=None,
-    mean_unpred:bool=False
+    mean_unpred:bool=False,
+    custom_subfolder:str|None=None,
 ) -> None:
     
     os.makedirs(f"{NSP.own_datapath}/{subject}/stat_volumes", exist_ok=True)
@@ -53,9 +54,12 @@ def reg_to_nifti(
     
     peri_str = f"/peri_ecc{peri_ecc}_angle{peri_angle}{mean_unpred_str}" if peripheral else ""
     peri_save_str = f"_peri_ecc{peri_ecc}_angle{peri_angle}{mean_unpred_str}" if peripheral else ""
+    # This is to be able to retrieve files from folders that are not named exactly after their model (such as vggfull_gabor_baseline)
+    folder_str = f"{model}{peri_str}" if custom_subfolder is None else custom_subfolder
+    folder_save_str = custom_subfolder if custom_subfolder is not None else ""
     
     if reg_type == "unpred":
-        results = rd(subject=subject, folder=f"{reg_type}/{model}{peri_str}", model=model, statistic=reg_stat)
+        results = rd(subject=subject, folder=f"{reg_type}/{folder_str}", model=model, statistic=reg_stat)
     else:
         results = rd(subject=subject, folder=f"{reg_type}", model=model, statistic=reg_stat)
         
@@ -97,7 +101,7 @@ def reg_to_nifti(
         new_df.values,
         keep_vals=True,
         save_nifti=save_nifti,
-        save_path=f"{NSP.own_datapath}/{subject}/stat_volumes/{reg_type}{peri_save_str}_{model}{lay_assign_str}_{assign_stat}.nii",
+        save_path=f"{NSP.own_datapath}/{subject}/stat_volumes/{reg_type}{peri_save_str}{folder_save_str}_{model}{lay_assign_str}_{assign_stat}.nii",
     )
 
     if plot_lay_assign:
@@ -109,7 +113,7 @@ def reg_to_nifti(
     if plot_brain: # Only works when you save the nifti file
         # visualise the nifti
         img = nib.load(
-            f"{NSP.own_datapath}/{subject}/stat_volumes/{reg_type}{peri_save_str}_{model}{lay_assign_str}_{assign_stat}.nii"
+            f"{NSP.own_datapath}/{subject}/stat_volumes/{reg_type}{peri_save_str}{folder_save_str}_{model}{lay_assign_str}_{assign_stat}.nii"
         )
 
         plotting.plot_stat_map(
