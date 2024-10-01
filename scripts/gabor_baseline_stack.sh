@@ -12,6 +12,7 @@ for arg1 in $(seq 0 1000 72000); do
     # Run the Python script with the current arguments
     # python ./scripts/get_pred.py $arg1 $arg2 'subj01'
     for arg3 in $(seq 90 120 330); do
+    # for arg3 in 90 210; do
 
         python ./scripts/gabor_baseline.py $arg1 $arg2 --filetag "all_imgs_sf4_dir6" --peri_ecc 2.0 --peri_angle $arg3
     done

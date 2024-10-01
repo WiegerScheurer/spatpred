@@ -139,7 +139,7 @@ class Utilities():
         gaussian = np.exp(exponent)
         return gaussian
     
-    # Function to create a circle mask
+    # Function to create a circle mask ### COULD BE WRONG, CHECK WHETHER THE CARTESIAN COORDINATES ARE CORRECT (FLIP Y PERHAPS?)
     def make_circle_mask(self, size, center_row, center_col, radius, fill='y', margin_width=1):
         """
         Creates a circular mask with optional margin and fill options.

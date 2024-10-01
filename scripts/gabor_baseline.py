@@ -40,8 +40,9 @@ predparser.add_argument('--mean_unpred', action='store_true', help='Whether or n
 args = predparser.parse_args()
 
 mean_unpred_tag = "_mean_unpred" if args.mean_unpred else ""
-peri_tag = f"/peri_ecc{args.peri_ecc}_angle{args.peri_angle}{mean_unpred_tag}" if args.peri_ecc != 0 and args.peri_angle != 0 else "" # This is for the file names
+peri_tag = f"/peripheral/ecc{args.peri_ecc}_angle{args.peri_angle}{mean_unpred_tag}" if args.peri_ecc != 0 and args.peri_angle != 0 else "" # This is for the file names
 
+print(f"This is the peri_tag: {peri_tag}")
 
 args = predparser.parse_args()
 
@@ -121,16 +122,24 @@ direction_masks = np.zeros((len(unique_directions), checkpyramid.view.nfilters),
 for i, direction in enumerate(unique_directions):
     direction_masks[i] = np.array(directions) == direction
     
+    
+# filetag_str = f"{args.filetag}{peri_tag[5:]}" if args.filetag != "" else ""
+
 # Check if there's still a file with the filter selection, saves time
 
-file_exists = os.path.isfile(f"{NSP.own_datapath}/visfeats/gabor_pyramid{peri_tag}/gauss_checker_output_{args.filetag}.npy")
+# file_exists = os.path.isfile(f"{NSP.own_datapath}/visfeats/gabor_pyramid{peri_tag}/gauss_checker_output_{args.filetag}.npy")
+# file_exists = os.path.isfile(f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/gauss_checker_output_{args.filetag}.npy")
+
+file_path = f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/gauss_checker_output_{args.filetag}.npy"
+file_exists = os.path.isfile(file_path)
 
 if file_exists:
     print("Loading the filter selection from file")
-    gauss_output = np.load(f"{NSP.own_datapath}/visfeats/gabor_pyramid{peri_tag}/gauss_checker_output_{args.filetag}.npy")
+    gauss_output = np.load(f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/gauss_checker_output_{args.filetag}.npy")
 else:
     gauss_output = checkpyramid.project_stimulus(gauss_check_stack)
-    np.save(f"{NSP.own_datapath}/visfeats/gabor_pyramid{peri_tag}/gauss_checker_output_{args.filetag}.npy", gauss_output)
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    np.save(f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/gauss_checker_output_{args.filetag}.npy", gauss_output)
 
 # Figure out how many filters there are per spatial frequency
 filters_per_freq= []
@@ -223,10 +232,11 @@ filters_per_freq_agg = np.sum(filters_per_freq_sel, axis=0)
 
 nsd_output_norm = normalize_output(nsd_output, len(spat_freqs), filters_per_freq_agg)
 
-filetag_str = f"_{args.filetag}" if args.filetag != "" else ""
+# filetag_str = f"{args.filetag}{peri_tag[5:]}" if args.filetag != "" else ""
+filetag_str = f"{args.filetag}" if args.filetag != "" else ""
 
-os.makedirs(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches{filetag_str}", exist_ok=True)
+os.makedirs(f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/batches{filetag_str}", exist_ok=True)
 
-np.save(f"{NSP.own_datapath}/visfeats/gabor_pyramid/batches{filetag_str}/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy", nsd_output_norm)
+np.save(f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/batches{filetag_str}/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy", nsd_output_norm)
 
-print(f"Saved the output to {NSP.own_datapath}/visfeats/gabor_pyramid/batches{filetag_str}/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy")
+print(f"Saved the output to {NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/batches_{filetag_str}/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy")
