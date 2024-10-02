@@ -458,6 +458,20 @@ class RegData:
             figsize=figsize,
         )
 
+        # Calculate the number of voxels in each ROI
+        voxel_counts = df['roi'].value_counts()
+
+        # # Modify the x-axis labels to include voxel counts
+        # ax.set_xticklabels([f'{label}\n({voxel_counts[label]})' for label in df_prop.index], fontsize=14, fontweight="normal", rotation=0)
+
+        # Remove the existing x-axis labels
+        ax.set_xticklabels([])
+
+        # Add new x-axis labels with different font weights for the ROI label and the voxel count
+        for i, label in enumerate(df_prop.index):
+            ax.text(i, -0.075, label, fontsize=16, fontweight='bold', ha='center', transform=ax.get_xaxis_transform())
+            ax.text(i, -0.125, f'({voxel_counts[label]})', fontsize=12, fontweight='normal', ha='center', transform=ax.get_xaxis_transform())
+
         # Add a y-axis label
         ax.set_ylabel("Layer assignment (%)", fontsize=20)
         ax.set_yticks([0, 0.5, 1])  # Set y-ticks
@@ -466,7 +480,7 @@ class RegData:
         )  # Set y-tick labels
         ax.spines["top"].set_visible(False)  # Remove top border
         ax.spines["right"].set_visible(False)  # Remove right border
-        plt.xlabel("ROI", fontsize=20)
+        # plt.xlabel("ROI", fontsize=20)
         plt.xticks(fontsize=16, fontweight="bold", rotation=0)
 
         leg_colours = [
@@ -491,6 +505,9 @@ class RegData:
             shadow=False,
             fontsize=10,
         )
+        
+        ax.set_xlabel("")
+        
         if title is None:
             plt.title(
                 f"Layer assignment {self.folder} {self.model} {self.statistic} {max_or_weighted}"

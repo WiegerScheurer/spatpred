@@ -1501,8 +1501,9 @@ class Stimuli():
         """    
         if peri_ecc is None and peri_angle is None:
             gabor_dir = f"{self.nsp.own_datapath}/visfeats/gabor_pyramid/batches_{file_tag}"
-        else: ######CONTINUE HERE CODE INCOMPLETE#####
-            gabor_dir = f"{self.nsp.own_datapath}/visfeats/peripheral/"
+        else:
+            gabor_dir = f"{self.nsp.own_datapath}/visfeats/peripheral/ecc{peri_ecc}_angle{peri_angle}/gabor_pyramid/batches_{file_tag}"
+        
         files = os.listdir(gabor_dir)
 
         # Sort files based on the last integer in the filename

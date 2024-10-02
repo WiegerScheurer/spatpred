@@ -12,6 +12,7 @@ import sys
 import numpy as np
 import pandas as pd
 import argparse
+from scipy.stats import zscore as zs
 
 
 os.chdir('/home/rfpred')
@@ -103,10 +104,6 @@ for roi in rois:
     n_voxels.append(len(voxeldict[roi].size))
 
 
-    
-    
-    
-    
 max_n_voxels = np.min(n_voxels)
 
 ydict = {}
@@ -127,11 +124,16 @@ for roi in rois:
 
 peri_pars = (args.peri_ecc, args.peri_angle)
 
-rms = NSP.stimuli.get_rms(subject=subject, peri_pars=peri_pars)[:ydict["V1"].shape[0]]
-rms.reset_index(drop=True, inplace=True)
-sc = NSP.stimuli.get_scce(subject=subject, sc_or_ce='sc', peri_pars=peri_pars)[:ydict["V1"].shape[0]]
-ce = NSP.stimuli.get_scce(subject=subject, sc_or_ce='ce', peri_pars=peri_pars)[:ydict["V1"].shape[0]]
-Xbl = pd.concat([rms, sc, ce], axis=1).values[:ydict["V1"].shape[0]]
+###### THE OLD BASELINE MODEL: ######
+# rms = NSP.stimuli.get_rms(subject=subject, peri_pars=peri_pars)[:ydict["V1"].shape[0]]
+# rms.reset_index(drop=True, inplace=True)
+# sc = NSP.stimuli.get_scce(subject=subject, sc_or_ce='sc', peri_pars=peri_pars)[:ydict["V1"].shape[0]]
+# ce = NSP.stimuli.get_scce(subject=subject, sc_or_ce='ce', peri_pars=peri_pars)[:ydict["V1"].shape[0]]
+# Xbl = pd.concat([rms, sc, ce], axis=1).values[:ydict["V1"].shape[0]]
+
+####### THE NEW BASELINE MODEL: ######
+Xbl = zs(NSP.stimuli.load_gabor_output(subject, "all_imgs_sf4_dir6", verbose=True, peri_ecc=args.peri_ecc, peri_angle=args.peri_angle))[:ydict["V1"].shape[0]]
+
 
 which_cnn = 'vggfull'
 
@@ -179,7 +181,7 @@ for layer in range(0, Xpred.shape[1]):
                              regname=feat,
                              plot_hist=True,
                              alt_model_type="baseline model",
-                             save_folder=f'unpred/{which_cnn}{peri_tag}',
+                             save_folder=f'unpred/{which_cnn}{peri_tag}_gabor',
                              X_str=f'{feat} model')
 
 print('Het zit er weer op kameraad')
