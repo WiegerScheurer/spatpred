@@ -1487,7 +1487,8 @@ class Stimuli():
 
         return n_indices
     
-    def load_gabor_output(self, subject:str, file_tag:str, verbose:bool=False) -> np.ndarray:
+    def load_gabor_output(self, subject:str, file_tag:str, verbose:bool=False,
+                          peri_ecc:float|None=None, peri_angle:int|None=None) -> np.ndarray:
         """Load in the gabor pyramid baseline features for a specific subject.
 
         Args:
@@ -1498,7 +1499,10 @@ class Stimuli():
         Returns:
             outputs (numpy.ndarray): The gabor pyramid outputs for the subject
         """    
-        gabor_dir = f"{self.nsp.own_datapath}/visfeats/gabor_pyramid/batches_{file_tag}"
+        if peri_ecc is None and peri_angle is None:
+            gabor_dir = f"{self.nsp.own_datapath}/visfeats/gabor_pyramid/batches_{file_tag}"
+        else: ######CONTINUE HERE CODE INCOMPLETE#####
+            gabor_dir = f"{self.nsp.own_datapath}/visfeats/peripheral/"
         files = os.listdir(gabor_dir)
 
         # Sort files based on the last integer in the filename
