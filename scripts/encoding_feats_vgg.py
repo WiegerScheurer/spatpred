@@ -68,7 +68,7 @@ predparser.add_argument(
 
 args = predparser.parse_args()
 
-peri_str = f"_ecc{args.eccentricity}_angle{args.angle}" if args.angle != 0 else ""
+peri_str = f"_ecc{args.eccentricity}_angle{args.angle}_" if args.angle != 0 else ""
 
 # prf_region = "center_strict"
 
@@ -263,7 +263,7 @@ smallpatch_str = "smallpatch_" if crop_imgs else ""
 pca = fit_pca(
     feature_extractor,
     dataloader,
-    pca_save_path=f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/pca_{smallpatch_str}{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
+    pca_save_path=f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/pca_{smallpatch_str}{peri_str}{args.cnn_layer}_{fixed_n_comps}pcs.joblib",
     fixed_n_comps=fixed_n_comps,
     train_batch=train_batch,
     cnn_layer=args.cnn_layer,
