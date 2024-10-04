@@ -520,16 +520,18 @@ class Utilities():
         filtered_array = array[(array[:, 3] >= size_min) & (array[:, 3] <= size_max)]
         return filtered_array
 
-    def ecc_angle_to_coords(self, ecc, angle, dim = 425):
-        """_summary_
+    def ecc_angle_to_coords(self, ecc, angle, dim = 425, coord_system:str = "pixel"):
+        """Function to turn eccentricity and angle into x and y coordinates
 
         Args:
-            ecc (_type_): _description_
-            angle (_type_): _description_
-            dim (int, optional): _description_. Defaults to 425.
+            ecc: The eccentricity in degrees of visual angle
+            angle: The angle in polar degrees
+            dim: The original image dimensions for which to compute your coordinates. Defaults to 425.
+            coord_system (str): Whether to return the coordinates in a cartesian system or a pixel system. Defaults to pixel system.
+                The difference is the y-axis direction, pixel system has 0 at the top (such as in plt.imshow()), "cartesian" has 0 at the bottom.
 
         Returns:
-            _type_: _description_
+            tuple: The x and y coordinates in degrees of visual angle
         """        
         y = ((1 + dim) / 2) - (ecc * np.sin(np.radians(angle)) * (dim / 8.4)) #y in pix (c_index)
         x = ((1 + dim) / 2) + (ecc * np.cos(np.radians(angle)) * (dim / 8.4)) #x in pix (r_index)
@@ -537,6 +539,31 @@ class Utilities():
         x = ecc * np.cos(np.radians(angle))
         y = ecc * np.sin(np.radians(angle))
         return x, y
+
+    def rad2pix(self, input, dim_rad:float=8.4, dim_pix:int=425):
+        """Function to convert degrees of visual angle to pixels"""    
+        return input * (dim_pix / dim_rad)
+
+    def get_cropbox(self, angle, eccentricity, radius, dims):
+        # Transform ecc, angle, and square pixel dimensions into the center of the filter
+        x_rad, y_rad = self.ecc_angle_to_coords(eccentricity, angle, dims)
+        x_pix, y_pix, rad_pix = self.rad2pix(x_rad), self.rad2pix(y_rad), self.rad2pix(radius)
+        center_pix = dims / 2
+        # Compute distances from the center of the filter to the boundaries
+        x_min = center_pix + x_pix - rad_pix
+        x_max = center_pix + x_pix + rad_pix
+        y_min = center_pix - y_pix - rad_pix
+        y_max = center_pix - y_pix + rad_pix
+        return tuple([int(x_min), int(x_max), int(y_min), int(y_max)])
+
+    def make_3dim(self, input):
+        """
+        Function to turn a 2D array into a 3D array, useful for turning masks into a "RGB" variant that can
+        be convolved with an image. Turns a (dim, dim) array into a (dim, dim, 3) array.
+        """
+        return np.stack((3 * [input])).transpose(1,2,0)
+
+
 
     def voxname_for_xyz(self, xyz_to_voxname:np.array, x:int, y:int, z:int):
         # Create a boolean mask that is True for rows where the first three columns match val1, val2, val3

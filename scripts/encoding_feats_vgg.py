@@ -49,8 +49,28 @@ predparser.add_argument(
     "cnn_layer", type=int, help="The layer to extract neural representations of"
 )
 
+predparser.add_argument(
+    "--eccentricity",
+    type=float,
+    help="The eccentricity of the patch",
+)
+predparser.add_argument(
+    "--angle",
+    type=int,
+    help="The angle of the patch",
+    default=0,
+)
+predparser.add_argument(
+    "--radius",
+    type=int,
+    help="The radius of the patch",
+)
+
 args = predparser.parse_args()
-prf_region = "center_strict"
+
+peri_str = f"_ecc{args.eccentricity}_angle{args.angle}" if args.angle != 0 else ""
+
+# prf_region = "center_strict"
 
 # Load the pretrained AlexNet model
 # model = models.vgg16_bn(pretrained=True)
@@ -70,9 +90,13 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         img_id = self.image_ids[idx]
         if self.crop:
-            imgnp = NSP.stimuli.show_stim(img_no=img_id, hide=True, small=True, crop=False)[0][
-                163:263, 163:263
-            ]  # I CROP THEM, YOU SEE
+            imgnp = NSP.stimuli.show_stim(img_no=img_id, 
+                                          hide=True, 
+                                          small=True, 
+                                          crop=True, 
+                                          angle=args.angle, 
+                                          ecc=args.eccentricity, 
+                                          radius=args.radius)[0]
         else:
             imgnp = NSP.stimuli.show_stim(img_no=img_id, hide=True, small=True, crop=False)[0]
 
@@ -108,7 +132,7 @@ feature_extractor = create_feature_extractor(model, return_nodes=[this_layer])
 train_batch = args.pca_fit_batch
 apply_batch = 500  # The image batch over which the fitted PCA is applied later on.
 fixed_n_comps = args.n_comps
-crop_imgs = False #IMPORTANT!!!!!!!!!!
+crop_imgs = True #IMPORTANT!!!!!!!!!!
 
 # image_ids = get_imgs_designmx()[args.subject][start:end] # This was for subject-specific image indices. Current line (below) is for all images.
 image_ids = list(range(0, train_batch))
@@ -266,7 +290,7 @@ os.makedirs(f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/", e
 
 np.savez(
     # f"/home/rfpred/data/custom_files/visfeats/cnn_featmaps/featmaps/featmaps_lay{this_layer}.npz",
-    f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/featmaps_{smallpatch_str}lay{this_layer}.npz",
+    f"{NSP.own_datapath}/visfeats/cnn_featmaps/{modeltype}/featmaps/featmaps_{smallpatch_str}{peri_str}lay{this_layer}.npz",
     *features_algo,
 )
 

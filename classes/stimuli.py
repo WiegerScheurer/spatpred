@@ -47,7 +47,14 @@ class Stimuli():
         pass
     
     # Function to show a randomly selected image of the nsd dataset
-    def show_stim(self, img_no='random', small:bool=False, hide:bool=False, crop:bool=False):
+    def show_stim(self, 
+                  img_no='random', 
+                  small:bool=False, 
+                  hide:bool=False, 
+                  crop:bool=False, 
+                  ecc:int=0, 
+                  angle:float=0, 
+                  radius:float=1):
         # Example code to show how to access the image files, these are all 73000 of them, as np.arrays
         # I keep it like this as it might be useful to also store the reconstructed images with the autoencoder
         # using a .hdf5 folder structure, but I can change this later on.
@@ -62,7 +69,12 @@ class Stimuli():
             if img_no == 'random':
                 image_no = random.randint(0,img_brick_dataset.shape[0])
             else: image_no = img_no
-            if crop: test_image = img_brick_dataset[image_no][163:263,163:263]
+            if crop: 
+
+                full_image = img_brick_dataset[image_no]
+                bounds = self.nsp.utils.get_cropbox(angle, ecc, radius, full_image.shape[0])
+
+                test_image = full_image[bounds[2]:bounds[3],bounds[0]:bounds[1]]
             else: test_image = img_brick_dataset[image_no]
         hor = ver = 10
         if small:

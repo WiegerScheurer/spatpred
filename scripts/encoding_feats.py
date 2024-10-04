@@ -3,6 +3,8 @@
 # This script pulls the feature maps from the specified layer of the CNN for each subject runs
 # dimensionality reduction on them using incremental PCA. Can take a while and can be adapted
 
+##### IMPORTANT: THIS ONE USES ALEXNET!!!!!! SO I DON'T USE IT ########
+
 import os
 
 # Limit the number of CPUs used to 2
