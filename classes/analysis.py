@@ -943,7 +943,7 @@ class Analysis():
             
             
     
-    def explained_var_plot(self, relu_layer:int, n_pcs:int, smallpatch:bool=False):
+    def explained_var_plot(self, relu_layer:int, n_pcs:int, smallpatch:bool=False, modelname:str="VGG"):
         """Method to plot the explained variance ratio of the PCA instance created.
         
         Args:
@@ -955,7 +955,7 @@ class Analysis():
         smallpatch_str = 'smallpatch_' if smallpatch else ''
             
         # pca_instance = joblib.load(f'{self.nsp.own_datapath}/visfeats/cnn_featmaps/pca/pca_{smallpatch_str}{relu_layer}_{n_pcs}pcs.joblib')
-        pca_instance = joblib.load(f'{self.nsp.own_datapath}/visfeats/cnn_featmaps/pca_{smallpatch_str}{relu_layer}_{n_pcs}pcs.joblib')
+        pca_instance = joblib.load(f'{self.nsp.own_datapath}/visfeats/cnn_featmaps/{modelname}/pca_{smallpatch_str}{relu_layer}_{n_pcs}pcs.joblib')
         # Create a figure and a set of subplots
         fig, ax = plt.subplots()
 

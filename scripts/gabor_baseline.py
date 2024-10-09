@@ -91,8 +91,9 @@ if args.peri_ecc != 0 and args.peri_angle != 0:
 spat_freqs = [4.2, 8.4, 16.8, 33.6] #### THis was the previous list of spatial frequencies
 # spat_freqs = [8.4, 16.8, 33.6] # Extreme option with only 2 spatial frequencies
 
-spat_dirs = tuple(range(0, 180, 30))
-filter_space = 1.5
+# spat_dirs = tuple(range(0, 180, 30))
+spat_dirs = tuple(range(0, 180, 20))
+filter_space = 1 # Used to be 1.5 for peripheral
 
 checkpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=gauss_check_stack,
                                                 spatial_frequencies=spat_freqs, # 1, 2, 4, 8 cycles per degree
@@ -206,7 +207,7 @@ for img_no, img in enumerate(imgs):
 imgstack = np.array(img_list)
 
 # spat_freqs = [4.2, 8.4, 16.8, 33.6]
-directions = tuple(range(0, 180, 45))
+# directions = tuple(range(0, 180, 45))
 
 nsdpyramid = moten.pyramids.StimulusStaticGaborPyramid(stimulus=imgstack,
                                                 spatial_frequencies=spat_freqs, # 1, 2, 4, 8 cycles per degree
