@@ -270,6 +270,7 @@ from scipy.stats import zscore as zs
 
 def select_filters(
     pyramid,
+    filter_list,
     output,
     imgs: np.ndarray,
     img_no: int,
@@ -334,7 +335,8 @@ def select_filters(
     filter_selection_agg = [np.concatenate(fs) for fs in filter_selection_agg]
 
     # Dictionary of the selected filters
-    filter_selection_dictlist = [list(np.array(pyramid.view.filters)[fs]) for fs in filter_selection_agg]
+    # filter_selection_dictlist = [list(np.array(pyramid.view.filters)[fs]) for fs in filter_selection_agg]
+    filter_selection_dictlist = [list(np.array(filter_list)[fs]) for fs in filter_selection_agg]
     
     if verbose:
         for dir_no, fs in enumerate(filter_selection_agg):
@@ -430,17 +432,71 @@ def location_based_selection(pyramid, bounds_prc:tuple, verbose:bool=True):
 
     Returns:
         list: The list of filters encapsulated by the patch.
+        list: A boolean vector indicating which filters are included.
     """    
     all_filt_dict = pyramid.view.filters
 
-    encapsulated_list = [d for d in all_filt_dict 
-                        if (d["centerh"] > bounds_prc[0]
-                            and d["centerh"] < bounds_prc[1]
-                            and d["centerv"] > bounds_prc[2]
-                            and d["centerv"] < bounds_prc[3])]
-    
+    # Convert list of DotDict objects to list of dictionaries
+    all_filt_dict = [dict(d) for d in all_filt_dict]
+
+    # Extract centerh and centerv values into separate lists
+    centerh_values = [d['centerh'] for d in all_filt_dict]
+    centerv_values = [d['centerv'] for d in all_filt_dict]
+
+    # Create boolean mask for filters within bounds
+    mask = ((np.array(centerh_values) > bounds_prc[0]) & 
+            (np.array(centerh_values) < bounds_prc[1]) & 
+            (np.array(centerv_values) > bounds_prc[2]) & 
+            (np.array(centerv_values) < bounds_prc[3]))
+
+    # Apply mask to list of dictionaries
+    encapsulated_list = [d for d, m in zip(all_filt_dict, mask) if m]
+
     if verbose:
         print(f"Original number of filters: {len(all_filt_dict)}")
         print(f"Number of filters encapsulated by our patch: {len(encapsulated_list)}")
         
-    return encapsulated_list
+    return encapsulated_list, mask.tolist()
+
+def filts_per_freq(pyr_pars:dict, filter_list:list):
+    """Function to compute the number of filters per spatial frequency.
+
+    Args:
+        pyr_pars (dict): The pyramid parameter dictionary.
+        filter_list (list): The list of filters in the (part of the) pyramid of interest.
+
+    Returns:
+        list: The number of filters per spatial frequency.
+    """    
+    # Figure out how many filters there are per spatial frequency
+    filters_per_freq = []
+    for sf in pyr_pars["spatial_frequencies"]:
+
+        all_filters = filter_list
+        count = sum(1 for d in all_filters if d.get("spatial_freq") == sf)
+        filters_per_freq.append(count)
+
+    return filters_per_freq
+
+def orient_boolmask(filter_dictlist:list):
+    """
+    Function to create boolean masks for each unique orientation in the filter dictionary list.
+    """
+    # Get all directions
+    directions = [
+        filter_dictlist[i]["direction"] for i in range(len(filter_dictlist))
+    ]
+
+    # Get unique directions
+    unique_directions = np.unique(directions)
+
+    # Initialize an empty array to store the masks
+    direction_masks = np.zeros(
+        (len(unique_directions), len(filter_dictlist)), dtype=bool
+    )
+
+    # Create a mask for each unique direction
+    for i, direction in enumerate(unique_directions):
+        direction_masks[i] = np.array(directions) == direction
+
+    return direction_masks
