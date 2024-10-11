@@ -222,6 +222,56 @@ class Utilities():
 
         return gaussian
     
+    def boolmask(
+        self,
+        pix_dims: int = 425,
+        deg_dims: float = 8.4,
+        eccentricity: float = 0.0,
+        angle: int = 0,
+        radius: float = 1,
+        plot: bool = True,
+        return_bounds: bool = False,
+        bound_units: str = "pixels",
+        cmap="binary_r",
+    ):
+        """Function to create boolean mask patch on a square image array.
+
+        Args:
+            dim (int, optional): The dimension of the square array. Defaults to 425.
+            eccentricity (float, optional): The eccentricity of the center. Defaults to 0.0.
+            angle (int, optional): Angle with respect to the middle of the full square image. Defaults to 0.
+            radius (float, optional): The radius of the patch. Defaults to 1.
+            plot (bool, optional): Whether or not to plot the patch mask. Defaults to True.
+            return_bounds (bool, optional): Whether or not to return the boundary coordinates. Defaults to False.
+            bound_units (str, optional): The unit in which the boundary coordinates are returend. Defaults to "pixels".
+                alternative is "prc" which will give them in percentages of the full image.
+            cmap (str, optional): _description_. Defaults to "binary_r".
+
+        Returns:
+            np.array, tuple: The circle mask and the boundary coordinates (optional).
+        """    
+        pix_per_deg = pix_dims / deg_dims
+        x_rad, y_rad = self.ecc_angle_to_coords(eccentricity, angle)
+        x_pix = x_rad * pix_per_deg + pix_dims // 2
+        y_pix = pix_dims // 2 - y_rad * pix_per_deg
+        circ = self.make_circle_mask(pix_dims, y_pix, x_pix, radius * pix_per_deg)
+        if plot:
+            plt.imshow(circ, cmap=cmap)
+
+        if return_bounds:
+            bounds = self.get_bounding_box(circ)
+            if bound_units == "pixels":
+                return circ, bounds
+            elif bound_units == "prc":
+                bounds_prc = [coord / pix_dims for coord in bounds]
+                return circ, bounds_prc
+            elif bound_units == "rads":
+                bounds_rad = [coord / pix_per_deg for coord in bounds]
+                return circ, bounds_rad
+        else:
+            return circ
+
+    
     # REMOVE ONCE CHECKED DEPENDENCIES, ZS() IS MORE EFFICIIENT
     def get_zscore(self, data, print_ars = 'y'):
         mean_value = np.mean(data)

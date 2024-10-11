@@ -192,7 +192,82 @@ def normalize_output(output, n_spatfreqs, filters_per_freq):
 
     return output_norm
 
-### This one loops over the different directions, and kind of woroks, but the outputs need to be concatenated, stacked manually
+# ### This one loops over the different directions, and kind of woroks, but the outputs need to be concatenated, stacked manually
+# def select_filters(
+#     pyramid,
+#     output,
+#     imgs: np.ndarray,
+#     img_no: int,
+#     spat_freqs: list[float],
+#     direction_masks: list|tuple,
+#     filters_per_freq: list[float],
+#     percentile_cutoff: float = 99,
+#     plot: bool = False,
+#     verbose: bool = False,
+# ):
+#     """
+#     Selects filters from a pyramid based on the given parameters.
+#     """
+#     this_output=output[img_no]
+#     n_spatfreqs = len(spat_freqs)
+
+#     # Initialize the aggregated results
+#     output_norm_agg = []
+#     filter_selection_agg = []
+#     filters_per_freq_sel_agg = []
+
+#     # Loop over the different directions
+#     for dir_no in range(len(direction_masks)):
+#         # Normalize the output for every spatial frequency separately
+#         start = 0
+#         output_norm = []
+#         for i in range(n_spatfreqs):
+#             end = start + filters_per_freq[i]
+#             this_dir_mask = direction_masks[dir_no][start:end]
+#             output_norm.append(zs(this_output[start:end] * this_dir_mask))
+#             start = end
+
+#         # Calculate the nth percentile for each spatial frequency and create a boolean mask
+#         filter_selection = []
+#         filters_per_freq_sel = []
+#         for i in range(n_spatfreqs):
+#             percentile = np.percentile(output_norm[i], percentile_cutoff)
+#             mask = output_norm[i] > percentile
+#             filter_selection.append(mask)
+#             n_filters = np.sum(mask)
+#             filters_per_freq_sel.append(n_filters)
+#             if verbose:
+#                 print(
+#                     f"Direction {dir_no}, Spatial frequency {i}: percentile = {percentile}, number of values > percentile = {n_filters}"
+#                 )
+
+#         # Aggregate the results
+#         output_norm_agg.append(output_norm)
+#         filter_selection_agg.append(filter_selection)
+#         filters_per_freq_sel_agg.append(filters_per_freq_sel)
+
+#     # Boolean mask to filter out the selected filters
+#     filter_selection_agg = [np.concatenate(fs) for fs in filter_selection_agg]
+
+#     # Dictionary of the selected filters
+#     filter_selection_dictlist = [list(np.array(pyramid.view.filters)[fs]) for fs in filter_selection_agg]
+    
+#     if verbose:
+#         for dir_no, fs in enumerate(filter_selection_agg):
+#             print(
+#                 f"Direction {dir_no}: Filter includes {np.sum(fs)} out of {pyramid.view.nfilters} filters"
+#             )
+#     if plot:
+#         for dir_no, fs in enumerate(filter_selection_agg):
+#             show(imgs[img_no], figsize=(6, 6))
+#             plot_filter_locations(
+#                 gabor_pyramid=pyramid, in_range=fs, pixdims=(425, 425)
+#             )
+        
+#     return output_norm_agg, filters_per_freq_sel_agg, filter_selection_agg, filter_selection_dictlist
+
+from scipy.stats import zscore as zs
+
 def select_filters(
     pyramid,
     output,
@@ -202,6 +277,7 @@ def select_filters(
     direction_masks: list|tuple,
     filters_per_freq: list[float],
     percentile_cutoff: float = 99,
+    best_n: int = None,
     plot: bool = False,
     verbose: bool = False,
 ):
@@ -231,14 +307,22 @@ def select_filters(
         filter_selection = []
         filters_per_freq_sel = []
         for i in range(n_spatfreqs):
-            percentile = np.percentile(output_norm[i], percentile_cutoff)
-            mask = output_norm[i] > percentile
+            if best_n is not None:
+                # Select the top best_n filters
+                sorted_indices = np.argsort(output_norm[i])
+                mask = np.zeros_like(output_norm[i], dtype=bool)
+                mask[sorted_indices[-best_n:]] = True
+            else:
+                # Use percentile cutoff
+                percentile = np.percentile(output_norm[i], percentile_cutoff)
+                mask = output_norm[i] > percentile
+
             filter_selection.append(mask)
             n_filters = np.sum(mask)
             filters_per_freq_sel.append(n_filters)
             if verbose:
                 print(
-                    f"Direction {dir_no}, Spatial frequency {i}: percentile = {percentile}, number of values > percentile = {n_filters}"
+                    f"Direction {dir_no}, Spatial frequency {i}: number of values > percentile = {n_filters}"
                 )
 
         # Aggregate the results
@@ -265,6 +349,7 @@ def select_filters(
             )
         
     return output_norm_agg, filters_per_freq_sel_agg, filter_selection_agg, filter_selection_dictlist
+
 
 def cut_paste_mask(
     masks: np.ndarray,
@@ -333,3 +418,29 @@ def cut_paste_mask(
         plt.tight_layout()
         
     return peri_patch
+
+def location_based_selection(pyramid, bounds_prc:tuple, verbose:bool=True):
+    """Function to select filters based on their location in the image demarcated
+        by acquired bounds in image percentage.
+
+    Args:
+        pyramid (pyramid class): The input pyramid of gabor filters.
+        bounds_prc (tuple): The bounds of the patch in percentage of the image.
+        verbose (bool, optional): Print yes or no. Defaults to True.
+
+    Returns:
+        list: The list of filters encapsulated by the patch.
+    """    
+    all_filt_dict = pyramid.view.filters
+
+    encapsulated_list = [d for d in all_filt_dict 
+                        if (d["centerh"] > bounds_prc[0]
+                            and d["centerh"] < bounds_prc[1]
+                            and d["centerv"] > bounds_prc[2]
+                            and d["centerv"] < bounds_prc[3])]
+    
+    if verbose:
+        print(f"Original number of filters: {len(all_filt_dict)}")
+        print(f"Number of filters encapsulated by our patch: {len(encapsulated_list)}")
+        
+    return encapsulated_list
