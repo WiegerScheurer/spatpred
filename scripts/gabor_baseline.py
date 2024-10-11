@@ -88,7 +88,8 @@ if args.peri_ecc != 0 and args.peri_angle != 0:
 
 # Original spatfreqs = [0.25, 0.5, 1, 2] in cycles per image (so cycles per 8.4 degrees)
 # If I want to transform this to cycles per degree, I need to divide by 8.4
-spat_freqs = [4.2, 8.4, 16.8, 33.6] #### THis was the previous list of spatial frequencies
+# spat_freqs = [4.2, 8.4, 16.8, 33.6] #### THis was the previous list of spatial frequencies
+spat_freqs = [4.2, 8.4, 16.8] #### Check whether the small ones fuck up the predicitons.
 # spat_freqs = [8.4, 16.8, 33.6] # Extreme option with only 2 spatial frequencies
 
 # spat_dirs = tuple(range(0, 180, 30))

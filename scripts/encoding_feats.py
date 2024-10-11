@@ -60,41 +60,41 @@ model = models.alexnet(pretrained=True)
 model.eval()  # Set the model to evaluation mode
 
 
-class ImageDataset(Dataset):
-    def __init__(self, image_ids, transform=None, crop: bool = True):
-        self.image_ids = image_ids
-        self.transform = transform
-        self.crop = crop
+# class ImageDataset(Dataset):
+#     def __init__(self, image_ids, transform=None, crop: bool = True):
+#         self.image_ids = image_ids
+#         self.transform = transform
+#         self.crop = crop
 
-    def __len__(self):
-        return len(self.image_ids)
+#     def __len__(self):
+#         return len(self.image_ids)
 
-    def __getitem__(self, idx):
-        img_id = self.image_ids[idx]
-        if self.crop:
-            imgnp = show_stim(img_no=img_id, hide="y", small="y")[0][
-                163:263, 163:263
-            ]  # I CROP THEM, YOU SEE
-        else:
-            imgnp = show_stim(img_no=img_id, hide="y", small="y")[0]
+#     def __getitem__(self, idx):
+#         img_id = self.image_ids[idx]
+#         if self.crop:
+#             imgnp = show_stim(img_no=img_id, hide="y", small="y")[0][
+#                 163:263, 163:263
+#             ]  # I CROP THEM, YOU SEE
+#         else:
+#             imgnp = show_stim(img_no=img_id, hide="y", small="y")[0]
 
-        imgPIL = Image.fromarray(imgnp)  # Convert into PIL from np
+#         imgPIL = Image.fromarray(imgnp)  # Convert into PIL from np
 
-        if self.transform:
-            imgPIL = self.transform(imgPIL)
+#         if self.transform:
+#             imgPIL = self.transform(imgPIL)
 
-        return imgPIL
+#         return imgPIL
 
 
-preprocess = transforms.Compose(
-    [
-        transforms.Resize((224, 224)),  # resize the images to 224x24 pixels
-        transforms.ToTensor(),  # convert the images to a PyTorch tensor
-        transforms.Normalize(
-            [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-        ),  # normalize the images color channels
-    ]
-)
+# preprocess = transforms.Compose(
+#     [
+#         transforms.Resize((224, 224)),  # resize the images to 224x24 pixels
+#         transforms.ToTensor(),  # convert the images to a PyTorch tensor
+#         transforms.Normalize(
+#             [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+#         ),  # normalize the images color channels
+#     ]
+# )
 
 train_nodes, _ = get_graph_node_names(model)
 print(train_nodes)

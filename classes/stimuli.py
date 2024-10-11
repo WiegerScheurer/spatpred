@@ -1499,8 +1499,46 @@ class Stimuli():
 
         return n_indices
     
+    # def load_gabor_output(self, subject:str, file_tag:str, verbose:bool=False,
+    #                       peri_ecc:float|None=None, peri_angle:int|None=None) -> np.ndarray:
+    #     """Load in the gabor pyramid baseline features for a specific subject.
+
+    #     Args:
+    #         subject (str): The subject
+    #         file_tag (str): The custom file tag to find the correct files of a defined pyramid
+    #         verbose (bool, optional): Whether or not to print status updates. Defaults to False.
+
+    #     Returns:
+    #         outputs (numpy.ndarray): The gabor pyramid outputs for the subject
+    #     """    
+    #     if peri_ecc is None and peri_angle is None:
+    #         gabor_dir = f"{self.nsp.own_datapath}/visfeats/gabor_pyramid/batches_{file_tag}"
+    #     else:
+    #         gabor_dir = f"{self.nsp.own_datapath}/visfeats/peripheral/ecc{peri_ecc}_angle{peri_angle}/gabor_pyramid/batches_{file_tag}"
+        
+    #     files = os.listdir(gabor_dir)
+
+    #     # Sort files based on the last integer in the filename
+    #     files = sorted(files, key=lambda f: int(f.rstrip('.npy').split('_')[-1]))
+
+    #     batch_stack = []
+    #     for file_no, file in enumerate(files):
+    #         this_batch = np.load(f"{gabor_dir}/{file}")
+    #         if verbose:
+    #             print(f"Processing file: {file}")  # Print the file name
+    #             print(f"Batch {file_no} shape: {this_batch.shape}")  # Print the shape of the batch
+    #         batch_stack.append(this_batch)
+            
+    #     Xgabor = np.concatenate(batch_stack, axis=0)
+    #     sub_ices = self.imgs_designmx()[subject]
+
+    #     Xgabor_sub = Xgabor[sub_ices] # Get the specific data for the subject
+        
+    #     return Xgabor_sub
+    
+
     def load_gabor_output(self, subject:str, file_tag:str, verbose:bool=False,
-                          peri_ecc:float|None=None, peri_angle:int|None=None) -> np.ndarray:
+                            peri_ecc:float|None=None, peri_angle:int|None=None, fixed_subj_path:str|None=None) -> np.ndarray:
         """Load in the gabor pyramid baseline features for a specific subject.
 
         Args:
@@ -1513,6 +1551,8 @@ class Stimuli():
         """    
         if peri_ecc is None and peri_angle is None:
             gabor_dir = f"{self.nsp.own_datapath}/visfeats/gabor_pyramid/batches_{file_tag}"
+        elif fixed_subj_path is not None:
+            gabor_dir = fixed_subj_path
         else:
             gabor_dir = f"{self.nsp.own_datapath}/visfeats/peripheral/ecc{peri_ecc}_angle{peri_angle}/gabor_pyramid/batches_{file_tag}"
         
@@ -1530,9 +1570,12 @@ class Stimuli():
             batch_stack.append(this_batch)
             
         Xgabor = np.concatenate(batch_stack, axis=0)
-        sub_ices = self.imgs_designmx()[subject]
-
-        Xgabor_sub = Xgabor[sub_ices] # Get the specific data for the subject
         
+        if fixed_subj_path is None:
+            sub_ices = self.imgs_designmx()[subject]
+            Xgabor_sub = Xgabor[sub_ices] # Get the specific data for the subject
+        else:
+            Xgabor_sub = Xgabor
+    
         return Xgabor_sub
-        
+            

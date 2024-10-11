@@ -232,7 +232,17 @@ class Analysis():
         
         return y_hat, cor_scores
     
-    def plot_brain(self, prf_dict:dict, roi_masks:dict, subject:str, brain_numpy:np.ndarray, cmap, glass_brain:bool=False, save_img:bool=False, img_path:str='brain_image.png', lay_assign_plot:bool=False):
+    def plot_brain(self, prf_dict:dict, 
+                   roi_masks:dict, 
+                   subject:str, 
+                   brain_numpy:np.ndarray, 
+                   cmap, 
+                   glass_brain:bool=False, 
+                   save_img:bool=False, 
+                   img_path:str='brain_image.png', 
+                   lay_assign_plot:bool=False,
+                   vmin:float|None=None,
+                   vmax:float|None=None):
         """Function to plot a 3D np.ndarray with voxel-specific values on an anatomical brain template of that subject.
 
         Args:
@@ -246,9 +256,22 @@ class Analysis():
         """        
         brain_nii = nib.Nifti1Image(brain_numpy, self.nsp.cortex.anat_templates(prf_dict)[subject].affine)
         if glass_brain:
-            display = plotting.plot_glass_brain(brain_nii, display_mode='ortho', colorbar=True, cmap=cmap, symmetric_cbar=False)
+            display = plotting.plot_glass_brain(brain_nii, 
+                                                display_mode='ortho', 
+                                                colorbar=True, 
+                                                cmap=cmap, 
+                                                symmetric_cbar=False,
+                                                vmin=vmin,
+                                                vmax=vmax,)
         else:
-            display = plotting.plot_stat_map(brain_nii, bg_img=self.nsp.cortex.anat_templates(prf_dict)[subject], display_mode='ortho', colorbar=True, cmap=cmap, symmetric_cbar=False)
+            display = plotting.plot_stat_map(brain_nii, 
+                                             bg_img=self.nsp.cortex.anat_templates(prf_dict)[subject], 
+                                             display_mode='ortho', 
+                                             colorbar=True, 
+                                             cmap=cmap, 
+                                             symmetric_cbar=False,
+                                             vmin=vmin,
+                                             vmax=vmax,)
         
         if lay_assign_plot:        
             # New code to format colorbar ticks
@@ -477,9 +500,9 @@ class Analysis():
                     axs = axs.flatten()
                 
                 # Underlay with the histogram of r_uninformative[roi] values
-                axs[i].hist(r_uninformative[roi], bins=25, edgecolor=None, alpha=1, label=alt_model_type, color='burlywood')
+                axs[i].hist(r_uninformative[roi], bins=25, edgecolor=None, alpha=1, label=alt_model_type, color='black') # Was "burlywood"
                 # Plot the histogram of r_values[roi] values in the i-th subplot
-                axs[i].hist(r_values[roi], bins=25, edgecolor='black', alpha=0.5, label=X_str, color='dodgerblue')
+                axs[i].hist(r_values[roi], bins=25, edgecolor='black', alpha=0.75, label=X_str, color='orangered') # Was "dodgerblue"
                 axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
                 axs[i].legend() if roi == 'V1' else None
 
@@ -579,9 +602,9 @@ class Analysis():
                     axs = axs.flatten()
                 
                 # Underlay with the histogram of r_uninformative[roi] values
-                axs[i].hist(r_uninformative[roi], bins=25, edgecolor=None, alpha=1, label=comp_X_str, color='burlywood')
+                axs[i].hist(r_uninformative[roi], bins=25, edgecolor=None, alpha=1, label=comp_X_str, color='black') # Was "burlywood"
                 # Plot the histogram of r_values[roi] values in the i-th subplot
-                axs[i].hist(r_values[roi], bins=25, edgecolor='black', alpha=0.5, label=X_str, color='dodgerblue')
+                axs[i].hist(r_values[roi], bins=25, edgecolor='black', alpha=0.75, label=X_str, color='orangered') # Was "dodgerblue"
                 axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
                 axs[i].legend() if roi == 'V1' else None
 
