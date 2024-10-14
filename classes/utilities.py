@@ -974,3 +974,38 @@ class Utilities():
             return filtered_files
         else:
             return None
+        
+        
+    def plot_histograms_from_df(self, df: pd.DataFrame, statistic: str, rois: list, alt_model_type: str, save_path: str = None):
+        """Function to plot histograms of a given statistic and the corresponding r_uninformative for each ROI.
+
+        Args:
+        - df (pd.DataFrame): DataFrame containing the data.
+        - statistic (str): The name of the column in df to use as r_values.
+        - rois (list): The list of regions of interest (ROIs) to analyse.
+        - alt_model_type (str): The name of the alternative model.
+        - save_path (str, optional): The path to save the plot. If None, the plot is not saved. Defaults to None.
+        """
+        fig, axs = plt.subplots(2, 2, figsize=(8, 8))
+        axs = axs.flatten()  # Flatten the axs array for easy iteration
+
+        for i, roi in enumerate(rois[:4]):
+            # Filter the DataFrame for the current ROI
+            df_roi = df[df['roi'] == roi]
+
+            # Underlay with the histogram of r_uninformative values
+            axs[i].hist(df_roi['R_alt_model'], bins=25, edgecolor=None, alpha=1, label=alt_model_type, color='black')
+
+            # Plot the histogram of the given statistic values in the i-th subplot
+            axs[i].hist(df_roi[statistic], bins=25, edgecolor='black', alpha=0.75, label=statistic, color='orangered')
+
+            this_delta_r = round(np.mean(df_roi[statistic]) - np.mean(df_roi['R_alt_model']), 5)
+            axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
+            axs[i].legend() if roi == 'V1' else None
+
+        plt.suptitle(f'{statistic} Histograms', fontsize=16)
+        plt.tight_layout()
+        plt.show()
+
+        if save_path is not None:
+            plt.savefig(f'{save_path}/{statistic}_plot.png')

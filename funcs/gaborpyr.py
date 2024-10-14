@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import cv2
+import moten
 import matplotlib.pyplot as plt
 from scipy.stats import zscore as zs
 
@@ -116,7 +117,7 @@ def make_checker(dims, checkercenter, scales, scaling_factor, checker_size, stri
 
         return checkerboard
 
-def plot_filter_locations(gabor_pyramid, in_range, pixdims=(425, 425), pix_per_dim:float=(425/8.4)):
+def plot_filter_locations(gabor_pyramid, in_range, pixdims=(425, 425), pix_per_dim:float=(425/8.4), filter_list:list=None):
     """
     Plots the locations of filters in a Gabor pyramid.
 
@@ -146,7 +147,8 @@ def plot_filter_locations(gabor_pyramid, in_range, pixdims=(425, 425), pix_per_d
     fig, ax = plt.subplots(figsize=(6, 6))
 
     # Plot the locations of all filters, making the ones outside the range transparent
-    for i in range(gabor_pyramid.view.nfilters):
+    # for i in range(gabor_pyramid.view.nfilters):
+    for i in range(len(filter_list)):
         if in_range[i]:
             ax.plot(coordinates[i, 0], coordinates[i, 1], 'o', color='red', alpha=0.1)
         else:
@@ -266,7 +268,6 @@ def normalize_output(output, n_spatfreqs, filters_per_freq):
         
 #     return output_norm_agg, filters_per_freq_sel_agg, filter_selection_agg, filter_selection_dictlist
 
-from scipy.stats import zscore as zs
 
 def select_filters(
     pyramid,
@@ -279,7 +280,6 @@ def select_filters(
     filters_per_freq: list[float],
     percentile_cutoff: float = 99,
     best_n: int = None,
-    plot: bool = False,
     verbose: bool = False,
 ):
     """
@@ -343,13 +343,6 @@ def select_filters(
             print(
                 f"Direction {dir_no}: Filter includes {np.sum(fs)} out of {pyramid.view.nfilters} filters"
             )
-    if plot:
-        for dir_no, fs in enumerate(filter_selection_agg):
-            show(imgs[img_no], figsize=(6, 6))
-            plot_filter_locations(
-                gabor_pyramid=pyramid, in_range=fs, pixdims=(425, 425)
-            )
-        
     return output_norm_agg, filters_per_freq_sel_agg, filter_selection_agg, filter_selection_dictlist
 
 
@@ -500,3 +493,52 @@ def orient_boolmask(filter_dictlist:list):
         direction_masks[i] = np.array(directions) == direction
 
     return direction_masks
+
+def gab_heatmap(filter_list, filts_per_freq:list, cmap:str="inferno", dir_idx:int|str="all", freq_idx:int|str="all", verbose:bool=False):
+    """Plotting function to inspect the filter selection using a heatmap
+
+    Args:
+        filter_list (list): List of dictionaries that contain the filter parameters
+        filts_per_freq (list): The number of filters per spatial frequency
+        cmap (str, optional): Colour map. Defaults to "inferno".
+        dir_idx (int | str, optional): The directions to plot, can be an integer index or "all". Defaults to "all".
+        freq_idx (int | str, optional): The spatial frequencies to include, can be an integer index or "all". Defaults to "all".
+    """    
+    filt_stack = []
+
+    dirs = range(len(filter_list)) if dir_idx == "all" else [dir_idx]
+    for dir in dirs:
+        these_filts_per_freq = filts_per_freq[dir]
+        dir_filts = range(len(filter_list[dir])) # The number of filter orientations, directions
+        
+        if freq_idx != "all":
+            
+            start_idx = 0 if freq_idx == 0 else sum(these_filts_per_freq[:freq_idx])
+            end_idx = sum(these_filts_per_freq[:freq_idx+1]) if freq_idx < len(these_filts_per_freq) - 1 else len(dir_filts)
+            
+            dir_filts = dir_filts[start_idx:end_idx]
+                        
+        for filt_no in dir_filts:
+            fdict = filter_list[dir][filt_no]
+            this_gabor = moten.core.mk_3d_gabor(vhsize=(425,425), 
+                                        centerh=fdict['centerh'],
+                                        centerv=fdict['centerv'],
+                                        direction=fdict['direction'],
+                                        spatial_freq=fdict['spatial_freq'],
+                                        spatial_env=fdict['spatial_env'],
+                                        temporal_freq=fdict['temporal_freq'],
+                                        filter_temporal_width=fdict['filter_temporal_width'],
+                                        aspect_ratio=fdict['aspect_ratio'],
+                                        stimulus_fps=fdict['stimulus_fps'],
+                                        spatial_phase_offset=fdict['spatial_phase_offset'],)
+
+            filt_stack.append(this_gabor[1])
+
+    filt_stack = np.array(filt_stack)
+    if verbose:
+        print(filt_stack.shape)
+
+    _ = plt.subplots(figsize=(8, 8))
+    plt.imshow(np.mean(filt_stack, axis=0), cmap=cmap)
+    
+    return filt_stack

@@ -228,8 +228,16 @@ print(bounds_prc)
 
 filts_in_patch, filts_boolvec = location_based_selection(checkpyramid, bounds_prc, verbose=True)
 
-# Project the stimulus onto the filters that fall inside the patch region
-gauss_output = checkpyramid.project_stimulus(gauss_check_stack, filters=filts_in_patch)
+file_path = f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/gauss_checker_output_{args.filetag}.npy"
+file_exists = os.path.isfile(file_path)
+
+if file_exists:
+    print("Loading the filter selection from file")
+    gauss_output = np.load(f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/gauss_checker_output_{args.filetag}.npy")
+else:
+    gauss_output = checkpyramid.project_stimulus(gauss_check_stack, filters=filts_in_patch)
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    np.save(f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/gauss_checker_output_{args.filetag}.npy", gauss_output)
 
 filters_per_freq = filts_per_freq(pyr_pars, filts_in_patch)
 print(filters_per_freq)
@@ -250,7 +258,6 @@ output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist =
         percentile_cutoff=95,  # Het moet maar
         # percentile_cutoff=0,  # Het moet maar
         best_n=None,
-        plot=False,
         verbose=True,
     )
 )
@@ -275,8 +282,6 @@ imgs,_ = NSP.stimuli.rand_img_list(n_imgs=(end_img-start_img),
                                    asPIL=False, 
                                    add_masks=False, 
                                    select_ices=np.array(range(start_img, end_img)))
-
-                                #    select_ices=NSP.stimuli.imgs_designmx()[args.subject][start_img:end_img])
 
 img_list = []
 
@@ -325,8 +330,8 @@ nsd_output_norm = normalize_output(nsd_output, len(pyr_pars["spatial_frequencies
 # filetag_str = f"{args.filetag}{peri_tag[5:]}" if args.filetag != "" else ""
 filetag_str = f"{args.filetag}" if args.filetag != "" else ""
 
-os.makedirs(f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/batches{filetag_str}", exist_ok=True)
+os.makedirs(f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/batches_{filetag_str}", exist_ok=True)
 
-np.save(f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/batches{filetag_str}/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy", nsd_output_norm)
+np.save(f"{NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/batches_{filetag_str}/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy", nsd_output_norm)
 
 print(f"Saved the output to {NSP.own_datapath}/visfeats{peri_tag}/gabor_pyramid/batches_{filetag_str}/gabor_baseline_{filetag_str}{start_img}_{end_img}.npy")
