@@ -976,36 +976,85 @@ class Utilities():
             return None
         
         
-    def plot_histograms_from_df(self, df: pd.DataFrame, statistic: str, rois: list, alt_model_type: str, save_path: str = None):
-        """Function to plot histograms of a given statistic and the corresponding r_uninformative for each ROI.
+    # def plot_histograms_from_df(self, df: pd.DataFrame, statistic: str, rois: list, alt_model_type: str, save_path: str = None):
+    #     """Function to plot histograms of a given statistic and the corresponding r_uninformative for each ROI.
 
+    #     Args:
+    #     - df (pd.DataFrame): DataFrame containing the data.
+    #     - statistic (str): The name of the column in df to use as r_values.
+    #     - rois (list): The list of regions of interest (ROIs) to analyse.
+    #     - alt_model_type (str): The name of the alternative model.
+    #     - save_path (str, optional): The path to save the plot. If None, the plot is not saved. Defaults to None.
+    #     """
+    #     fig, axs = plt.subplots(2, 2, figsize=(8, 8))
+    #     axs = axs.flatten()  # Flatten the axs array for easy iteration
+
+    #     for i, roi in enumerate(rois[:4]):
+    #         # Filter the DataFrame for the current ROI
+    #         df_roi = df[df['roi'] == roi]
+
+    #         # Underlay with the histogram of r_uninformative values
+    #         axs[i].hist(df_roi['R_alt_model'], bins=25, edgecolor=None, alpha=1, label=alt_model_type, color='black')
+
+    #         # Plot the histogram of the given statistic values in the i-th subplot
+    #         axs[i].hist(df_roi[statistic], bins=25, edgecolor='black', alpha=0.75, label=statistic, color='orangered')
+
+    #         this_delta_r = round(np.mean(df_roi[statistic]) - np.mean(df_roi['R_alt_model']), 5)
+    #         axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
+    #         axs[i].legend() if roi == 'V1' else None
+
+    #     plt.suptitle(f'{statistic} Histograms', fontsize=16)
+    #     plt.tight_layout()
+    #     plt.show()
+
+    #     if save_path is not None:
+    #         plt.savefig(f'{save_path}/{statistic}_plot.png')
+    
+    def explained_var_plot(self, 
+                        relu_layer:int=None, 
+                        n_pcs:int=None, 
+                        smallpatch:bool=False, 
+                        modelname:str="VGG", 
+                        manual_pca=None):
+        """Method to plot the explained variance ratio of the PCA instance created.
+        
         Args:
-        - df (pd.DataFrame): DataFrame containing the data.
-        - statistic (str): The name of the column in df to use as r_values.
-        - rois (list): The list of regions of interest (ROIs) to analyse.
-        - alt_model_type (str): The name of the alternative model.
-        - save_path (str, optional): The path to save the plot. If None, the plot is not saved. Defaults to None.
-        """
-        fig, axs = plt.subplots(2, 2, figsize=(8, 8))
-        axs = axs.flatten()  # Flatten the axs array for easy iteration
+        - relu_layer (int): Which ReLU layer of the AlexNet used for the encoding analyses
+                to plot the explained variance ratio of. Options are 1, 2, 3, 4, and 5.
+                These correspond to overall layers 1, 4, 7, 9, 11 in the CNN. 
+        - n_pcs (int): The number of principle components. Options are 1000 or 600. 
+        """        
+        smallpatch_str = 'smallpatch_' if smallpatch else ''
+        if manual_pca is None:
+            # pca_instance = joblib.load(f'{self.nsp.own_datapath}/visfeats/cnn_featmaps/pca/pca_{smallpatch_str}{relu_layer}_{n_pcs}pcs.joblib')
+            pca_instance = joblib.load(f'{self.nsp.own_datapath}/visfeats/cnn_featmaps/{modelname}/pca_{smallpatch_str}{relu_layer}_{n_pcs}pcs.joblib')
+        else: 
+            pca_instance = manual_pca
+        # Create a figure and a set of subplots
+        fig, ax = plt.subplots()
 
-        for i, roi in enumerate(rois[:4]):
-            # Filter the DataFrame for the current ROI
-            df_roi = df[df['roi'] == roi]
+        # Number of components
+        n_components = np.arange(1, len(pca_instance.explained_variance_ratio_) + 1)
+        cumulative_explained_variance_ratio = np.cumsum(pca_instance.explained_variance_ratio_)
+        # Plot the explained variance ratio
+        ax.bar(n_components, pca_instance.explained_variance_ratio_, alpha=0.5,
+        align='center', label='individual explained variance')
 
-            # Underlay with the histogram of r_uninformative values
-            axs[i].hist(df_roi['R_alt_model'], bins=25, edgecolor=None, alpha=1, label=alt_model_type, color='black')
+        # Plot the cumulative explained variance ratio
+        ax.step(n_components, cumulative_explained_variance_ratio, where='mid',
+                label='cumulative explained variance')
 
-            # Plot the histogram of the given statistic values in the i-th subplot
-            axs[i].hist(df_roi[statistic], bins=25, edgecolor='black', alpha=0.75, label=statistic, color='orangered')
+        # Add a horizontal line at y=0.95
+        ax.axhline(y=0.95, color='r', linestyle='--', label='95% explained variance')
 
-            this_delta_r = round(np.mean(df_roi[statistic]) - np.mean(df_roi['R_alt_model']), 5)
-            axs[i].set_title(f'{roi} delta-R: {this_delta_r}')
-            axs[i].legend() if roi == 'V1' else None
+        # Add labels and title
+        ax.set_xlabel('Principal components')
+        ax.set_ylabel('Explained variance ratio')
+        
+        ax.set_title(f'Explained variance ratio across all {n_pcs} PCs of layer {relu_layer}')
 
-        plt.suptitle(f'{statistic} Histograms', fontsize=16)
-        plt.tight_layout()
+        # Add a legend
+        ax.legend(loc='best')
+
+        # Show the plot
         plt.show()
-
-        if save_path is not None:
-            plt.savefig(f'{save_path}/{statistic}_plot.png')

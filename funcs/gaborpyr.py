@@ -494,7 +494,14 @@ def orient_boolmask(filter_dictlist:list):
 
     return direction_masks
 
-def gab_heatmap(filter_list, filts_per_freq:list, cmap:str="inferno", dir_idx:int|str="all", freq_idx:int|str="all", verbose:bool=False):
+def gab_heatmap(filter_list, 
+                filts_per_freq:list, 
+                cmap:str="inferno", 
+                dir_idx:int|str="all", 
+                freq_idx:int|str="all", 
+                single_filter:bool=False,
+                verbose:bool=False,
+                plot:bool=True):
     """Plotting function to inspect the filter selection using a heatmap
 
     Args:
@@ -517,7 +524,10 @@ def gab_heatmap(filter_list, filts_per_freq:list, cmap:str="inferno", dir_idx:in
             end_idx = sum(these_filts_per_freq[:freq_idx+1]) if freq_idx < len(these_filts_per_freq) - 1 else len(dir_filts)
             
             dir_filts = dir_filts[start_idx:end_idx]
-                        
+        
+        
+        if single_filter:
+            dir_filts = [random.choice(dir_filts)]
         for filt_no in dir_filts:
             fdict = filter_list[dir][filt_no]
             this_gabor = moten.core.mk_3d_gabor(vhsize=(425,425), 
@@ -537,8 +547,8 @@ def gab_heatmap(filter_list, filts_per_freq:list, cmap:str="inferno", dir_idx:in
     filt_stack = np.array(filt_stack)
     if verbose:
         print(filt_stack.shape)
-
-    _ = plt.subplots(figsize=(8, 8))
-    plt.imshow(np.mean(filt_stack, axis=0), cmap=cmap)
+    if plot:
+        _ = plt.subplots(figsize=(8, 8))
+        plt.imshow(np.mean(filt_stack, axis=0), cmap=cmap)
     
     return filt_stack

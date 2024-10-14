@@ -203,8 +203,8 @@ gauss_check_stack = np.stack([gauss, checker_stim * gauss], axis=0)
 pyr_pars = {
     "spatial_frequencies": [4.2, 8.4, 16.8, 33.6,],  # 1, 2, 4, 8 cycles per degree (octave)
     "spatial_orientations": tuple(range(0, 180, 30)),  # 0, 45, 90, 135
-    "sf_gauss_ratio": .25,  # ratio of spatial frequency to gaussian s.d.
-    "max_spatial_env": 1 / 8.4,  # max sd of gaussian envelope
+    "sf_gauss_ratio": 1.5, # OG = .25,  # ratio of spatial frequency to gaussian s.d.
+    "max_spatial_env": .75 / 8.4,  # max sd of gaussian envelope
     "filter_spacing": 1,  # filter spacing in degrees
     "spatial_phase_offset": 0,  # spatial phase offset in degrees
 }
