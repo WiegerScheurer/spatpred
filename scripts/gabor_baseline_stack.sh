@@ -14,6 +14,6 @@ for arg1 in $(seq 0 1000 72000); do
     # for arg3 in 90 210; do
 
         # python ./scripts/gabor_baseline.py $arg1 $arg2 --filetag "all_imgs_sf4_dir9" --peri_ecc 2.0 --peri_angle $arg3
-        python ./scripts/gabor_baseline.py $arg1 $arg2 --filetag "all_imgs_sf4_dir6_loc_rat1.5"
+        python ./scripts/gabor_baseline.py $arg1 $arg2 --filetag "all_imgs_sf4_dir4_loc_optimal"
     done
 done
