@@ -132,7 +132,7 @@ peri_pars = (args.peri_ecc, args.peri_angle)
 # Xbl = pd.concat([rms, sc, ce], axis=1).values[:ydict["V1"].shape[0]]
 
 ####### THE NEW BASELINE MODEL: ######
-Xbl = zs(NSP.stimuli.load_gabor_output(subject, "all_imgs_sf4_dir6", verbose=True, peri_ecc=args.peri_ecc, peri_angle=args.peri_angle))[:ydict["V1"].shape[0]]
+Xbl = zs(NSP.stimuli.load_gabor_output(subject, "all_imgs_sf4_dir4", verbose=True, peri_ecc=args.peri_ecc, peri_angle=args.peri_angle))[:ydict["V1"].shape[0]]
 
 
 which_cnn = 'vggfull'
@@ -181,7 +181,7 @@ for layer in range(0, Xpred.shape[1]):
                              regname=feat,
                              plot_hist=True,
                              alt_model_type="baseline model",
-                             save_folder=f'unpred/{which_cnn}{peri_tag}_gabor',
+                             save_folder=f'unpred/{which_cnn}{peri_tag}_gabor_optim',
                              X_str=f'{feat} model')
 
 print('Het zit er weer op kameraad')

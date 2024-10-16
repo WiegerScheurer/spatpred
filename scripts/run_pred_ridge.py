@@ -23,6 +23,7 @@ import importlib
 from importlib import reload
 import classes.natspatpred
 import unet_recon.inpainting
+from scipy.stats import zscore as zs
 
 importlib.reload(classes.natspatpred)
 importlib.reload(unet_recon.inpainting)
@@ -159,8 +160,9 @@ for roi in rois:
 # Xbl = pd.concat([rms, sc, ce], axis=1).values[: ydict["V1"].shape[0]]
 
 ###### THIS IS THE NEW BASELINE #####
-Xgabor_sub = NSP.stimuli.load_gabor_output(subject=subject, file_tag='all_imgs_sf4_dir6', verbose=False)
-Xbl = Xgabor_sub[: ydict["V1"].shape[0]]
+# Xgabor_sub = NSP.stimuli.load_gabor_output(subject=subject, file_tag='all_imgs_sf4_dir6', verbose=False)
+Xgabor_sub = NSP.stimuli.load_gabor_output(subject=subject, file_tag='all_imgs_sf4_dir4_loc_optimal', verbose=False)
+Xbl = zs(Xgabor_sub[: ydict["V1"].shape[0]])
 
 # which_cnn = 'vgg8'
 which_cnn = "vggfull"
