@@ -7,10 +7,18 @@ import copy
 import os
 import pickle
 import nibabel as nib
+import seaborn as sns
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
+from classes.regdata import RegData   
+
 from matplotlib.colors import LinearSegmentedColormap
 from sklearn.linear_model import LinearRegression
 from funcs.rf_tools import rsquare_selection, nsd_R2_dict
 from funcs.utility import numpy2coords, coords2numpy, filter_array_by_size, find_common_rows, get_zscore, mean_center, print_dict_structure, _sort_by_column
+
+rd = RegData
+
 
 # This function is dangerous, it should not be applied to the full dataset, but a subset of it.
 # is not yet adapted to the right input
@@ -523,3 +531,184 @@ def reg_plots(reg_dict, dictdescrip1 = '', icept_correct = None, feat_type = Non
     if beta_icept:
         plot_beta_to_icept(reg_dict = reg_dict, dictdescrip1 = dictdescrip1, comparison_reg_dict = comparison_reg_dict, 
                            feat_type = feat_type, dictdescrip2 = dictdescrip2, comptype = comptype)
+ 
+def fovperi_per_lay(
+    subject: str,
+    statistic: str = "delta_r",
+    angles: list = [90, 210, 330],
+    alpha=0.5,
+    cmap="copper",
+    central_folder: str = "unpred/vggfull_gabor_baseline_optim",
+    peri_folder: str = "",
+):
+    """Function to plot pairwise comparisons of fovea and parafovea based on various statistics across VGG layers.
+        It is a bit sloppy still, but works.
+    Args:
+        subject (str): _description_
+        statistic (str, optional): _description_. Defaults to "delta_r".
+        angles (list, optional): _description_. Defaults to [90, 210, 330].
+        alpha (float, optional): _description_. Defaults to 0.5.
+        cmap (str, optional): _description_. Defaults to "copper".
+        central_folder (str, optional): _description_. Defaults to "unpred/vggfull_gabor_baseline_optim".
+        peri_folder (str, optional): _description_. Defaults to f"unpred/vggfull/peri_ecc2.0_angle{angle}_gabor_optim".
+
+    Returns:
+        _type_: _description_
+    """
+
+    # Peripheral results, delta r unpredictability
+    for angle_no, angle in enumerate(angles):
+        
+        if peri_folder == "":
+            peri_folder = f"unpred/vggfull/peri_ecc2.0_angle{angle}_gabor_optim"
+    
+        results = rd(
+            subject=subject,
+            folder=peri_folder,
+            model="vggfull",
+            statistic=statistic,
+            verbose=False,
+            skip_norm_lay=True,
+        )
+        if angle_no == 0:
+            peri_df = results.df
+        else:
+            peri_df = pd.concat([peri_df, results.df])
+
+    peri_grouped = peri_df.iloc[:, 3:].groupby("roi").mean()
+
+    fov_results = rd(
+        subject=subject,
+        folder=central_folder,
+        model="vggfull",
+        statistic=statistic,
+        verbose=False,
+        skip_norm_lay=True,
+    )
+
+    fov_df = fov_results.df
+    fov_grouped = fov_df.iloc[:, 3:].groupby("roi").mean()
+
+    # Add a new column 'source' to each dataframe
+    fov_grouped["source"] = "Fovea"
+    peri_grouped["source"] = "Parafovea"
+
+    # Concatenate the two dataframes
+    combined_df = pd.concat([fov_grouped, peri_grouped])
+
+    # Reset the index
+    combined_df.reset_index(inplace=True)
+
+    y_axis_str = "Δr values" if statistic == "delta_r" else "β coefficient"
+
+    # Melt the dataframe to long format for easier plotting with seaborn
+    long_df = combined_df.melt(
+        id_vars=["roi", "source"],
+        value_vars=combined_df.columns[:-1],
+        var_name="abstraction_level",
+        value_name=y_axis_str,
+    )
+
+    # Extract the integer value after the last "_" in 'abstraction_level'
+    long_df["abstraction_order"] = (
+        long_df["abstraction_level"].str.split("_").str[-1].astype(int)
+    )
+
+    # Create the 'zorder' column based on the reverse of 'abstraction_order'
+    long_df["zorder"] = (
+        long_df["abstraction_order"].max() - long_df["abstraction_order"] + 1
+    )
+
+    # Create a custom order for the abstraction levels (change this to fit your desired order)
+    abstraction_level_order = sorted(
+        long_df["abstraction_level"].unique(),
+        key=lambda x: int(x.split("_")[-1]),
+        reverse=True,
+    )
+
+    # Define the colormap and set the custom order for abstraction levels
+    if cmap == "layassign":
+        cmap = LinearSegmentedColormap.from_list(
+            "NavyBlueVeryLightGreyDarkRed",
+            [
+                "#000039",
+                "#0000C0",
+                "#426CFF",
+                "#8DC2FF",
+                "#BDF7FF",
+                "#E3E3E3",
+                "#FFC90A",
+                "#FF8B00",
+                "#FF4D00",
+                "#E90000",
+                "#800000",
+            ],
+            N=16,
+        )
+    else:
+        cmap = plt.cm.get_cmap(cmap, len(abstraction_level_order))
+
+    # Convert the colormap to a list of colors
+    cmap = [cmap(i) for i in range(cmap.N)][::-1]
+
+    # Create a FacetGrid with 'roi' as the column and use the custom order for 'abstraction_level'
+    g = sns.FacetGrid(
+        long_df,
+        col="roi",
+        hue="abstraction_level",
+        hue_order=abstraction_level_order,
+        col_wrap=2,
+        aspect=1,
+        palette=cmap,
+        height=4,
+    )
+
+    # Map the lineplot to the FacetGrid
+    g.map(sns.lineplot, "source", y_axis_str, alpha=alpha, linewidth=3, zorder=1)
+
+    # Map the scatterplot to the FacetGrid
+    g.map(sns.scatterplot, "source", y_axis_str, alpha=1, s=130, zorder=2)
+
+    # Get the handles and labels of the current legend
+    handles, labels = g.axes.flat[0].get_legend_handles_labels()
+
+    # Modify the labels to only the integer values at the end of the string label
+    labels = [int(label.split("_")[-1]) - 1 for label in labels]
+
+    # Get the unique labels
+    labels = list(set(labels))[::-1]
+
+    # Create a custom legend
+    legend_patches = [
+        (
+            Patch(color=handle.get_color(), label=label)
+            if isinstance(handle, Line2D)
+            else Patch(color=handle.get_facecolor(), label=label)
+        )
+        for handle, label in zip(handles, labels)
+    ]
+
+    # Set the legend again with the new labels
+    # plt.legend(handles=legend_patches, title='Abstraction Level', bbox_to_anchor=(1.05, 2), loc='upper left')
+
+    # Change the x-axis title
+    g.set_xlabels("Visual field location", fontsize=14, fontweight="bold")
+
+    # Change the y-axis title
+    g.set_ylabels(y_axis_str, fontsize=14, fontweight="bold")
+
+    # Set the title for each subplot
+    for ax, title in zip(g.axes.flat, combined_df["roi"].unique()):
+        ax.set_title(f"{title}", fontsize=14)
+        ax.set_xlim(ax.get_xlim()[0] - 0.02, ax.get_xlim()[1] + 0.02)
+
+    g.set_xticklabels(["Fovea", "Parafovea"], fontsize=12)
+
+    g.figure.suptitle(
+        f"Unpredictability effects in fovea vs. parafovea\nSubject {subject[-1]}, patch angle {angles}°",
+        fontsize=14,
+        y=1.06,
+        fontweight="bold",
+    )
+
+    return long_df
