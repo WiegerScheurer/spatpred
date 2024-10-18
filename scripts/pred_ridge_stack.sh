@@ -4,5 +4,5 @@
 
 for subj_num in {01..08}; do
     echo "Running unpredictability ridge regression for subj$subj_num"
-    /home/rfpred/scripts/run_pred_ridge.py subj$subj_num --analysis_tag "gabor_baseline_optim"
+    /home/rfpred/scripts/run_pred_ridge.py subj$subj_num --analysis_tag "gabor_baseline_allfilts"
 done

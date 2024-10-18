@@ -161,7 +161,7 @@ for roi in rois:
 
 ###### THIS IS THE NEW BASELINE #####
 # Xgabor_sub = NSP.stimuli.load_gabor_output(subject=subject, file_tag='all_imgs_sf4_dir6', verbose=False)
-Xgabor_sub = NSP.stimuli.load_gabor_output(subject=subject, file_tag='all_imgs_sf4_dir4_loc_optimal', verbose=False)
+Xgabor_sub = NSP.stimuli.load_gabor_output(subject=subject, file_tag='all_imgs_sf4_dir4_allfilts', verbose=False)
 Xbl = zs(Xgabor_sub[: ydict["V1"].shape[0]])
 
 # which_cnn = 'vgg8'
