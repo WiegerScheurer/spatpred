@@ -205,7 +205,7 @@ pyr_pars = {
     "spatial_orientations": tuple(range(0, 180, 45)),  # 0, 45, 90, 135
     "sf_gauss_ratio": .45, # OG = .25,  # ratio of spatial frequency to gaussian s.d.
     "max_spatial_env": .5 / 8.4,  # max sd of gaussian envelope
-    "filter_spacing": 1,  # filter spacing in degrees
+    "filter_spacing": 3.5,  # filter spacing in degrees
     "spatial_phase_offset": 0,  # spatial phase offset in degrees
 }
 
@@ -255,8 +255,8 @@ output_norm, filters_per_freq_sel, filter_selection, filter_selection_dictlist =
         spat_freqs=pyr_pars["spatial_frequencies"],
         direction_masks=orient_mask,
         filters_per_freq=filters_per_freq,
-        percentile_cutoff=99.5,  # Het moet maar
-        # percentile_cutoff=0,  # Het moet maar
+        # percentile_cutoff=99.5,  # Het moet maar
+        percentile_cutoff=0,  # Het moet maar
         best_n=None,
         verbose=True,
     )
