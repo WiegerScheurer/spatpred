@@ -547,10 +547,10 @@ def _get_peri_df(
 
         if statistic == "delta_r_baseline":
             this_folder = "baseline"
-            this_model = f"gabor_pyr_sf4_dir4_ecc2.0_angle{angle}"
+            this_model = f"gabor_pyr_sf4_dir4_ecc2.0_angle{angle}_allfilts"
             this_statistic = "delta_r"
         else:
-            this_folder = f"unpred/vggfull/peri_ecc2.0_angle{angle}_gabor_optim"
+            this_folder = f"unpred/vggfull/peri_ecc2.0_angle{angle}_gabor_allfilts"
             this_statistic = statistic
             this_model = "vggfull"
 
@@ -590,10 +590,10 @@ def _get_fovea_df(
 
     if statistic == "delta_r_baseline":
         this_folder = "baseline"
-        this_model = "gabor_pyr_sf4_dir4"
+        this_model = "gabor_pyr_sf4_dir4_allfilts"
         this_statistic = "delta_r"
     else:
-        this_folder = f"unpred/vggfull_gabor_baseline_optim"
+        this_folder = f"unpred/vggfull_gabor_baseline_allfilts"
         this_statistic = statistic
         this_model = "vggfull"
 
@@ -866,6 +866,7 @@ def _roi_based_plot(
     show_legend=False,
     cmap: str = "cividis",
     alpha: float = 0.8,
+    global_min:float=0,
     global_max:float = 0.5,
 ):
     # Melt the dataframe to long format
@@ -910,7 +911,7 @@ def _roi_based_plot(
         data=long_df,
         palette=cmap,
         ax=ax,
-        s=130,
+        s=150,
         legend=False,
     )
 
@@ -924,7 +925,7 @@ def _roi_based_plot(
         data=mean_df,
         legend=False,
         ax=ax,
-        linewidth=4,
+        linewidth=6,
         linestyle=":",
         color="black",
         alpha=1,
@@ -939,7 +940,7 @@ def _roi_based_plot(
     ax.set_xlim(ax.get_xlim()[0] - 0.1, ax.get_xlim()[1] + 0.1)
 
     # Set the y-axis limits based on global min and max values
-    ax.set_ylim(-.005, global_max + .01)
+    ax.set_ylim(global_min - .01, global_max + .01)
 
     if show_legend is True:
         ax.legend(
@@ -991,11 +992,14 @@ def fovparafov_roiplot(
 
     
     global_max = 0 # This is to ensure the y axes are the same for all plots for interpretability
+    global_min = 0
     for subject in subjects:
         fov_data = _get_fovea_df(subject, statistic, aggregate_layers)
         peri_data = _get_peri_df(subject, statistic, angles, aggregate_layers)
         global_max = fov_data.max() if fov_data.max() > global_max else global_max
         global_max = peri_data.max() if peri_data.max() > global_max else global_max
+        global_min = fov_data.min() if fov_data.min() < global_min else global_min
+        global_min = peri_data.min() if peri_data.min() < global_min else global_min
     
     for i, (ax, roi) in enumerate(zip(axs, rois)):
         combined_df = pd.DataFrame()
@@ -1030,6 +1034,7 @@ def fovparafov_roiplot(
             show_legend=show_legend,
             cmap=cmap,
             alpha=alpha,
+            global_min=global_min,
             global_max=global_max,
         )
         ax.set_title(roi, fontsize=14, fontweight="bold")
