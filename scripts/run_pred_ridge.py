@@ -9,6 +9,7 @@ import sys
 import numpy as np
 import pandas as pd
 import argparse
+from sklearn.decomposition import PCA
 
 
 os.chdir("/home/rfpred")
@@ -164,6 +165,23 @@ for roi in rois:
 Xgabor_sub = NSP.stimuli.load_gabor_output(subject=subject, file_tag='all_imgs_sf4_dir4_allfilts', verbose=False)
 Xbl = zs(Xgabor_sub[: ydict["V1"].shape[0]])
 
+num_pcs = 100
+
+pca = PCA(n_components=num_pcs)
+pca.fit(Xbl)
+
+# Get the explained variance ratio
+explained_variance_ratio = pca.explained_variance_ratio_
+
+# Calculate cumulative explained variance
+cumulative_explained_variance = np.cumsum(explained_variance_ratio)
+print(f"Cumulative explained variance for {num_pcs} PCs: {cumulative_explained_variance[num_pcs-1]}")
+
+Xbl_pcs = zs(pca.transform(Xbl))
+
+# X = Xbl_pcs
+
+
 # which_cnn = 'vgg8'
 which_cnn = "vggfull"
 # which_cnn = 'alexnet'
@@ -212,7 +230,7 @@ start_idx = Xpred_conv.shape[1] if args.dense_only == True else 0
 for layer in range(start_idx, Xpred.shape[1]):
     feat = f"{which_cnn}_lay{layer}"
     Xalex = Xpred[:, layer].reshape(-1, 1)
-    X = np.hstack((Xbl, Xalex))
+    X = np.hstack((Xbl_pcs, Xalex))
     print(f"X has these dimensions: {X.shape}")
     X_shuf = np.copy(X)
     np.random.shuffle(X_shuf)
@@ -225,7 +243,7 @@ for layer in range(start_idx, Xpred.shape[1]):
         alpha=0.1,
         cv=5,
         rois=rois,
-        X_alt=Xbl,  # The baseline model
+        X_alt=Xbl_pcs,  # The baseline model
         fit_icept=False,
         save_outs=True,
         regname=feat,

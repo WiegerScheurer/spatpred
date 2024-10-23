@@ -1041,3 +1041,42 @@ def fovparafov_roiplot(
 
     plt.tight_layout()
     plt.show()
+    
+
+def plot_scatter_with_diagonal(baseline_data, unpred_data, x_label, y_label, ax=None):
+    """
+    Plots a scatter plot with a diagonal line and labels.
+
+    Parameters:
+    baseline_data (pd.Series): Data for the x-axis.
+    unpred_data (pd.Series): Data for the y-axis.
+    x_label (str): Label for the x-axis.
+    y_label (str): Label for the y-axis.
+    ax (matplotlib.axes.Axes, optional): Axes object to plot on. If None, creates a new figure and axes.
+
+    Returns:
+    ax: The axes object of the plot.
+    """
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    # Plot scatter
+    ax.scatter(baseline_data, unpred_data, color="none", edgecolors="black", alpha=.9, s=1)
+
+    # Calculate the limits for the diagonal line
+    min_val = min(min(unpred_data), min(baseline_data))
+    max_val = max(max(unpred_data), max(baseline_data))
+
+    # Plot the diagonal line
+    ax.plot([min_val, max_val], [min_val, max_val], color='red', linestyle='--', alpha=1)
+
+    # Add x and y labels
+    ax.set_xlabel(x_label, fontsize=16, fontweight="normal")
+    ax.set_ylabel(y_label, fontsize=16, fontweight="normal")
+
+    # Remove top and right spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # if 
+    return ax

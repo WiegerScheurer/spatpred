@@ -7,56 +7,12 @@ os.environ["OMP_NUM_THREADS"] = "10"
 import os
 import sys
 import numpy as np
-# import random
-# import time
-# import matplotlib.pyplot as plt
-# import pandas as pd
-# import torch
-# import seaborn as sns
-# import nibabel as nib
-# import pickle
-# import torchvision.models as models
-# import nibabel as nib
-# import h5py
-# import scipy.stats.mstats as mstats
-# import copy
-
-# from nilearn import plotting
-# from scipy import stats
-# from scipy.ndimage import binary_dilation
-# from PIL import Image
-# from importlib import reload
-# from scipy.io import loadmat
-# from matplotlib.ticker import MultipleLocator, NullFormatter
-# from sklearn.cross_decomposition import PLSRegression
-# from sklearn.linear_model import LinearRegression, Lasso, Ridge
-# from colorama import Fore, Style
-# from matplotlib.colors import LinearSegmentedColormap
-# from matplotlib import colormaps
-# from torch.utils.data import Dataset, DataLoader
-# from torch.nn import Module
-# from torchvision import transforms
-# from sklearn.preprocessing import StandardScaler
-# from sklearn.decomposition import PCA, IncrementalPCA
-# from sklearn.impute import SimpleImputer
-# from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
-# from tqdm import tqdm
-# from matplotlib.lines import Line2D
-# from sklearn.model_selection import KFold
-# from sklearn.linear_model import LinearRegression
-# from sklearn.model_selection import cross_val_score, KFold, cross_val_predict
-# from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-# from math import sqrt
-# from typing import Dict, Tuple, Union
-# from scipy.special import softmax
+from sklearn.decomposition import PCA
 
 os.chdir('/home/rfpred')
 sys.path.append('/home/rfpred/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/')
 sys.path.append('/home/rfpred/envs/rfenv/lib/python3.11/site-packages/nsdcode')
-
-# from unet_recon.inpainting import UNet
-# from funcs.analyses import univariate_regression
 
 import importlib
 # from importlib import reload
@@ -85,7 +41,6 @@ prf_dict = NSP.cortex.prf_dict(rois, roi_masks)
 # predparser.add_argument('subject', type=str, help='The subject')
 
 # args = predparser.parse_args()
-
 
 ############ CONSTRAINED VOXEL SELECTION Y-MATRIX ################
 ##### ALSO RUN THIS FOR THE PRED FEATS SEPARATELY WITHOUT THE BASELINE #########
@@ -315,7 +270,21 @@ for subject in NSP.subjects:
     # Vgg encoding featmaps
     # Xbl = NSP.stimuli.alex_featmaps([0], subject, plot_corrmx=False, smallpatch=True, modeltype="VGG")[:ydict["V1"].shape[0]]
 
-    X = Xbl
+    num_pcs = 100
+
+    pca = PCA(n_components=num_pcs)
+    pca.fit(Xbl)
+    
+    # Get the explained variance ratio
+    explained_variance_ratio = pca.explained_variance_ratio_
+
+    # Calculate cumulative explained variance
+    cumulative_explained_variance = np.cumsum(explained_variance_ratio)
+    print(f"Cumulative explained variance for {num_pcs} PCs: {cumulative_explained_variance[num_pcs-1]}")
+
+    Xbl_pcs = zs(pca.transform(Xbl))
+
+    X = Xbl_pcs
     print(f'X has these dimensions: {X.shape}')
     X_shuf = np.copy(X)
     np.random.shuffle(X_shuf)
@@ -323,7 +292,7 @@ for subject in NSP.subjects:
     reg_df = NSP.analyse.analysis_chain_slim(subject=subject,
                                 ydict=ydict,
                                 voxeldict=voxeldict,
-                                X=Xbl,
+                                X=Xbl_pcs,
                                 alpha=.1,
                                 cv=5,
                                 rois=rois,
@@ -391,10 +360,26 @@ for subject in NSP.subjects:
     # Xgabor_sub = NSP.stimuli.load_gabor_output(subject=subject, file_tag='all_imgs_sf4_dir4_loc_optimal', verbose=False)
     Xgabor_sub = NSP.stimuli.load_gabor_output(subject=subject, file_tag='all_imgs_sf4_dir4_allfilts', verbose=False)
     Xbl = zs(Xgabor_sub[: ydict["V1"].shape[0]])
+    
+    num_pcs = 100
+
+    pca = PCA(n_components=num_pcs)
+    pca.fit(Xbl)
+    
+    # Get the explained variance ratio
+    explained_variance_ratio = pca.explained_variance_ratio_
+
+    # Calculate cumulative explained variance
+    cumulative_explained_variance = np.cumsum(explained_variance_ratio)
+    print(f"Cumulative explained variance for {num_pcs} PCs: {cumulative_explained_variance[num_pcs-1]}")
+
+    Xbl_pcs = zs(pca.transform(Xbl))
+    
+
     # Vgg encoding featmaps
     # Xbl = NSP.stimuli.alex_featmaps([0], subject, plot_corrmx=False, smallpatch=True, modeltype="VGG")[:ydict["V1"].shape[0]]
 
-    X = Xbl
+    X = Xbl_pcs
     print(f'X has these dimensions: {X.shape}')
     X_shuf = np.copy(X)
     np.random.shuffle(X_shuf)
@@ -402,7 +387,7 @@ for subject in NSP.subjects:
     reg_df = NSP.analyse.analysis_chain_slim(subject=subject,
                                 ydict=ydict,
                                 voxeldict=voxeldict,
-                                X=Xbl,
+                                X=X,
                                 alpha=.1,
                                 cv=5,
                                 rois=rois,
@@ -454,7 +439,7 @@ for subject in NSP.subjects:
                                             fixed_n_voxels=None,
                                             peri_angle=angle,
                                             peri_ecc=2.0,
-                                            leniency = .5
+                                            leniency = .25
                                             )
                 if len(voxeldict[roi].size) > 0:
                     break
@@ -479,8 +464,21 @@ for subject in NSP.subjects:
         Xbl = zs(Xgabor_sub[: ydict["V1"].shape[0]])
         # Vgg encoding featmaps
         # Xbl = NSP.stimuli.alex_featmaps([0], subject, plot_corrmx=False, smallpatch=True, modeltype="VGG")[:ydict["V1"].shape[0]]
+        num_pcs = 100
 
-        X = Xbl
+        pca = PCA(n_components=num_pcs)
+        pca.fit(Xbl)
+        
+        # Get the explained variance ratio
+        explained_variance_ratio = pca.explained_variance_ratio_
+
+        # Calculate cumulative explained variance
+        cumulative_explained_variance = np.cumsum(explained_variance_ratio)
+        print(f"Cumulative explained variance for {num_pcs} PCs: {cumulative_explained_variance[num_pcs-1]}")
+
+        Xbl_pcs = zs(pca.transform(Xbl))
+        
+        X = Xbl_pcs
         print(f'X has these dimensions: {X.shape}')
         X_shuf = np.copy(X)
         np.random.shuffle(X_shuf)
@@ -488,7 +486,7 @@ for subject in NSP.subjects:
         reg_df = NSP.analyse.analysis_chain_slim(subject=subject,
                                     ydict=ydict,
                                     voxeldict=voxeldict,
-                                    X=Xbl,
+                                    X=X,
                                     alpha=.1,
                                     cv=5,
                                     rois=rois,

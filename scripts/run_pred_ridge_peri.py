@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 import argparse
 from scipy.stats import zscore as zs
+from sklearn.decomposition import PCA
+
 
 
 os.chdir('/home/rfpred')
@@ -134,6 +136,19 @@ peri_pars = (args.peri_ecc, args.peri_angle)
 ####### THE NEW BASELINE MODEL: ######
 Xbl = zs(NSP.stimuli.load_gabor_output(subject, "all_imgs_sf4_dir4_allfilts", verbose=True, peri_ecc=args.peri_ecc, peri_angle=args.peri_angle))[:ydict["V1"].shape[0]]
 
+num_pcs = 100
+
+pca = PCA(n_components=num_pcs)
+pca.fit(Xbl)
+
+# Get the explained variance ratio
+explained_variance_ratio = pca.explained_variance_ratio_
+
+# Calculate cumulative explained variance
+cumulative_explained_variance = np.cumsum(explained_variance_ratio)
+print(f"Cumulative explained variance for {num_pcs} PCs: {cumulative_explained_variance[num_pcs-1]}")
+
+Xbl_pcs = zs(pca.transform(Xbl))
 
 which_cnn = 'vggfull'
 
@@ -163,7 +178,7 @@ if which_cnn == 'alexnet_new': # Remove this later, only for clarity of files
 for layer in range(0, Xpred.shape[1]):
     feat = f'{which_cnn}_lay{layer}'
     Xalex = Xpred[:,layer].reshape(-1,1)
-    X = np.hstack((Xbl, Xalex))
+    X = np.hstack((Xbl_pcs, Xalex))
     print(f'X has these dimensions: {X.shape}')
     X_shuf = np.copy(X)
     np.random.shuffle(X_shuf)
@@ -175,7 +190,7 @@ for layer in range(0, Xpred.shape[1]):
                              alpha=.1,
                              cv=5,
                              rois=rois,
-                             X_alt=Xbl, # The baseline model
+                             X_alt=Xbl_pcs, # The baseline model
                              fit_icept=False,
                              save_outs=True,
                              regname=feat,

@@ -75,6 +75,7 @@ class RegData:
         statistic: str = "delta_r",  # delta_r, R_alt_model, or R
         verbose: bool = False,
         skip_norm_lay: bool = False,
+        single_file: bool = False,
     ):
         self.subject = subject
         self.folder = folder
@@ -83,7 +84,8 @@ class RegData:
         self.cnn_layers = None
         self.verbose = verbose
         self.skip_norm_lay = skip_norm_lay
-        self._build_df(subject, folder, model, statistic, verbose=verbose, skip_norm_lay=skip_norm_lay)
+        self.single_file = single_file
+        self._build_df(subject, folder, model, statistic, verbose=verbose, skip_norm_lay=skip_norm_lay, single_file=single_file)
 
     def _build_df(
         self,
@@ -94,7 +96,8 @@ class RegData:
         main_df: bool = True,
         add_xyz: bool = True,
         verbose: bool = True,
-        skip_norm_lay: bool = False
+        skip_norm_lay: bool = False,
+        single_file: bool = False,
     ):
         # Directory containing the CSV files
         directory = f"{NSP.own_datapath}/{subject}/results/{folder}/"
@@ -114,9 +117,15 @@ class RegData:
             layno = NSP.utils.get_layer_file(filename, "lay")
             # Check if the layer is relevant, skip if it is 0 when this is a normalisation layer we're not interested in
             relevant_layer = False if layno == 0 and skip_norm_lay == True else True
+            if single_file:
+                most_sparse_file = True if filename == model + f"_regdf.csv" else False
+            else:
+                most_sparse_file = True
             
             # Check if the filename starts with the model name
-            if filename.startswith(model) and filename.endswith(".csv") and relevant_layer:
+            # if filename.startswith(model) and filename.endswith(".csv") and relevant_layer:
+            if filename.startswith(model) and filename.endswith(".csv") and relevant_layer and most_sparse_file:
+
                 # layno = NSP.utils.get_layer_file(filename, "lay") if self.folder == "unpred" else fileno
 
                 if verbose:
