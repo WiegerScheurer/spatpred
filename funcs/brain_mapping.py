@@ -59,9 +59,9 @@ def reg_to_nifti(
     folder_save_str = custom_subfolder if custom_subfolder is not None else ""
     
     if reg_type == "unpred":
-        results = rd(subject=subject, folder=f"{reg_type}/{folder_str}", model=model, statistic=reg_stat)
+        results = rd(subject=subject, folder=f"{reg_type}/{folder_str}", model=model, statistic=reg_stat, skip_norm_lay=True)
     else:
-        results = rd(subject=subject, folder=f"{reg_type}", model=model, statistic=reg_stat)
+        results = rd(subject=subject, folder=f"{reg_type}", model=model, statistic=reg_stat, skip_norm_lay=True)
         
     mean_stats = ["betas", "delta_beta", "beta_unpred", "R_alt_model", "R"]
         
