@@ -1159,3 +1159,108 @@ def plot_scatter_with_diagonal(
         ax.legend()
 
     return ax
+
+
+
+
+def get_mean_roi_vals(df, roi:str):
+    """
+    Returns a DataFrame with the mean values of each ROI.
+    """
+    df._get_mean(verbose=False)
+    
+    filtered_values = df.df[df.df["roi"] == roi]["Mean Statistic"]
+
+    return filtered_values.values
+
+
+def plot_roi_histograms(
+    unpred_df,
+    baseline_df,
+    alt_model_type,
+    X_str,
+    regname,
+    colour1: str = "black",
+    colour2: str = "red",
+    n_bins=100,
+    alpha: float = 0.35,
+    add_smooth_curve=True,
+    add_bin_edges=False,
+    figsize:tuple=(10, 10),
+):
+    """
+    Plots histograms of r_unpred and r_baseline for given ROIs with optional smooth curve and bin edges.
+
+    Parameters:
+    unpred_df (DataFrame): DataFrame containing unpredicted values.
+    baseline_df (DataFrame): DataFrame containing baseline values.
+    rois (list): List of ROIs to plot.
+    alt_model_type (str): Label for the r_baseline histogram.
+    X_str (str): Label for the r_unpred histogram.
+    regname (str): Title for the entire figure.
+    n_bins (int): Number of bins for the histograms.
+    add_smooth_curve (bool): Whether to add a fitted smooth curve to the histograms.
+    add_bin_edges (bool): Whether to add edges around the bins.
+    """
+    rois = [f"V{i}" for i in range(1, 5)]
+    
+    for i, roi in enumerate(rois[:4]):
+        r_unpred = get_mean_roi_vals(unpred_df, roi)
+        r_baseline = get_mean_roi_vals(baseline_df, roi)
+
+        # Calculate and store the delta-R values
+        if roi == "V1":
+            all_vox_delta_r = (r_unpred - r_baseline).reshape(-1, 1)
+        else:
+            all_vox_delta_r = np.vstack(
+                (all_vox_delta_r, (r_unpred - r_baseline).reshape(-1, 1))
+            )
+
+        this_delta_r = round(np.mean(r_unpred) - np.mean(r_baseline), 5)
+
+        if roi == "V1":  # Create a figure with 4 subplots
+            fig, axs = plt.subplots(2, 2, figsize=figsize)
+            # Flatten the axs array for easy iteration
+            axs = axs.flatten()
+
+        # Underlay with the histogram of r_baseline values
+        sns.histplot(
+            r_baseline,
+            bins=n_bins,
+            kde=add_smooth_curve,
+            line_kws={"linewidth": 2.5} if add_smooth_curve else None,
+            ax=axs[i],
+            color=colour1,
+            label=alt_model_type,
+            alpha=alpha,
+            edgecolor="black" if add_bin_edges else None,
+        )
+
+        # Plot the histogram of r_unpred values in the i-th subplot
+        sns.histplot(
+            r_unpred,
+            bins=n_bins,
+            kde=add_smooth_curve,
+            line_kws={"linewidth": 2.5} if add_smooth_curve else None,
+            ax=axs[i],
+            color=colour2,
+            label=X_str,
+            alpha=alpha,
+            edgecolor="black" if add_bin_edges else None,
+        )
+
+        axs[i].set_title(f"{roi} Δr: {this_delta_r}", fontweight="bold", fontsize=14)
+        axs[i].set_xlabel("Cross-validated Pearson's r", fontsize=12)
+        axs[i].set_ylabel("Voxel count", fontsize=12)
+        axs[i].yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):d}'))
+
+        if roi == "V1":
+            legend = axs[i].legend()
+            # Set the alpha for the legend to 1 (non-transparent)
+            for legend_handle in legend.legendHandles:
+                legend_handle.set_alpha(1.0)
+
+        if roi == "V4":  # Add title and display the figure
+            plt.suptitle(f"{regname}", fontsize=16)
+            plt.tight_layout()
+            plt.show()
