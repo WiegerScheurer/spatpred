@@ -40,6 +40,7 @@ def reg_to_nifti(
     peri_angle:int|None=None,
     mean_unpred:bool=False,
     custom_subfolder:str|None=None,
+    peri_suffix:str|None=None,
 ) -> None:
     
     os.makedirs(f"{NSP.own_datapath}/{subject}/stat_volumes", exist_ok=True)
@@ -52,8 +53,8 @@ def reg_to_nifti(
     
     mean_unpred_str = "_mean_unpred" if mean_unpred else ""
     
-    peri_str = f"/peri_ecc{peri_ecc}_angle{peri_angle}{mean_unpred_str}" if peripheral else ""
-    peri_save_str = f"_peri_ecc{peri_ecc}_angle{peri_angle}{mean_unpred_str}" if peripheral else ""
+    peri_str = f"/peri_ecc{peri_ecc}_angle{peri_angle}{mean_unpred_str}{peri_suffix}" if peripheral else ""
+    peri_save_str = f"_peri_ecc{peri_ecc}_angle{peri_angle}{mean_unpred_str}{peri_suffix}" if peripheral else ""
     # This is to be able to retrieve files from folders that are not named exactly after their model (such as vggfull_gabor_baseline)
     folder_str = f"{model}{peri_str}" if custom_subfolder is None else custom_subfolder
     folder_save_str = custom_subfolder if custom_subfolder is not None else ""

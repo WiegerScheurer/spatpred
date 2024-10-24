@@ -1038,12 +1038,69 @@ def fovparafov_roiplot(
             global_max=global_max,
         )
         ax.set_title(roi, fontsize=14, fontweight="bold")
-
+    
+        # Remove top and right spines
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+    
     plt.tight_layout()
     plt.show()
     
 
-def plot_scatter_with_diagonal(baseline_data, unpred_data, x_label, y_label, ax=None):
+# def plot_scatter_with_diagonal(baseline_data, unpred_data, x_label, y_label, ax=None):
+#     """
+#     Plots a scatter plot with a diagonal line and labels.
+
+#     Parameters:
+#     baseline_data (pd.Series): Data for the x-axis.
+#     unpred_data (pd.Series): Data for the y-axis.
+#     x_label (str): Label for the x-axis.
+#     y_label (str): Label for the y-axis.
+#     ax (matplotlib.axes.Axes, optional): Axes object to plot on. If None, creates a new figure and axes.
+
+#     Returns:
+#     ax: The axes object of the plot.
+#     """
+#     if ax is None:
+#         fig, ax = plt.subplots()
+
+#     # Plot scatter
+#     ax.scatter(baseline_data, unpred_data, color="none", edgecolors="black", alpha=.9, s=1)
+
+#     # Calculate the limits for the diagonal line
+#     min_val = min(min(unpred_data), min(baseline_data))
+#     max_val = max(max(unpred_data), max(baseline_data))
+
+#     # Plot the diagonal line
+#     ax.plot([min_val, max_val], [min_val, max_val], color='red', linestyle='--', alpha=1)
+
+#     # Add x and y labels
+#     ax.set_xlabel(x_label, fontsize=16, fontweight="normal")
+#     ax.set_ylabel(y_label, fontsize=16, fontweight="normal")
+
+#     # Remove top and right spines
+#     ax.spines['top'].set_visible(False)
+#     ax.spines['right'].set_visible(False)
+
+#     # if 
+#     return ax
+
+
+
+def plot_scatter_with_diagonal(
+    baseline_data,
+    unpred_data,
+    x_label,
+    y_label,
+    ax=None,
+    figsize=(8, 6),
+    xticks_interval=None,
+    yticks_interval=None,
+    dotcolour="black",
+    add_diagonal:bool=True,
+    add_scat:bool=True,
+    legend_name=None,
+):
     """
     Plots a scatter plot with a diagonal line and labels.
 
@@ -1053,30 +1110,52 @@ def plot_scatter_with_diagonal(baseline_data, unpred_data, x_label, y_label, ax=
     x_label (str): Label for the x-axis.
     y_label (str): Label for the y-axis.
     ax (matplotlib.axes.Axes, optional): Axes object to plot on. If None, creates a new figure and axes.
+    figsize (tuple): Size of the figure if ax is None.
+    xticks_interval (int, optional): Interval for x-axis ticks.
+    yticks_interval (int, optional): Interval for y-axis ticks.
+    dotcolour (str): Colour of the scatter plot dots.
+    add_diagonal (bool): Whether to add a diagonal line.
+    add_scat (bool): Whether to add scatter points.
+    legend_name (str, optional): Name for the legend entry.
 
     Returns:
     ax: The axes object of the plot.
     """
     if ax is None:
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=figsize)
 
-    # Plot scatter
-    ax.scatter(baseline_data, unpred_data, color="none", edgecolors="black", alpha=.9, s=1)
+    if add_scat:
+        # Plot scatter
+        scatter = ax.scatter(
+            baseline_data, unpred_data, color="none", edgecolors=dotcolour, alpha=0.8, s=1, label=legend_name
+        )
 
     # Calculate the limits for the diagonal line
     min_val = min(min(unpred_data), min(baseline_data))
     max_val = max(max(unpred_data), max(baseline_data))
 
-    # Plot the diagonal line
-    ax.plot([min_val, max_val], [min_val, max_val], color='red', linestyle='--', alpha=1)
+    if add_diagonal:
+        # Plot the diagonal line
+        ax.plot(
+            [min_val, max_val], [min_val, max_val], color="black", linestyle="--", alpha=1
+        )
 
     # Add x and y labels
-    ax.set_xlabel(x_label, fontsize=16, fontweight="normal")
-    ax.set_ylabel(y_label, fontsize=16, fontweight="normal")
+    ax.set_xlabel(x_label, fontsize=14, fontweight="normal")
+    ax.set_ylabel(y_label, fontsize=14, fontweight="normal")
 
     # Remove top and right spines
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
 
-    # if 
+    # Set tick intervals if specified
+    if xticks_interval is not None:
+        ax.set_xticks(np.arange(min_val, max_val + xticks_interval, xticks_interval))
+    if yticks_interval is not None:
+        ax.set_yticks(np.arange(min_val, max_val + yticks_interval, yticks_interval))
+
+    # Add legend if legend_name is provided
+    if legend_name is not None:
+        ax.legend()
+
     return ax
