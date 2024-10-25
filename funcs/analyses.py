@@ -857,7 +857,7 @@ def _plot_df(peri_fov_df, ax, subject, aggregate_layers, ylabel:str=None):
 
     # Change the legend title
     legend.set_title("ROI")
-
+    
 def _roi_based_plot(
     peri_fov_df,
     ax,
@@ -868,6 +868,7 @@ def _roi_based_plot(
     alpha: float = 0.8,
     global_min:float=0,
     global_max:float = 0.5,
+    manual_yrange:tuple|None = None,
 ):
     # Melt the dataframe to long format
     if aggregate_layers:
@@ -899,7 +900,6 @@ def _roi_based_plot(
         legend=show_legend,
         ax=ax,
         linewidth=5,
-        errorbar=("ci", 95),
         alpha=alpha,
     )
 
@@ -932,15 +932,25 @@ def _roi_based_plot(
     )
 
     # Adjust the x-axis title
-    ax.set_xlabel("Visual field location")
+    ax.set_xlabel("Visual field location", fontsize=14)
+            
     if ylabel is not None:
-        ax.set_ylabel(ylabel, fontsize=14, fontweight="bold")
+        ax.set_ylabel(ylabel, fontsize=14, fontweight="normal")
 
     # Add margins to the plot to create white space around the scatter plot
-    ax.set_xlim(ax.get_xlim()[0] - 0.1, ax.get_xlim()[1] + 0.1)
+    ax.set_xlim(ax.get_xlim()[0] - 0.05, ax.get_xlim()[1] + 0.05)
 
     # Set the y-axis limits based on global min and max values
-    ax.set_ylim(global_min - .01, global_max + .01)
+    # ax.set_ylim(global_min - .01, global_max + .01)
+    ax.set_ylim(global_min - .001, global_max + .001)
+    
+    if manual_yrange is not None:
+        yrange = np.round(np.arange(manual_yrange[0], manual_yrange[1], manual_yrange[2]), 3)
+        ax.set_yticks(yrange)
+        ax.set_yticklabels(labels=yrange,fontweight="bold", fontsize=14)  # Change y-tick labels
+    ax.set_xticks([0, 1])  # Set x-ticks
+    ax.set_xticklabels(["Fovea", "Parafovea"], fontweight="bold", fontsize=14)  # Change x-tick labels
+
 
     if show_legend is True:
         ax.legend(
@@ -953,6 +963,7 @@ def _roi_based_plot(
             labelspacing=0.3,  # Space between legend labels,
             markerscale=0.5,
         )
+        
 
 def fovparafov_roiplot(
     subjects,
@@ -963,6 +974,8 @@ def fovparafov_roiplot(
     custom_title=None,
     cmap="cividis",
     alpha: float = 0.8,
+    figsize=(10, 10),
+    manual_yrange:tuple|None = None,
 ):
     """Quick lazy function to plot individual subject mean values of foveal and parafoveal unpredictability
 
@@ -977,7 +990,7 @@ def fovparafov_roiplot(
     rois = ["V1", "V2", "V3", "V4"]  # Replace with actual ROI names
 
     # Create subplots for each ROI in a 2x2 layout
-    fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+    fig, axs = plt.subplots(2, 2, figsize=figsize, sharex=True, sharey=True)
     axs = axs.ravel()  # Flatten the 2x2 grid for easier iteration
 
     # Set a title for the entire figure
@@ -990,7 +1003,6 @@ def fovparafov_roiplot(
     else:
         fig.suptitle(custom_title, fontsize=16, fontweight="normal")
 
-    
     global_max = 0 # This is to ensure the y axes are the same for all plots for interpretability
     global_min = 0
     for subject in subjects:
@@ -1000,7 +1012,7 @@ def fovparafov_roiplot(
         global_max = peri_data.max() if peri_data.max() > global_max else global_max
         global_min = fov_data.min() if fov_data.min() < global_min else global_min
         global_min = peri_data.min() if peri_data.min() < global_min else global_min
-    
+        
     for i, (ax, roi) in enumerate(zip(axs, rois)):
         combined_df = pd.DataFrame()
         for subject in subjects:
@@ -1023,7 +1035,7 @@ def fovparafov_roiplot(
             peri_fov_df = peri_fov_df.reset_index(drop=True)
             peri_fov_df["subject"] = subject[-1]
             combined_df = pd.concat([combined_df, peri_fov_df])
-            
+
         # Plot for each ROI
         show_legend = True if i == 0 else False  # Show legend only in the first subplot
         _roi_based_plot(
@@ -1036,56 +1048,17 @@ def fovparafov_roiplot(
             alpha=alpha,
             global_min=global_min,
             global_max=global_max,
+            manual_yrange=manual_yrange
         )
-        ax.set_title(roi, fontsize=14, fontweight="bold")
+        ax.set_title(roi, fontsize=14, fontweight="normal")
     
         # Remove top and right spines
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+
     
     plt.tight_layout()
     plt.show()
-    
-
-# def plot_scatter_with_diagonal(baseline_data, unpred_data, x_label, y_label, ax=None):
-#     """
-#     Plots a scatter plot with a diagonal line and labels.
-
-#     Parameters:
-#     baseline_data (pd.Series): Data for the x-axis.
-#     unpred_data (pd.Series): Data for the y-axis.
-#     x_label (str): Label for the x-axis.
-#     y_label (str): Label for the y-axis.
-#     ax (matplotlib.axes.Axes, optional): Axes object to plot on. If None, creates a new figure and axes.
-
-#     Returns:
-#     ax: The axes object of the plot.
-#     """
-#     if ax is None:
-#         fig, ax = plt.subplots()
-
-#     # Plot scatter
-#     ax.scatter(baseline_data, unpred_data, color="none", edgecolors="black", alpha=.9, s=1)
-
-#     # Calculate the limits for the diagonal line
-#     min_val = min(min(unpred_data), min(baseline_data))
-#     max_val = max(max(unpred_data), max(baseline_data))
-
-#     # Plot the diagonal line
-#     ax.plot([min_val, max_val], [min_val, max_val], color='red', linestyle='--', alpha=1)
-
-#     # Add x and y labels
-#     ax.set_xlabel(x_label, fontsize=16, fontweight="normal")
-#     ax.set_ylabel(y_label, fontsize=16, fontweight="normal")
-
-#     # Remove top and right spines
-#     ax.spines['top'].set_visible(False)
-#     ax.spines['right'].set_visible(False)
-
-#     # if 
-#     return ax
-
-
 
 def plot_scatter_with_diagonal(
     baseline_data,
@@ -1160,9 +1133,6 @@ def plot_scatter_with_diagonal(
 
     return ax
 
-
-
-
 def get_mean_roi_vals(df, roi:str):
     """
     Returns a DataFrame with the mean values of each ROI.
@@ -1172,7 +1142,6 @@ def get_mean_roi_vals(df, roi:str):
     filtered_values = df.df[df.df["roi"] == roi]["Mean Statistic"]
 
     return filtered_values.values
-
 
 def plot_roi_histograms(
     unpred_df,
@@ -1225,7 +1194,7 @@ def plot_roi_histograms(
 
         # Underlay with the histogram of r_baseline values
         sns.histplot(
-            r_baseline,
+            r_baseline.astype(np.float64),
             bins=n_bins,
             kde=add_smooth_curve,
             line_kws={"linewidth": 2.5} if add_smooth_curve else None,
@@ -1238,7 +1207,7 @@ def plot_roi_histograms(
 
         # Plot the histogram of r_unpred values in the i-th subplot
         sns.histplot(
-            r_unpred,
+            r_unpred.astype(np.float64),
             bins=n_bins,
             kde=add_smooth_curve,
             line_kws={"linewidth": 2.5} if add_smooth_curve else None,
@@ -1250,8 +1219,9 @@ def plot_roi_histograms(
         )
 
         axs[i].set_title(f"{roi} Δr: {this_delta_r}", fontweight="bold", fontsize=14)
-        axs[i].set_xlabel("Cross-validated Pearson's r", fontsize=12)
-        axs[i].set_ylabel("Voxel count", fontsize=12)
+        axs[0].set_xlabel("Cross-validated Pearson's r", fontsize=14)
+        axs[i].set_ylabel("")
+        axs[0].set_ylabel("Voxel count", fontsize=14)
         axs[i].yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):d}'))
 
         if roi == "V1":

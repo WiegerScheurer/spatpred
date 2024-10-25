@@ -100,72 +100,6 @@ class Utilities():
             plt.show()
             
         return y
-
-    # Function to plot the hypotheses for the feature and unpredictability sensitivity
-    def hypotheses_plot(self):
-
-        hypothesis_1 = hypothesis_2 = np.zeros((4, 5))
-        for i in range(4):
-            loc = i/3
-            # generate_bell_vector(5, 0.15, loc)
-            hypothesis_1[i, :] = np.array(self.generate_bell_vector(5, 0.0115, loc, 0.01, plot = 'n'))
-            
-        hypothesis_3 = np.zeros((4, 5))
-        for i in range(4):
-            loc = i/3
-            # generate_bell_vector(5, 0.15, loc)
-            hypothesis_3[np.abs(i - 3), :] = np.array(self.generate_bell_vector(5, 0.0115, loc, 0.01, plot = 'n'))
-            
-        # Keeping the same values for Hypothesis 4
-        hypothesis_4 = np.zeros((4, 5))
-        for i in range(4):
-            hypothesis_4[i, :] = hypothesis_1[3]
-
-        hypotheses = [hypothesis_1, hypothesis_2, hypothesis_3, hypothesis_4]
-
-        # Visual areas
-        visual_areas = ['V1', 'V2', 'V3', 'V4']
-
-        # Define a gradient colormap from dark blue to light red
-        cmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000080', '#CCCCCC', '#FFA500', '#FF0000'], N=5)
-
-        # Plotting
-        fig, axs = plt.subplots(1, 4, figsize=(np.array([14, 4.25])*1.1), sharey=True)
-            
-        plt.subplots_adjust(wspace=-1)  # Adjust this value to your liking
-
-        for i, hypothesis in enumerate(hypotheses):
-            ax = axs[i]
-            # Transpose the hypothesis so that each vector becomes a column
-            hypothesis_t = np.transpose(hypothesis)
-            bottom = np.zeros(len(hypothesis_t[0]))
-            for j, data in enumerate(hypothesis_t):
-                ax.bar(range(len(data)), data, bottom=bottom, edgecolor='none', linewidth=0.5, label=f'{j+1}', color=cmap(j))
-                bottom += data
-            ax.set_title(['Visual feature sensitivity\n\n\n', 
-                        'Hypothesis 1: \nTraditionally hierarchical\nunpredictability sensitivity\n', 
-                        'Hypothesis 2: \nReversed hierarchical\nunpredictability sensitivity\n', 
-                        'Hypothesis 3: \nNon-hierarchical\nunpredictability sensitivity\n'][i], 
-                        fontweight='normal', family = 'sans-serif', fontsize = 16)
-            ax.set_ylim(0, 1)  # Adjust the y-axis limits based on your data range
-            ax.set_yticks([0, 0.5, 1])  # Set y-ticks
-            ax.set_yticklabels([0, 50, 100])  # Change y-tick labels
-            ax.spines['top'].set_visible(False)  # Remove top border
-            ax.spines['right'].set_visible(False)  # Remove right border
-            ax.set_xticks(range(len(visual_areas)))  # Set x-ticks
-            ax.set_xticklabels(visual_areas)  # Set x-tick labels
-            ax.grid(False)  # Remove grid
-
-        # Remove 'Category' label from the bottom
-        fig.text(0.5, 0, '', ha='center', va='center', fontsize=14)
-        fig.text(0.0, 0.43, 'Layer Assignment (%)', va='center', rotation='vertical', fontweight='normal', fontsize = 15)
-        fig.text(0.105, -.01, 'Visual Areas', ha='left', fontweight='normal', fontsize = 15)
-
-        axs[0].legend(title='CNN Layer', loc = 'upper center', bbox_to_anchor=(0.5, 1.27),
-                ncol=5, fancybox=False, shadow=False, fontsize = 11.5, columnspacing = .55)
-
-        plt.tight_layout()
-        plt.show()
         
     def numpy2coords(self, boolean_array, keep_vals:bool = False):
         # Get the coordinates of the True values in the boolean array
@@ -346,73 +280,6 @@ def generate_bell_vector(n, width, location, kurtosis=0, plot = 'y'):
         plt.show()
         
     return y
-
-# Function to plot the hypotheses for the feature and unpredictability sensitivity
-def hypotheses_plot():
-
-    hypothesis_1 = hypothesis_2 = np.zeros((4, 5))
-    for i in range(4):
-        loc = i/3
-        # generate_bell_vector(5, 0.15, loc)
-        hypothesis_1[i, :] = np.array(generate_bell_vector(5, 0.0115, loc, 0.01, plot = 'n'))
-        
-    hypothesis_3 = np.zeros((4, 5))
-    for i in range(4):
-        loc = i/3
-        # generate_bell_vector(5, 0.15, loc)
-        hypothesis_3[np.abs(i - 3), :] = np.array(generate_bell_vector(5, 0.0115, loc, 0.01, plot = 'n'))
-        
-    # Keeping the same values for Hypothesis 4
-    hypothesis_4 = np.zeros((4, 5))
-    for i in range(4):
-        hypothesis_4[i, :] = hypothesis_1[3]
-
-    hypotheses = [hypothesis_1, hypothesis_2, hypothesis_3, hypothesis_4]
-
-    # Visual areas
-    visual_areas = ['V1', 'V2', 'V3', 'V4']
-
-    # Define a gradient colormap from dark blue to light red
-    cmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000080', '#CCCCCC', '#FFA500', '#FF0000'], N=5)
-
-    # Plotting
-    fig, axs = plt.subplots(1, 4, figsize=(np.array([14, 4.25])*1.1), sharey=True)
-        
-    plt.subplots_adjust(wspace=-1)  # Adjust this value to your liking
-
-    for i, hypothesis in enumerate(hypotheses):
-        ax = axs[i]
-        # Transpose the hypothesis so that each vector becomes a column
-        hypothesis_t = np.transpose(hypothesis)
-        bottom = np.zeros(len(hypothesis_t[0]))
-        for j, data in enumerate(hypothesis_t):
-            ax.bar(range(len(data)), data, bottom=bottom, edgecolor='none', linewidth=0.5, label=f'{j+1}', color=cmap(j))
-            bottom += data
-        ax.set_title(['Visual feature sensitivity\n\n\n', 
-                    'Hypothesis 1: \nTraditionally hierarchical\nunpredictability sensitivity\n', 
-                    'Hypothesis 2: \nReversed hierarchical\nunpredictability sensitivity\n', 
-                    'Hypothesis 3: \nNon-hierarchical\nunpredictability sensitivity\n'][i], 
-                    fontweight='normal', family = 'sans-serif', fontsize = 16)
-        ax.set_ylim(0, 1)  # Adjust the y-axis limits based on your data range
-        ax.set_yticks([0, 0.5, 1])  # Set y-ticks
-        ax.set_yticklabels([0, 50, 100])  # Change y-tick labels
-        ax.spines['top'].set_visible(False)  # Remove top border
-        ax.spines['right'].set_visible(False)  # Remove right border
-        ax.set_xticks(range(len(visual_areas)))  # Set x-ticks
-        ax.set_xticklabels(visual_areas)  # Set x-tick labels
-        ax.grid(False)  # Remove grid
-
-    # Remove 'Category' label from the bottom
-    fig.text(0.5, 0, '', ha='center', va='center', fontsize=14)
-    fig.text(0.0, 0.43, 'Layer Assignment (%)', va='center', rotation='vertical', fontweight='normal', fontsize = 15)
-    fig.text(0.105, -.01, 'Visual Areas', ha='left', fontweight='normal', fontsize = 15)
-
-    axs[0].legend(title='CNN Layer', loc = 'upper center', bbox_to_anchor=(0.5, 1.27),
-            ncol=5, fancybox=False, shadow=False, fontsize = 11.5, columnspacing = .55)
-
-    plt.tight_layout()
-    plt.show()
-    
     
 def numpy2coords(boolean_array, keep_vals:bool = False):
     # Get the coordinates of the True values in the boolean array
@@ -498,8 +365,6 @@ def _get_voxname_for_xyz(xyz_to_voxname, x, y, z):
 
     return voxname
 
-# from funcs.utility import generate_bell_vector
-
 # Function to plot the hypotheses for the feature and unpredictability sensitivity
 def hypotheses_plot(n_layers:int=5, bell_width:float=.0115, bell_loc:float=3.0, bell_kurtosis:float=.01):
 
@@ -544,7 +409,7 @@ def hypotheses_plot(n_layers:int=5, bell_width:float=.0115, bell_loc:float=3.0, 
             "#E90000",
             "#800000",
         ],
-        N=13,
+        N=n_layers,
     )
 
     # Plotting
