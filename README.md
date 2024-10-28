@@ -1,5 +1,5 @@
-# Spatial prediction across human visual cortex during naturalistic vision.
+# Spatial prediction across human visual cortex during natural vision.
 
-A study leveraging Natural Scenes Dataset and reconstructing autoencoders to investigate spatial predictability effects across human visual cortex. 
+Study in which we use generative neural networks to quantify the inherent spatial predictability of natural images and relate the unpredictability scores to the 7T fMRI neural recordings of human visual cortex.
 
 This codebase has not yet been polished for public use.

@@ -90,6 +90,10 @@ elif args.analysis_tag is not None:
 else:
     custom_tag = ""
 
+
+print(f"Currently running the predictability analysis for subject: {args.subject}")
+print(f"Custom tag of this analysis is: {custom_tag}")
+
 # TODO: also return the cor_scores for the uninformative x matrix and create brainplots where
 # the r-values are plotted on the brain for both the informative and uninformative x matrices
 # Or well, more importantly find a way to visualise how they compare, because otherwise it's
