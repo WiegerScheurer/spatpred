@@ -365,6 +365,7 @@ class RegData:
         input_df: pd.DataFrame = None,
         figsize: Tuple[float, float] = (6, 5.5),
         n_layers: int|None = None,
+        legend:bool=True,
     ):
         """
         Assigns layers to each ROI based on the maximum value in each row of a DataFrame.
@@ -395,23 +396,6 @@ class RegData:
         lay_colours = max(self.cnn_layers) - self.cnn_layers[0] + 1 if n_layers is None else n_layers
         
         print(f"Number of layers: {lay_colours}") if verbose else None
-        
-        
-        # Light colourmap, worked better with fewer layers
-        # barcmap = LinearSegmentedColormap.from_list(
-        #     "NavyBlueVeryLightGreyDarkRed",
-        #     ["#000080", "#CCCCCC", "#FFA500", "#FF0000"],
-        #     N=lay_colours,
-        # )
-
-        # barcmap = LinearSegmentedColormap.from_list(
-        #     "NavyBlueVeryLightGreyDarkRed",
-        #     ["#000039", "#000080", "#CCCCCC", "#FFA000", "#FF0025", "#800000"],
-        #     N=13,
-        # )
-        
-        # barcmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000039', '#000090', '#6699CC', '#CCCCCC', '#F5DEB3', '#FFD700', '#FFA500', '#FF4500', '#800000'], N=13)
-        # barcmap = LinearSegmentedColormap.from_list('NavyBlueVeryLightGreyDarkRed', ['#000039', '#000090', '#6699CC', '#90DEFF','#CBEAE8', '#E9E9E9', '#F5DEB3', '#FFD700', '#FFA500', '#FF4500', '#800000'], N=13)
 
         barcmap = LinearSegmentedColormap.from_list(
             "NavyBlueVeryLightGreyDarkRed",
@@ -447,7 +431,6 @@ class RegData:
         # OCCUPY A MUCH SMALLER RANGE THAN THE MAX VALUES, BUT THEY ARE STILL A BETTER INDICATOR
         # OF THE RELATIVE IMPORTANCE OF THE LAYERS, AND THE GRADIENT ALONG THE CORTICAL HIERARCHY
         elif max_or_weighted == "weighted":
-            # df[assign_str] = df[assign_str].round().astype(int)
 
             # Calculate the proportions of max_indices within each ROI
             df_prop = (
@@ -455,7 +438,6 @@ class RegData:
                 .value_counts(normalize=True)
                 .unstack(fill_value=0)
             )
-
 
         # Plot the proportions using a stacked bar plot
         ax = df_prop.plot(
@@ -465,13 +447,11 @@ class RegData:
             edgecolor="none",
             width=0.8,
             figsize=figsize,
+            legend=legend,
         )
 
         # Calculate the number of voxels in each ROI
         voxel_counts = df['roi'].value_counts()
-
-        # # Modify the x-axis labels to include voxel counts
-        # ax.set_xticklabels([f'{label}\n({voxel_counts[label]})' for label in df_prop.index], fontsize=14, fontweight="normal", rotation=0)
 
         # Remove the existing x-axis labels
         ax.set_xticklabels([])
@@ -489,31 +469,27 @@ class RegData:
         )  # Set y-tick labels
         ax.spines["top"].set_visible(False)  # Remove top border
         ax.spines["right"].set_visible(False)  # Remove right border
-        # plt.xlabel("ROI", fontsize=20)
         plt.xticks(fontsize=16, fontweight="bold", rotation=0)
 
         leg_colours = [
             patches.Patch(
-                # color=barcmap(i / (len(self.cnn_layers) - 1)), label=str(layer)
-                # color=barcmap(i / (len(self.cnn_layers) - 1)),
                 color=barcmap(i / (len(self.cnn_layers))),
                 label=str(layer - self.cnn_layers[0] + 1),
-                # color=barcmap(i / (len(self.cnn_layers) - self.cnn_layers[0])), label=str(layer)
             )
             for i, layer in enumerate(self.cnn_layers)
         ]
-
-        # Create legend
-        legend = plt.legend(
-            handles=leg_colours,
-            title="CNN\nLayer",
-            loc="center right",
-            bbox_to_anchor=(1.15, 0.5),
-            ncol=1,
-            fancybox=False,
-            shadow=False,
-            fontsize=10,
-        )
+        if legend:
+            # Create legend
+            legend = plt.legend(
+                handles=leg_colours,
+                title="CNN\nLayer",
+                loc="center right",
+                bbox_to_anchor=(1.15, 0.5),
+                ncol=1,
+                fancybox=False,
+                shadow=False,
+                fontsize=10,
+            )
         
         ax.set_xlabel("")
         
@@ -540,6 +516,7 @@ class RegData:
         overlay: bool = False,
         fit_to: int = None,
         plot_ci:bool = True,
+        save_as: str | None = None,
     ):
         """
         Plots the mean values of each ROI across layers.
@@ -675,6 +652,9 @@ class RegData:
             (catplot.ax if plot_catplot else ax).set_title(title)
 
         plt.show()
+        
+        if save_as is not None:
+            fig.savefig(save_as)
 
     def _delta_r_lines(self, cmap: str = "Reds"):
         """
