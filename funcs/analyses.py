@@ -538,6 +538,7 @@ def _get_peri_df(
     statistic: str,
     angles: list = [90, 210, 330],
     aggregate_layers: bool = True,
+    mean_stats:bool = True,
 ):
 
     # Peripheral results, delta r unpredictability
@@ -567,9 +568,12 @@ def _get_peri_df(
         else:
             peri_df = pd.concat([peri_df, results.df])
 
-    # Group by 'roi' and calculate the mean, excluding the first three columns
-    peri_grouped = peri_df.iloc[:, 3:].groupby("roi").mean()
-
+    if mean_stats:
+        # Group by 'roi' and calculate the mean, excluding the first three columns
+        peri_grouped = peri_df.iloc[:, 3:].groupby("roi").mean()
+    else:
+        peri_grouped = peri_df.iloc[:, 3:].groupby("roi").apply(lambda x: x)
+                                                   
     if aggregate_layers:
         # Calculate the mean over all columns
         peri_mean = peri_grouped.mean(axis=1)
@@ -585,7 +589,7 @@ def _get_peri_df(
 
 
 def _get_fovea_df(
-    subject: str, statistic: str = "delta_r", aggregate_layers: bool = True
+    subject: str, statistic: str = "delta_r", aggregate_layers: bool = True, mean_stats:bool = True
 ):
 
     if statistic == "delta_r_baseline":
@@ -610,9 +614,11 @@ def _get_fovea_df(
     )  # Norm layer is not in the encoding featmaps (i think)
 
     fov_df = fov_results.df
-
-    # Group by 'roi' and calculate the mean, excluding the first three columns
-    fov_grouped = fov_df.iloc[:, 3:].groupby("roi").mean()
+    if mean_stats:
+        # Group by 'roi' and calculate the mean, excluding the first three columns
+        fov_grouped = fov_df.iloc[:, 3:].groupby("roi").mean()
+    else:
+        fov_grouped = fov_df.iloc[:, 3:].groupby("roi").apply(lambda x: x)
 
     if aggregate_layers:
         # Calculate the mean over all columns
@@ -964,6 +970,7 @@ def _roi_based_plot(
             markerscale=0.5,
         )
         
+        
 
 def fovparafov_roiplot(
     subjects,
@@ -975,6 +982,7 @@ def fovparafov_roiplot(
     cmap="cividis",
     alpha: float = 0.8,
     figsize=(10, 10),
+    figdims=(2, 2),
     manual_yrange:tuple|None = None,
 ):
     """Quick lazy function to plot individual subject mean values of foveal and parafoveal unpredictability
@@ -990,7 +998,7 @@ def fovparafov_roiplot(
     rois = ["V1", "V2", "V3", "V4"]  # Replace with actual ROI names
 
     # Create subplots for each ROI in a 2x2 layout
-    fig, axs = plt.subplots(2, 2, figsize=figsize, sharex=True, sharey=True)
+    fig, axs = plt.subplots(figdims[0], figdims[1], figsize=figsize, sharex=True, sharey=True)
     axs = axs.ravel()  # Flatten the 2x2 grid for easier iteration
 
     # Set a title for the entire figure
