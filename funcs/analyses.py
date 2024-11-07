@@ -773,96 +773,166 @@ def fovperi_per_lay(
 
     return long_df
 
-def fovperi_plot(subjects, statistic:str="delta_r", angles:list=[90, 210, 330], aggregate_layers:bool=True, ylabel:str=None, custom_title:str=None):
-    """Quick lazy function to plot individual subject mean values of foveal and parafoveal unpredictability 
 
+def fovperi_per_lay(
+    subject: str,
+    statistic: str = "delta_r",
+    angles: list = [90, 210, 330],
+    alpha=0.5,
+    cmap="copper",
+    # central_folder: str = "unpred/vggfull_gabor_baseline_optim",
+    # peri_folder: str = "",
+    global_min:float=0,
+    global_max:float = 0.5,
+    manual_yrange:tuple|None = None,
+    figsize:tuple = (5, 5),
+    add_title:bool = True,
+):
+    """Function to plot pairwise comparisons of fovea and parafovea based on various statistics across VGG layers.
+        It is a bit sloppy still, but works.
     Args:
-        subjects (str or list): The subject(s)
-    """    
-    # If subjects is a string, make it a list
-    if isinstance(subjects, str):
-        subjects = [subjects]
+        subject (str): _description_
+        statistic (str, optional): _description_. Defaults to "delta_r".
+        angles (list, optional): _description_. Defaults to [90, 210, 330].
+        alpha (float, optional): _description_. Defaults to 0.5.
+        cmap (str, optional): _description_. Defaults to "copper".
+        central_folder (str, optional): _description_. Defaults to "unpred/vggfull_gabor_baseline_optim".
+        peri_folder (str, optional): _description_. Defaults to f"unpred/vggfull/peri_ecc2.0_angle{angle}_gabor_optim".
 
-    # Calculate the number of rows and columns for the subplots
-    num_plots = len(subjects)
-    num_rows = int(math.sqrt(num_plots))
-    num_cols = num_plots // num_rows
-    num_cols += num_plots % num_rows
+    Returns:
+        _type_: _description_
+    """
+    peri_grouped = _get_peri_df(subject, statistic, angles, aggregate_layers=False)
+    fov_grouped = _get_fovea_df(subject, statistic, aggregate_layers=False)
 
-    # Create subplots
-    fig, axs = plt.subplots(num_rows, num_cols, figsize=(4 * num_cols, 4 * num_rows))
+    # Add a new column 'source' to each dataframe
+    fov_grouped["source"] = "Fovea"
+    peri_grouped["source"] = "Parafovea"
 
-    # Set a title for the entire figure
-    if custom_title is None:
-        fig.suptitle(f"Unpredictability sensitivity effects for foveal vs. para-foveal natural image patches (para-foveal patches at angles: {angles})", fontsize=16, fontweight="bold")
-    else:
-        fig.suptitle(custom_title, fontsize=16, fontweight="bold")
-    # If there's only one subplot, axs is not a list
-    if num_plots == 1:
-        axs = [axs]
+    # Concatenate the two dataframes
+    combined_df = pd.concat([fov_grouped, peri_grouped])
 
-    # If axs is a numpy array, ravel it
-    if isinstance(axs, np.ndarray):
-        axs = axs.ravel()
+    # Reset the index
+    combined_df.reset_index(inplace=True)
 
-    for ax, subject in zip(axs, subjects):
-        fov_data = _get_fovea_df(subject, statistic, aggregate_layers)
-        peri_data = _get_peri_df(subject, statistic, angles, aggregate_layers)
-
-        if aggregate_layers:
-            peri_fov_df = pd.concat([fov_data, peri_data], axis=1)
-            peri_fov_df.columns = ['Fovea', 'Parafovea']
-        else:
-            # Stack the dataframes vertically
-            fov_data['Location'] = 'Fovea'
-            peri_data['Location'] = 'Parafovea'
-            peri_fov_df = pd.concat([fov_data, peri_data], axis=0)
-
-        peri_fov_df = peri_fov_df.reset_index()
-
-        _plot_df(peri_fov_df, ax, subject, aggregate_layers, ylabel)
-
-    # Remove unused subplots
-    for ax in axs[num_plots:]:
-        fig.delaxes(ax)
-
-    plt.tight_layout()
-    plt.show()
-
-def _plot_df(peri_fov_df, ax, subject, aggregate_layers, ylabel:str=None):
-    # Create a color map based on the unique values in the 'roi' column
-    colors = plt.cm.hot(np.linspace(0, 1, len(peri_fov_df['roi'].unique())+2))
+    y_axis_str = "Δr values" if statistic == "delta_r" else "β coefficient"
 
     # Melt the dataframe to long format for easier plotting with seaborn
-    if aggregate_layers:
-        long_df = peri_fov_df.melt(id_vars='roi', value_vars=['Fovea', 'Parafovea'], var_name='a', value_name='Δr values')
+    long_df = combined_df.melt(
+        id_vars=["roi", "source"],
+        value_vars=combined_df.columns[:-1],
+        var_name="abstraction_level",
+        value_name=y_axis_str,
+    )
+
+    # Extract the integer value after the last "_" in 'abstraction_level'
+    long_df["abstraction_order"] = (
+        long_df["abstraction_level"].str.split("_").str[-1].astype(int)
+    )
+
+    # Create the 'zorder' column based on the reverse of 'abstraction_order'
+    long_df["zorder"] = (
+        long_df["abstraction_order"].max() - long_df["abstraction_order"] + 1
+    )
+
+    # Create a custom order for the abstraction levels (change this to fit your desired order)
+    abstraction_level_order = sorted(
+        long_df["abstraction_level"].unique(),
+        key=lambda x: int(x.split("_")[-1]),
+        reverse=True,
+    )
+
+    # Define the colormap and set the custom order for abstraction levels
+    if cmap == "layassign":
+        cmap = LinearSegmentedColormap.from_list(
+            "NavyBlueVeryLightGreyDarkRed",
+            [
+                "#000039",
+                "#0000C0",
+                "#426CFF",
+                "#8DC2FF",
+                "#BDF7FF",
+                "#E3E3E3",
+                "#FFC90A",
+                "#FF8B00",
+                "#FF4D00",
+                "#E90000",
+                "#800000",
+            ],
+            N=16,
+        )
     else:
-        # Melt the dataframe including the new column names
-        long_df = peri_fov_df.melt(id_vars=['roi', 'Location'], value_vars=[col for col in peri_fov_df.columns if col not in ['roi', 'Location']], var_name='Layer', value_name='Δr values')
+        cmap = plt.cm.get_cmap(cmap, len(abstraction_level_order))
 
-    # Create a color palette with a different color for each unique 'roi' value
-    palette = dict(zip(peri_fov_df['roi'].unique(), colors))
+    # Convert the colormap to a list of colors
+    cmap = [cmap(i) for i in range(cmap.N)][::-1]
 
-    # Create the line plot without a legend
-    sns.lineplot(x='a', y='Δr values', hue='roi', data=long_df, palette=palette, legend=False, ax=ax, linewidth=3)
+    # Create a FacetGrid with 'roi' as the column and use the custom order for 'abstraction_level'
+    g = sns.FacetGrid(
+        long_df,
+        col="roi",
+        hue="abstraction_level",
+        hue_order=abstraction_level_order,
+        col_wrap=2,
+        aspect=1,
+        palette=cmap,
+        height=4,
+    )
 
-    # Add the scatter plot
-    sns.scatterplot(x='a', y='Δr values', hue='roi', data=long_df, palette=palette, ax=ax, s=100)
+    # Map the lineplot to the FacetGrid
+    g.map(sns.lineplot, "source", y_axis_str, alpha=alpha, linewidth=3, zorder=1)
+
+    # Map the scatterplot to the FacetGrid
+    g.map(sns.scatterplot, "source", y_axis_str, alpha=1, s=130, zorder=2)
+
+    # Get the handles and labels of the current legend
+    handles, labels = g.axes.flat[0].get_legend_handles_labels()
+
+    # Modify the labels to only the integer values at the end of the string label
+    labels = [int(label.split("_")[-1]) - 1 for label in labels]
+
+    # Get the unique labels
+    labels = list(set(labels))[::-1]
 
     # Change the x-axis title
-    ax.set_xlabel('Visual field location')
-    if ylabel is not None:
-        ax.set_ylabel(ylabel)
-    # ax.set_ylabel('β coefficient')
+    # g.set_xlabels("Visual field location", fontsize=14, fontweight="bold")
 
-    ax.set_title(f"Subject {subject[-1]}")
-    ax.set_ylim(bottom=0)
+    # Change the y-axis title
+    g.set_ylabels(y_axis_str, fontsize=14, fontweight="bold")
 
-    # Get the current legend
-    legend = ax.legend()
+    # Set the title for each subplot
+    for ax, title in zip(g.axes.flat, combined_df["roi"].unique()):
+        ax.set_title(f"{title}", fontsize=18, fontweight="bold")
+        ax.set_xlim(ax.get_xlim()[0] - 0.02, ax.get_xlim()[1] + 0.02)
+        
+        
+    # Add margins to the plot to create white space around the scatter plot
+    ax.set_xlim(ax.get_xlim()[0] - 0.05, ax.get_xlim()[1] + 0.05)
 
-    # Change the legend title
-    legend.set_title("ROI")
+    # Set the y-axis limits based on global min and max values
+    # ax.set_ylim(global_min - .01, global_max + .01)
+    ax.set_ylim(global_min - .001, global_max + .001)
+    
+    if manual_yrange is not None:
+        yrange = np.round(np.arange(manual_yrange[0], manual_yrange[1], manual_yrange[2]), 3)
+        ax.set_yticks(yrange)
+        g.set_yticklabels(labels=yrange,fontweight="bold", fontsize=14)  # Change y-tick labels
+        
+    ax.set_xticks([0, 1])  # Set x-ticks
+    g.set_xticklabels(["Fovea", "Parafovea"], fontweight="bold", fontsize=14)  # Change x-tick labels
+
+    # g.set_xticklabels(["Fovea", "Parafovea"], fontsize=14)
+    if add_title:
+        g.fig.suptitle(
+            f"Unpredictability effects in fovea vs. parafovea\nSubject {subject[-1]}, patch angle {angles}°",
+            fontsize=14,
+            y=1.06,
+            fontweight="bold",
+        )
+
+    plt.show()
+
+    return long_df
     
 def _roi_based_plot(
     peri_fov_df,
